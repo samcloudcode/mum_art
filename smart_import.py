@@ -11,11 +11,11 @@ from sync.importer_smart import SmartImporter
 def main():
     print("🧠 Smart Import Script (with duplicate handling)", flush=True)
 
-    # Check CSV files
+    # Check CSV files - using clean versions without calculated fields
     csv_dir = Path('airtable_export')
-    prints_csv = csv_dir / 'Prints-Grid view.csv'
-    dist_csv = csv_dir / 'Distributors-Grid view.csv'
-    editions_csv = csv_dir / 'Editions-All Records.csv'
+    prints_csv = csv_dir / 'Prints-Grid view.csv'  # No clean version for prints
+    dist_csv = csv_dir / 'Distributors-Grid view clean.csv'  # Use clean version
+    editions_csv = csv_dir / 'Editions-All Records clean.csv'  # Use clean version
 
     for csv_file in [prints_csv, dist_csv, editions_csv]:
         if not csv_file.exists():

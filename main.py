@@ -54,11 +54,11 @@ def cmd_db_stats(args):
 def cmd_sync(args):
     """Sync data from Airtable CSV exports."""
     print("Starting sync command...", flush=True)
-    # Check CSV files exist
+    # Check CSV files exist - using clean versions without calculated fields
     csv_dir = Path('airtable_export')
-    prints_csv = csv_dir / 'Prints-Grid view.csv'
-    dist_csv = csv_dir / 'Distributors-Grid view.csv'
-    editions_csv = csv_dir / 'Editions-All Records.csv'
+    prints_csv = csv_dir / 'Prints-Grid view.csv'  # No clean version for prints
+    dist_csv = csv_dir / 'Distributors-Grid view clean.csv'  # Use clean version
+    editions_csv = csv_dir / 'Editions-All Records clean.csv'  # Use clean version
 
     for csv_file in [prints_csv, dist_csv, editions_csv]:
         if not csv_file.exists():

@@ -181,9 +181,8 @@ class SmartImporter:
                     # Add sync metadata
                     cleaned['last_synced_at'] = datetime.utcnow()
 
-                    # Remove None values for bulk insert to work properly
-                    cleaned = {k: v for k, v in cleaned.items() if v is not None}
-
+                    # Keep all fields for consistent column mapping in bulk insert
+                    # (removing None values would create inconsistent column sets)
                     batch_mappings.append(cleaned)
 
                     # Insert batch when full using ON CONFLICT

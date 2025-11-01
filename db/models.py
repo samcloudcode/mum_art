@@ -51,12 +51,12 @@ class Distributor(Base):
     contact_number = Column(String(50))
     web_address = Column(String(500))
 
-    # Financial fields
-    net_revenue = Column(DECIMAL(10, 2))
-    distributor_revenue = Column(DECIMAL(10, 2))
-    retail_amount_sold = Column(DECIMAL(10, 2))
-    net_revenue_unpaid = Column(DECIMAL(10, 2))
-    net_revenue_unpaid_by_invoice_month = Column(DECIMAL(10, 2))
+    # Financial fields (removed calculated fields - kept only for reference)
+    # These fields should be calculated on-demand from editions data:
+    # - net_revenue: sum of (retail_price * (1 - commission_percentage/100)) for sold editions
+    # - distributor_revenue: sum of (retail_price * commission_percentage/100) for sold editions
+    # - retail_amount_sold: sum of retail_price for sold editions
+    # - net_revenue_unpaid: sum of net amounts where settled = false
     last_update_date = Column(Date)
 
     # Sync metadata
@@ -104,19 +104,22 @@ class Edition(Base):
     # Sales Information
     retail_price = Column(DECIMAL(10, 2))
     date_sold = Column(Date)
-    invoice_amount = Column(DECIMAL(10, 2))
+    # Removed calculated fields:
+    # - invoice_amount: calculated as retail_price * (1 - commission_percentage/100)
+    # - commission_amount: calculated as retail_price * commission_percentage/100
     commission_percentage = Column(DECIMAL(5, 2))
-    commission_amount = Column(DECIMAL(10, 2))
 
     # Gallery Tracking
     date_in_gallery = Column(Date)
-    weeks_in_gallery = Column(Integer)
+    # Removed calculated field:
+    # - weeks_in_gallery: calculated from date_in_gallery to date_sold
 
     # Additional Info
     notes = Column(Text)
     payment_note = Column(Text)
-    month_sold = Column(String(20))
-    year_sold = Column(Integer)
+    # Removed calculated fields:
+    # - month_sold: extracted from date_sold
+    # - year_sold: extracted from date_sold
 
     # Sync metadata
     last_synced_at = Column(TIMESTAMP)

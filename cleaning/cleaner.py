@@ -295,13 +295,11 @@ class AirtableDataCleaner:
             'notes': AirtableDataCleaner.clean_text(row.get('Notes')),
             'contact_number': AirtableDataCleaner.clean_text(row.get('Contact Number')),
             'web_address': AirtableDataCleaner.clean_text(row.get('Web address')),
-            'net_revenue': AirtableDataCleaner.clean_currency(row.get('Net Revenue')),
-            'distributor_revenue': AirtableDataCleaner.clean_currency(row.get('Distributor Revenue')),
-            'retail_amount_sold': AirtableDataCleaner.clean_currency(row.get('Retail Amount Sold')),
-            'net_revenue_unpaid': AirtableDataCleaner.clean_currency(row.get('Net Revenue Unpaid')),
-            'net_revenue_unpaid_by_invoice_month': AirtableDataCleaner.clean_currency(
-                row.get('Net Revenue Unpaid by Invoice Month')
-            ),
+            # Removed calculated fields - these should be computed on-demand:
+            # - net_revenue: sum of (retail_price * (1 - commission_percentage/100)) for sold editions
+            # - distributor_revenue: sum of (retail_price * commission_percentage/100) for sold editions
+            # - retail_amount_sold: sum of retail_price for sold editions
+            # - net_revenue_unpaid: sum of net amounts where settled = false
             'last_update_date': AirtableDataCleaner.parse_date(row.get('Date')),
         }
 
@@ -317,14 +315,6 @@ class AirtableDataCleaner:
         # If we couldn't parse from "Print - Edition", try "Print" field
         if not print_name:
             print_name = AirtableDataCleaner.standardize_print_name(row.get('Print'))
-
-        # Clean month sold field that has #ERROR! issues
-        month_sold = AirtableDataCleaner.clean_text(row.get('Month Sold'))
-        if month_sold == '#ERROR!' or month_sold == 'ERROR':
-            month_sold = None
-
-        # Clean weeks in gallery (has many NaN values)
-        weeks_in_gallery = AirtableDataCleaner.clean_integer(row.get('Weeks in Gallery'))
 
         return {
             'airtable_id': row.get('record_id'),
@@ -353,19 +343,20 @@ class AirtableDataCleaner:
             # Sales information
             'retail_price': AirtableDataCleaner.clean_currency(row.get('Retail Price')),
             'date_sold': AirtableDataCleaner.parse_date(row.get('Date Sold')),
-            'invoice_amount': AirtableDataCleaner.clean_currency(row.get('Invoice Amount')),
             'commission_percentage': AirtableDataCleaner.clean_percentage(row.get('Commission')),
-            'commission_amount': AirtableDataCleaner.clean_currency(row.get('Commissions')),
+            # Removed calculated fields - computed on-demand:
+            # - invoice_amount: retail_price * (1 - commission_percentage/100)
+            # - commission_amount: retail_price * commission_percentage/100
+            # - weeks_in_gallery: days between date_in_gallery and date_sold / 7
+            # - month_sold: extracted from date_sold
+            # - year_sold: extracted from date_sold
 
             # Gallery tracking
             'date_in_gallery': AirtableDataCleaner.parse_date(row.get('Date in Gallery')),
-            'weeks_in_gallery': weeks_in_gallery,
 
             # Additional info
             'notes': AirtableDataCleaner.clean_text(row.get('Notes')),
             'payment_note': AirtableDataCleaner.clean_text(row.get('Payment')),
-            'month_sold': month_sold,
-            'year_sold': AirtableDataCleaner.clean_integer(row.get('Year Sold')),
 
             # Distributor name (for lookup)
             'distributor_name': AirtableDataCleaner.standardize_distributor_name(

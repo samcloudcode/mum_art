@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 
 from .models import Base, Print, Distributor, Edition, SyncLog
 
-load_dotenv()
+# Override system env vars with .env file
+load_dotenv(override=True)
 
 
 class DatabaseManager:

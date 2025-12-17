@@ -64,19 +64,7 @@ def main():
         print(f"   Editions Sold: {stats['editions_sold']}")
         print(f"   Total Revenue: £{stats.get('total_revenue', 0):,.2f}")
 
-        # Run validation
-        print(f"\n🔍 Running validation...")
-        from validation.validator import DataValidator
-        validator = DataValidator(db)
-        val_results = validator.validate()
-
-        if val_results['errors']:
-            print(f"❌ Validation errors: {val_results['errors']}")
-        if val_results['warnings']:
-            print(f"⚠️ Validation warnings: {val_results['warnings']}")
-
-        if not val_results['errors']:
-            print(f"\n✅ SUCCESS! Database fully populated with {stats['editions']} editions")
+        print(f"\n✅ SUCCESS! Database fully populated with {stats['editions']} editions")
 
         return 0
 

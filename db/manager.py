@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 from .models import Base, Print, Distributor, Edition, SyncLog
@@ -145,7 +145,7 @@ class DatabaseManager:
         import json
 
         stats = self.get_detailed_stats()
-        stats['backup_date'] = datetime.utcnow().isoformat()
+        stats['backup_date'] = datetime.now(timezone.utc).isoformat()
         stats['database_url'] = self.connection_string.split('@')[-1]  # Hide credentials
 
         with open(filepath, 'w') as f:

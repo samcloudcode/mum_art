@@ -4,8 +4,7 @@
 import re
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
-from decimal import Decimal
-import pandas as pd
+from decimal import Decimal, InvalidOperation
 
 class AirtableDataCleaner:
     """Enhanced cleaner for large-scale Airtable data with name standardization."""
@@ -130,7 +129,7 @@ class AirtableDataCleaner:
 
         try:
             return Decimal(clean_val)
-        except:
+        except (ValueError, TypeError, InvalidOperation):
             return None
 
     @staticmethod
@@ -144,7 +143,7 @@ class AirtableDataCleaner:
 
         try:
             return Decimal(clean_val)
-        except:
+        except (ValueError, TypeError, InvalidOperation):
             return None
 
     @staticmethod
@@ -167,7 +166,7 @@ class AirtableDataCleaner:
             if '.' in str(value):
                 return int(float(value))
             return int(value)
-        except:
+        except (ValueError, TypeError):
             return None
 
     @staticmethod
@@ -432,85 +431,3 @@ class AirtableDataCleaner:
                 issues.append(f"Invalid commission percentage: {comm}")
 
         return issues
-
-
-def test_cleaner():
-    """Test the enhanced data cleaner with real data."""
-
-    # Test print name standardization
-    test_names = [
-        'NoMansFort ',
-        'COWES RACE DAY',
-        'BEMLBSL',
-        'St Catherines',
-        'SEAGV2L',
-        'quayrocks landscape',
-        'Royal Yacht Squadron',
-        'NERTHEK',
-    ]
-
-    print("Testing Print Name Standardization:")
-    print("-" * 50)
-    for name in test_names:
-        clean = AirtableDataCleaner.standardize_print_name(name)
-        print(f"{name:25} -> {clean}")
-
-    print("\n\nTesting Edition Parsing:")
-    print("-" * 50)
-    test_editions = [
-        'St Catherines - 87',
-        'COWES RACE DAY - 83',
-        'Royal Yacht Squadron - 131',
-        'NoMansFort - -5',  # Negative edition number
-        'BEMLBSL - 200',
-    ]
-
-    for edition in test_editions:
-        print_name, edition_num = AirtableDataCleaner.extract_edition_info(edition)
-        print(f"{edition:30} -> Print: {print_name:25} Edition: {edition_num}")
-
-
-if __name__ == "__main__":
-    test_cleaner()
-
-    # If CSV exists, test with real data
-    try:
-        import pandas as pd
-
-        print("\n\nAnalyzing Real Data:")
-        print("=" * 50)
-
-        df = pd.read_csv('airtable_export/Editions-All Records.csv', encoding='utf-8-sig')
-        print(f"Total records: {len(df)}")
-
-        # Skip empty records and clean first 10 valid records as sample
-        valid_df = df[(df['Print - Edition'] != ' - ') & (df['Print - Edition'].notna())]
-        print(f"Valid records: {len(valid_df)} out of {len(df)} total")
-
-        print("\nCleaning first 10 valid records...")
-        issues_found = []
-
-        for idx, row in valid_df.head(10).iterrows():
-            cleaned = AirtableDataCleaner.clean_edition_data(row.to_dict())
-            validation_issues = AirtableDataCleaner.validate_cleaned_edition(cleaned)
-
-            if validation_issues:
-                issues_found.append((idx, cleaned['edition_display_name'], validation_issues))
-
-            print(f"\nRecord {idx}:")
-            print(f"  Original: {row.get('Print - Edition')}")
-            print(f"  Print: {cleaned['print_name']}")
-            print(f"  Edition: {cleaned['edition_number']}")
-            print(f"  Price: £{cleaned['retail_price'] if cleaned['retail_price'] else 'N/A'}")
-            print(f"  Sold: {cleaned['is_sold']}")
-
-        if issues_found:
-            print("\n\nValidation Issues Found:")
-            print("-" * 50)
-            for idx, name, issues in issues_found:
-                print(f"Record {idx} ({name}):")
-                for issue in issues:
-                    print(f"  - {issue}")
-
-    except FileNotFoundError:
-        print("\nCSV file not found. Skipping real data test.")

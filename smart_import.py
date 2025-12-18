@@ -1,5 +1,30 @@
 #!/usr/bin/env python
-"""Smart import script with duplicate handling."""
+"""
+Smart Import Script - Import Airtable CSV data to Supabase PostgreSQL
+
+This is the main entry point for importing art print inventory data.
+It clears all existing data and performs a fresh import from CSV files.
+
+Usage:
+    echo "IMPORT" | uv run python smart_import.py
+
+Required CSV files (in airtable_export/):
+    - Prints-Grid view.csv
+    - Distributors-Grid view clean.csv
+    - Editions-All Records clean.csv
+
+Optional:
+    - duplicate_handling_decisions.csv: Pre-defined rules for handling
+      duplicate edition records. Format: index,edition,size,frame,...,action
+      where action is 'KEEP' or 'SKIP'.
+
+The script will:
+    1. Validate CSV files exist
+    2. Connect to Supabase database (using DATABASE_URL from .env)
+    3. Clear all existing data (prints, distributors, editions)
+    4. Import prints, then distributors, then editions
+    5. Report import statistics
+"""
 
 import sys
 from pathlib import Path

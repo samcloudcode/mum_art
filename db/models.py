@@ -6,7 +6,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
 
@@ -29,8 +29,8 @@ class Print(Base):
     sync_version = Column(Integer, default=1)
     is_active = Column(Boolean, default=True)
 
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     editions = relationship("Edition", back_populates="print")
@@ -64,8 +64,8 @@ class Distributor(Base):
     sync_version = Column(Integer, default=1)
     is_active = Column(Boolean, default=True)
 
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     editions = relationship("Edition", back_populates="distributor")
@@ -126,8 +126,8 @@ class Edition(Base):
     sync_version = Column(Integer, default=1)
     is_active = Column(Boolean, default=True)
 
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     print = relationship("Print", back_populates="editions")

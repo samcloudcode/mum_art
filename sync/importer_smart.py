@@ -2,10 +2,9 @@
 
 import pandas as pd
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Dict, Set
-from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 
 from db.models import Print, Distributor, Edition, SyncLog
@@ -82,7 +81,7 @@ class SmartImporter:
 
                         seen_names.add(cleaned['name'])
                         print_ = Print(**cleaned)
-                        print_.last_synced_at = datetime.utcnow()
+                        print_.last_synced_at = datetime.now(timezone.utc)
                         session.add(print_)
                         stats['created'] += 1
                 except Exception as e:
@@ -109,7 +108,7 @@ class SmartImporter:
                     cleaned = self.cleaner.clean_distributor_data(row.to_dict())
                     if cleaned.get('airtable_id') and cleaned.get('name'):
                         dist = Distributor(**cleaned)
-                        dist.last_synced_at = datetime.utcnow()
+                        dist.last_synced_at = datetime.now(timezone.utc)
                         session.add(dist)
                         stats['created'] += 1
                 except Exception as e:
@@ -169,8 +168,8 @@ class SmartImporter:
                         stats['failed'] += 1
                         continue
 
-                    if cleaned.get('distributor_name'):
-                        cleaned['distributor_id'] = distributors.get(cleaned['distributor_name'])
+                    # Always set distributor_id (even if None) to ensure consistent columns
+                    cleaned['distributor_id'] = distributors.get(cleaned.get('distributor_name'))
 
                     # Remove lookup fields
                     cleaned.pop('print_name', None)
@@ -179,7 +178,7 @@ class SmartImporter:
                     cleaned.pop('distributor_airtable_id', None)
 
                     # Add sync metadata
-                    cleaned['last_synced_at'] = datetime.utcnow()
+                    cleaned['last_synced_at'] = datetime.now(timezone.utc)
 
                     # Keep all fields for consistent column mapping in bulk insert
                     # (removing None values would create inconsistent column sets)

@@ -1,7 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 
 export default async function ArtworksPage() {
   const supabase = await createClient()
@@ -28,89 +26,95 @@ export default async function ArtworksPage() {
   })
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Artworks</h1>
-          <p className="text-sm text-gray-600">
-            {prints?.length || 0} artwork designs
-          </p>
-        </div>
-      </div>
+    <div className="space-y-10">
+      {/* Page header */}
+      <header className="border-b border-border pb-8">
+        <h1 className="text-foreground mb-2">Artwork Collection</h1>
+        <p className="text-muted-foreground text-lg font-light">
+          {prints?.length || 0} original designs in your portfolio
+        </p>
+      </header>
 
       {error ? (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <p className="text-red-700">Error loading artworks: {error.message}</p>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-sm p-4">
+          <p className="text-destructive">Error loading artworks: {error.message}</p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {prints?.map((print) => {
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {prints?.map((print, index) => {
             const stats = statsMap.get(print.id) || { total: 0, printed: 0, sold: 0 }
             const available = stats.total - stats.sold
             const sellThrough = stats.total > 0 ? Math.round((stats.sold / stats.total) * 100) : 0
+            const staggerClass = `stagger-${(index % 4) + 1}`
 
             return (
-              <Link key={print.id} href={`/artworks/${print.id}`}>
-                <Card className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer h-full">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{print.name}</CardTitle>
-                    <CardDescription>
-                      {print.total_editions ? `${print.total_editions} edition run` : 'No edition count'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {/* Stats */}
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        <div>
-                          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                          <p className="text-xs text-gray-500">Editions</p>
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold text-green-600">{stats.sold}</p>
-                          <p className="text-xs text-gray-500">Sold</p>
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold text-blue-600">{available}</p>
-                          <p className="text-xs text-gray-500">Available</p>
-                        </div>
-                      </div>
+              <Link
+                key={print.id}
+                href={`/artworks/${print.id}`}
+                className={`group gallery-plaque hover:border-accent/30 transition-all duration-300 animate-fade-up opacity-0 ${staggerClass}`}
+              >
+                {/* Artwork title */}
+                <h3 className="font-serif text-lg text-foreground group-hover:text-accent transition-colors mb-1">
+                  {print.name}
+                </h3>
+                <p className="text-sm text-muted-foreground mb-5">
+                  {print.total_editions ? `Edition of ${print.total_editions}` : 'Open edition'}
+                </p>
 
-                      {/* Progress bar */}
-                      <div>
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>Sell-through</span>
-                          <span>{sellThrough}%</span>
-                        </div>
-                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-green-500 rounded-full"
-                            style={{ width: `${sellThrough}%` }}
-                          />
-                        </div>
-                      </div>
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-4 mb-5">
+                  <div>
+                    <p className="stat-value-sm text-foreground">{stats.total}</p>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mt-1">
+                      Editions
+                    </p>
+                  </div>
+                  <div>
+                    <p className="stat-value-sm status-sold">{stats.sold}</p>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mt-1">
+                      Sold
+                    </p>
+                  </div>
+                  <div>
+                    <p className="stat-value-sm text-foreground/70">{available}</p>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mt-1">
+                      Available
+                    </p>
+                  </div>
+                </div>
 
-                      {/* Badges */}
-                      <div className="flex gap-1 flex-wrap">
-                        {stats.printed < stats.total && (
-                          <Badge variant="outline" className="text-xs">
-                            {stats.total - stats.printed} unprinted
-                          </Badge>
-                        )}
-                        {available > 0 && (
-                          <Badge className="bg-blue-100 text-blue-800 text-xs">
-                            {available} in stock
-                          </Badge>
-                        )}
-                        {sellThrough >= 90 && (
-                          <Badge className="bg-amber-100 text-amber-800 text-xs">
-                            Nearly sold out
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* Progress bar */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-2">
+                    <span className="uppercase tracking-wider">Sell-through</span>
+                    <span className="font-mono">{sellThrough}%</span>
+                  </div>
+                  <div className="h-1 bg-muted rounded-sm overflow-hidden">
+                    <div
+                      className="h-full bg-seafoam rounded-sm transition-all duration-500"
+                      style={{ width: `${sellThrough}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Status indicators */}
+                <div className="flex gap-2 flex-wrap">
+                  {stats.printed < stats.total && (
+                    <span className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded-sm">
+                      {stats.total - stats.printed} unprinted
+                    </span>
+                  )}
+                  {available > 0 && (
+                    <span className="text-xs px-2 py-1 bg-accent/10 text-accent rounded-sm">
+                      {available} in stock
+                    </span>
+                  )}
+                  {sellThrough >= 90 && (
+                    <span className="text-xs px-2 py-1 bg-gold/20 text-gold rounded-sm">
+                      Nearly sold out
+                    </span>
+                  )}
+                </div>
               </Link>
             )
           })}

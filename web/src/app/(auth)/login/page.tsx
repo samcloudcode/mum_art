@@ -1,44 +1,84 @@
 import { login } from './actions'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 
 export default function LoginPage() {
   return (
-    <Card>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Art Inventory</CardTitle>
-        <CardDescription>
+    <div className="space-y-8">
+      {/* Logo and title */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-sm bg-accent/10 flex items-center justify-center">
+            <svg
+              className="w-5 h-5 text-accent"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+              />
+            </svg>
+          </div>
+          <span className="font-serif text-xl tracking-tight text-foreground">
+            Sue Stitt Art
+          </span>
+        </div>
+        <h1 className="text-foreground">Welcome back</h1>
+        <p className="text-muted-foreground">
           Sign in to manage your print inventory
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="you@example.com"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              required
-            />
-          </div>
-          <Button formAction={login} className="w-full">
-            Sign in
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </p>
+      </div>
+
+      {/* Login form */}
+      <form className="space-y-5">
+        <div className="space-y-2">
+          <Label
+            htmlFor="email"
+            className="text-xs uppercase tracking-wider text-muted-foreground"
+          >
+            Email
+          </Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="you@example.com"
+            required
+            className="h-11 bg-muted/30 border-border focus:border-accent focus:ring-accent/20"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label
+            htmlFor="password"
+            className="text-xs uppercase tracking-wider text-muted-foreground"
+          >
+            Password
+          </Label>
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            required
+            className="h-11 bg-muted/30 border-border focus:border-accent focus:ring-accent/20"
+          />
+        </div>
+        <Button
+          formAction={login}
+          className="w-full h-11 mt-2 bg-foreground text-background hover:bg-foreground/90 font-medium"
+        >
+          Sign in
+        </Button>
+      </form>
+
+      {/* Footer */}
+      <p className="text-center text-sm text-muted-foreground/60">
+        Sue Stitt Art &middot; Collection Manager
+      </p>
+    </div>
   )
 }

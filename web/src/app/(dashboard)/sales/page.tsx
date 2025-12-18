@@ -74,38 +74,45 @@ export default async function SalesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sales</h1>
-          <p className="text-sm text-gray-600">
-            {totalStats.totalSales} sales totaling £{totalStats.totalRevenue.toLocaleString()}
-          </p>
-        </div>
-      </div>
+    <div className="space-y-10">
+      {/* Page header */}
+      <header className="border-b border-border pb-8">
+        <h1 className="text-foreground mb-2">Sales Ledger</h1>
+        <p className="text-muted-foreground text-lg font-light">
+          {totalStats.totalSales} sales totaling £{totalStats.totalRevenue.toLocaleString()}
+        </p>
+      </header>
 
       {/* Summary stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-600">Total Sales</p>
-          <p className="text-2xl font-bold">{totalStats.totalSales}</p>
+      <section className="grid grid-cols-3 gap-6">
+        <div className="gallery-plaque animate-fade-up opacity-0 stagger-1">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+            Total Sales
+          </p>
+          <p className="stat-value text-foreground">{totalStats.totalSales}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-600">Total Revenue</p>
-          <p className="text-2xl font-bold">£{totalStats.totalRevenue.toLocaleString()}</p>
+        <div className="gallery-plaque animate-fade-up opacity-0 stagger-2">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+            Total Revenue
+          </p>
+          <p className="stat-value text-foreground">£{totalStats.totalRevenue.toLocaleString()}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-600">Unsettled</p>
-          <p className="text-2xl font-bold text-amber-600">
+        <div className="gallery-plaque animate-fade-up opacity-0 stagger-3">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+            Awaiting Settlement
+          </p>
+          <p className="stat-value status-pending">
             £{totalStats.totalUnsettled.toLocaleString()}
           </p>
-          <p className="text-xs text-gray-500">{totalStats.unsettledCount} sales pending</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            {totalStats.unsettledCount} sales pending
+          </p>
         </div>
-      </div>
+      </section>
 
       {error ? (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <p className="text-red-700">Error loading sales: {error.message}</p>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-sm p-4">
+          <p className="text-destructive">Error loading sales: {error.message}</p>
         </div>
       ) : (
         <SalesByMonth monthlyData={monthlyData} />

@@ -44,7 +44,7 @@ export default async function GalleryDetailPage({ params }: PageProps) {
     .order('edition_display_name', { ascending: true })
 
   // Calculate stats
-  const inStock = editions?.filter((e) => !e.is_sold) || []
+  const inStock = editions?.filter((e) => e.is_printed && !e.is_sold) || []
   const sold = editions?.filter((e) => e.is_sold) || []
   const unsettled = sold.filter((e) => !e.is_settled)
 

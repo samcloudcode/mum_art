@@ -1,9 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { createBrowserClient } from '@supabase/ssr'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,27 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-
-type Edition = {
-  id: number
-  edition_display_name: string
-  edition_number: number | null
-  size: string | null
-  frame_type: string | null
-  retail_price: number | null
-  is_printed: boolean | null
-  is_sold: boolean | null
-  is_settled: boolean | null
-  date_sold: string | null
-  date_in_gallery: string | null
-  commission_percentage: number | null
-  notes: string | null
-  payment_note: string | null
-  distributor_id: number | null
-  print_id: number
-  prints: { id: number; name: string; total_editions: number | null } | null
-  distributors: { id: number; name: string; commission_percentage: number | null } | null
-}
+import type { EditionWithRelations, Edition } from '@/lib/types'
 
 type Distributor = {
   id: number
@@ -46,14 +24,14 @@ type Distributor = {
 }
 
 type Props = {
-  edition: Edition
+  edition: EditionWithRelations
   distributors: Distributor[]
+  onUpdate: (id: number, updates: Partial<Edition>) => Promise<boolean>
+  isSaving: boolean
 }
 
-export function EditionDetail({ edition, distributors }: Props) {
-  const router = useRouter()
+export function EditionDetail({ edition, distributors, onUpdate, isSaving }: Props) {
   const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Form state
@@ -64,37 +42,32 @@ export function EditionDetail({ edition, distributors }: Props) {
   const [isPrinted, setIsPrinted] = useState(edition.is_printed || false)
   const [notes, setNotes] = useState(edition.notes || '')
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  // Sync form state when edition changes (optimistic updates)
+  useEffect(() => {
+    setSize(edition.size || '')
+    setFrameType(edition.frame_type || '')
+    setRetailPrice(edition.retail_price?.toString() || '')
+    setDistributorId(edition.distributor_id?.toString() || '')
+    setIsPrinted(edition.is_printed || false)
+    setNotes(edition.notes || '')
+  }, [edition])
 
   const handleSave = async () => {
-    setIsSaving(true)
     setError(null)
 
-    try {
-      const { error: updateError } = await supabase
-        .from('editions')
-        .update({
-          size: size || null,
-          frame_type: frameType || null,
-          retail_price: retailPrice ? parseFloat(retailPrice) : null,
-          distributor_id: distributorId ? parseInt(distributorId) : null,
-          is_printed: isPrinted,
-          notes: notes || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', edition.id)
+    const success = await onUpdate(edition.id, {
+      size: size || null,
+      frame_type: frameType || null,
+      retail_price: retailPrice ? parseFloat(retailPrice) : null,
+      distributor_id: distributorId ? parseInt(distributorId) : null,
+      is_printed: isPrinted,
+      notes: notes || null,
+    })
 
-      if (updateError) throw updateError
-
+    if (success) {
       setIsEditing(false)
-      router.refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save')
-    } finally {
-      setIsSaving(false)
+    } else {
+      setError('Failed to save changes')
     }
   }
 

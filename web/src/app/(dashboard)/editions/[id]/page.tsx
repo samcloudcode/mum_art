@@ -1,38 +1,44 @@
-import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+'use client'
+
+import { use } from 'react'
+import { useInventory } from '@/lib/hooks/use-inventory'
 import { EditionDetail } from './edition-detail'
 
 type PageProps = {
   params: Promise<{ id: string }>
 }
 
-export default async function EditionPage({ params }: PageProps) {
-  const { id } = await params
-  const supabase = await createClient()
+export default function EditionPage({ params }: PageProps) {
+  const { id } = use(params)
+  const { allEditions, distributors, isReady, update, isSaving } = useInventory()
 
-  const { data: edition, error } = await supabase
-    .from('editions')
-    .select(`
-      *,
-      prints(id, name, total_editions),
-      distributors(id, name, commission_percentage)
-    `)
-    .eq('id', parseInt(id))
-    .single()
-
-  if (error || !edition) {
-    notFound()
+  if (!isReady) {
+    return null // InventoryProvider handles loading state
   }
 
-  // Fetch all distributors for the location dropdown
-  const { data: distributors } = await supabase
-    .from('distributors')
-    .select('id, name, commission_percentage')
-    .order('name')
+  const edition = allEditions.find(e => e.id === parseInt(id))
+
+  if (!edition) {
+    return (
+      <div className="text-center py-12">
+        <h1 className="text-2xl font-bold text-gray-900">Edition Not Found</h1>
+        <p className="text-gray-600 mt-2">The edition you&apos;re looking for doesn&apos;t exist.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      <EditionDetail edition={edition} distributors={distributors || []} />
+      <EditionDetail
+        edition={edition}
+        distributors={distributors.map(d => ({
+          id: d.id,
+          name: d.name,
+          commission_percentage: d.commission_percentage,
+        }))}
+        onUpdate={update}
+        isSaving={isSaving}
+      />
     </div>
   )
 }

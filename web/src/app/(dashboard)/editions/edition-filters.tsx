@@ -1,7 +1,6 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -24,32 +23,35 @@ type FilterProps = {
     printed?: string
     sold?: string
   }
+  onFilterChange: (key: string, value: string) => void
+  onClearFilters: () => void
 }
 
-export function EditionFilters({ prints, distributors, currentFilters }: FilterProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+export function EditionFilters({
+  prints,
+  distributors,
+  currentFilters,
+  onFilterChange,
+  onClearFilters,
+}: FilterProps) {
+  const [searchValue, setSearchValue] = useState(currentFilters.search || '')
 
-  const updateFilter = useCallback(
-    (key: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString())
-      if (value && value !== 'all') {
-        params.set(key, value)
-      } else {
-        params.delete(key)
+  // Debounce search input
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchValue !== currentFilters.search) {
+        onFilterChange('search', searchValue)
       }
-      // Reset to page 1 when filters change
-      params.delete('page')
-      router.push(`/editions?${params.toString()}`)
-    },
-    [router, searchParams]
-  )
+    }, 300)
+    return () => clearTimeout(timeoutId)
+  }, [searchValue, currentFilters.search, onFilterChange])
 
-  const clearFilters = useCallback(() => {
-    router.push('/editions')
-  }, [router])
+  // Sync search value when filters are cleared externally
+  useEffect(() => {
+    setSearchValue(currentFilters.search || '')
+  }, [currentFilters.search])
 
-  const hasFilters = Object.values(currentFilters).some((v) => v && v !== 'all')
+  const hasFilters = Object.values(currentFilters).some((v) => v && v !== 'all' && v !== '')
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
@@ -61,14 +63,8 @@ export function EditionFilters({ prints, distributors, currentFilters }: FilterP
           </label>
           <Input
             placeholder="Search editions..."
-            defaultValue={currentFilters.search || ''}
-            onChange={(e) => {
-              // Debounce search
-              const timeoutId = setTimeout(() => {
-                updateFilter('search', e.target.value)
-              }, 300)
-              return () => clearTimeout(timeoutId)
-            }}
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
           />
         </div>
 
@@ -79,7 +75,7 @@ export function EditionFilters({ prints, distributors, currentFilters }: FilterP
           </label>
           <Select
             value={currentFilters.print || 'all'}
-            onValueChange={(value) => updateFilter('print', value)}
+            onValueChange={(value) => onFilterChange('print', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All artworks" />
@@ -102,7 +98,7 @@ export function EditionFilters({ prints, distributors, currentFilters }: FilterP
           </label>
           <Select
             value={currentFilters.distributor || 'all'}
-            onValueChange={(value) => updateFilter('distributor', value)}
+            onValueChange={(value) => onFilterChange('distributor', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All locations" />
@@ -125,7 +121,7 @@ export function EditionFilters({ prints, distributors, currentFilters }: FilterP
           </label>
           <Select
             value={currentFilters.size || 'all'}
-            onValueChange={(value) => updateFilter('size', value)}
+            onValueChange={(value) => onFilterChange('size', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All sizes" />
@@ -148,7 +144,7 @@ export function EditionFilters({ prints, distributors, currentFilters }: FilterP
           </label>
           <Select
             value={currentFilters.frame || 'all'}
-            onValueChange={(value) => updateFilter('frame', value)}
+            onValueChange={(value) => onFilterChange('frame', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All frames" />
@@ -169,7 +165,7 @@ export function EditionFilters({ prints, distributors, currentFilters }: FilterP
           </label>
           <Select
             value={currentFilters.printed || 'all'}
-            onValueChange={(value) => updateFilter('printed', value)}
+            onValueChange={(value) => onFilterChange('printed', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All" />
@@ -189,7 +185,7 @@ export function EditionFilters({ prints, distributors, currentFilters }: FilterP
           </label>
           <Select
             value={currentFilters.sold || 'all'}
-            onValueChange={(value) => updateFilter('sold', value)}
+            onValueChange={(value) => onFilterChange('sold', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All" />
@@ -205,7 +201,7 @@ export function EditionFilters({ prints, distributors, currentFilters }: FilterP
         {/* Clear filters */}
         <div className="flex items-end">
           {hasFilters && (
-            <Button variant="outline" onClick={clearFilters} className="w-full">
+            <Button variant="outline" onClick={onClearFilters} className="w-full">
               Clear Filters
             </Button>
           )}

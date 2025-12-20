@@ -167,6 +167,7 @@ export type Database = {
           last_synced_at: string | null
           name: string
           notes: string | null
+          primary_image_path: string | null
           sync_version: number | null
           total_editions: number | null
           updated_at: string | null
@@ -182,6 +183,7 @@ export type Database = {
           last_synced_at?: string | null
           name: string
           notes?: string | null
+          primary_image_path?: string | null
           sync_version?: number | null
           total_editions?: number | null
           updated_at?: string | null
@@ -197,6 +199,7 @@ export type Database = {
           last_synced_at?: string | null
           name?: string
           notes?: string | null
+          primary_image_path?: string | null
           sync_version?: number | null
           total_editions?: number | null
           updated_at?: string | null

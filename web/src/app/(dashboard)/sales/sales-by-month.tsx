@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -14,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { markSalesAsSettled } from '../editions/actions'
+import { useInventory } from '@/lib/hooks/use-inventory'
 
 type Sale = {
   id: number
@@ -43,13 +42,12 @@ type Props = {
 }
 
 export function SalesByMonth({ monthlyData }: Props) {
-  const router = useRouter()
+  const { markSettled, isSaving } = useInventory()
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(
     // Auto-expand first month if there are unsettled sales
     new Set(monthlyData.length > 0 && monthlyData[0].unsettledCount > 0 ? [monthlyData[0].key] : [])
   )
   const [selectedSales, setSelectedSales] = useState<Map<string, Set<number>>>(new Map())
-  const [isPending, startTransition] = useTransition()
 
   const toggleMonth = (key: string) => {
     const newExpanded = new Set(expandedMonths)
@@ -86,17 +84,14 @@ export function SalesByMonth({ monthlyData }: Props) {
     setSelectedSales(newSelected)
   }
 
-  const handleMarkAsPaid = (monthKey: string) => {
+  const handleMarkAsPaid = async (monthKey: string) => {
     const saleIds = Array.from(selectedSales.get(monthKey) || [])
     if (saleIds.length === 0) return
 
-    startTransition(async () => {
-      const result = await markSalesAsSettled(saleIds)
-      if (result.success) {
-        clearSelection(monthKey)
-        router.refresh()
-      }
-    })
+    const success = await markSettled(saleIds)
+    if (success) {
+      clearSelection(monthKey)
+    }
   }
 
   const formatPrice = (price: number | null) => {
@@ -175,9 +170,9 @@ export function SalesByMonth({ monthlyData }: Props) {
                       <Button
                         size="sm"
                         onClick={() => handleMarkAsPaid(monthData.key)}
-                        disabled={isPending}
+                        disabled={isSaving}
                       >
-                        {isPending ? 'Updating...' : 'Mark as Paid'}
+                        {isSaving ? 'Updating...' : 'Mark as Paid'}
                       </Button>
                       <Button
                         size="sm"

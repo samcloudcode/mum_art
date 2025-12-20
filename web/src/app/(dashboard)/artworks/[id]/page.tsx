@@ -1,6 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+'use client'
+
+import { use, useMemo } from 'react'
 import Link from 'next/link'
+import { useInventory } from '@/lib/hooks/use-inventory'
+import { formatPrice, calculateNetAmount } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,69 +15,85 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ArtworkImageSection } from '@/components/artwork-image-section'
 
 type PageProps = {
   params: Promise<{ id: string }>
 }
 
-export default async function ArtworkDetailPage({ params }: PageProps) {
-  const { id } = await params
-  const supabase = await createClient()
+export default function ArtworkDetailPage({ params }: PageProps) {
+  const { id } = use(params)
+  const { prints, allEditions, isReady } = useInventory()
 
-  // Fetch the artwork
-  const { data: print, error: printError } = await supabase
-    .from('prints')
-    .select('*')
-    .eq('id', parseInt(id))
-    .single()
+  const print = useMemo(
+    () => prints.find(p => p.id === parseInt(id)),
+    [prints, id]
+  )
 
-  if (printError || !print) {
-    notFound()
-  }
-
-  // Fetch all editions for this artwork with distributor info
-  const { data: editions } = await supabase
-    .from('editions')
-    .select(`
-      *,
-      distributors(id, name, commission_percentage)
-    `)
-    .eq('print_id', parseInt(id))
-    .order('edition_number', { ascending: true })
+  const editions = useMemo(
+    () => allEditions
+      .filter(e => e.print_id === parseInt(id))
+      .sort((a, b) => (a.edition_number || 0) - (b.edition_number || 0)),
+    [allEditions, id]
+  )
 
   // Calculate stats
-  const total = editions?.length || 0
-  const printed = editions?.filter((e) => e.is_printed).length || 0
-  const sold = editions?.filter((e) => e.is_sold).length || 0
-  const settled = editions?.filter((e) => e.is_settled).length || 0
-  const available = total - sold
-  const stats = { total, printed, sold, settled, available }
+  const stats = useMemo(() => {
+    const total = editions.length
+    const printed = editions.filter(e => e.is_printed).length
+    const sold = editions.filter(e => e.is_sold).length
+    const settled = editions.filter(e => e.is_settled).length
+    return { total, printed, sold, settled, available: total - sold }
+  }, [editions])
 
   // Calculate revenue
-  const totalRevenue = editions
-    ?.filter((e) => e.is_sold && e.retail_price)
-    .reduce((sum, e) => sum + (e.retail_price || 0), 0) || 0
+  const { totalRevenue, unsettledRevenue } = useMemo(() => {
+    const totalRevenue = editions
+      .filter(e => e.is_sold && e.retail_price)
+      .reduce((sum, e) => sum + (e.retail_price || 0), 0)
 
-  const unsettledRevenue = editions
-    ?.filter((e) => e.is_sold && !e.is_settled && e.retail_price)
-    .reduce((sum, e) => {
-      const commission = e.commission_percentage || 0
-      return sum + (e.retail_price || 0) * (1 - commission / 100)
-    }, 0) || 0
+    const unsettledRevenue = editions
+      .filter(e => e.is_sold && !e.is_settled && e.retail_price)
+      .reduce((sum, e) => sum + calculateNetAmount(e.retail_price, e.commission_percentage), 0)
+
+    return { totalRevenue, unsettledRevenue }
+  }, [editions])
 
   // Group by location
-  const locationGroups = new Map<string, { count: number; sold: number }>()
-  editions?.forEach((e) => {
-    const loc = e.distributors?.name || 'Unassigned'
-    const current = locationGroups.get(loc) || { count: 0, sold: 0 }
-    current.count++
-    if (e.is_sold) current.sold++
-    locationGroups.set(loc, current)
-  })
+  const locationGroups = useMemo(() => {
+    const groups = new Map<string, { count: number; sold: number }>()
+    editions.forEach(e => {
+      const loc = e.distributors?.name || 'Unassigned'
+      const current = groups.get(loc) || { count: 0, sold: 0 }
+      current.count++
+      if (e.is_sold) current.sold++
+      groups.set(loc, current)
+    })
+    return groups
+  }, [editions])
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return '-'
-    return `£${price.toLocaleString()}`
+  if (!isReady) return null
+
+  if (!print) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Link href="/artworks" className="hover:text-gray-900">
+            Artworks
+          </Link>
+          <span>/</span>
+          <span className="text-gray-900">Not Found</span>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">Artwork not found</p>
+            <Button variant="outline" asChild className="mt-4">
+              <Link href="/artworks">Back to Artworks</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -88,26 +107,40 @@ export default async function ArtworkDetailPage({ params }: PageProps) {
         <span className="text-gray-900">{print.name}</span>
       </div>
 
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{print.name}</h1>
-          {print.description && (
-            <p className="text-gray-600 mt-1">{print.description}</p>
-          )}
-          {print.total_editions && (
-            <p className="text-sm text-gray-500 mt-1">
-              Limited edition of {print.total_editions}
-            </p>
+      {/* Header with Image */}
+      <div className="flex flex-col md:flex-row gap-8">
+        {/* Image Section */}
+        <div className="md:w-1/3">
+          <ArtworkImageSection
+            printId={print.id}
+            printName={print.name}
+            initialImagePath={print.primary_image_path}
+          />
+        </div>
+
+        {/* Details Section */}
+        <div className="flex-1 flex flex-col justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{print.name}</h1>
+            {print.description && (
+              <p className="text-gray-600 mt-1">{print.description}</p>
+            )}
+            {print.total_editions && (
+              <p className="text-sm text-gray-500 mt-1">
+                Limited edition of {print.total_editions}
+              </p>
+            )}
+          </div>
+          {print.web_link && (
+            <div className="mt-4">
+              <Button variant="outline" asChild>
+                <a href={print.web_link} target="_blank" rel="noopener noreferrer">
+                  View Online
+                </a>
+              </Button>
+            </div>
           )}
         </div>
-        {print.web_link && (
-          <Button variant="outline" asChild>
-            <a href={print.web_link} target="_blank" rel="noopener noreferrer">
-              View Online
-            </a>
-          </Button>
-        )}
       </div>
 
       {/* Stats Cards */}
@@ -195,7 +228,7 @@ export default async function ArtworkDetailPage({ params }: PageProps) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>All Editions</CardTitle>
-              <CardDescription>{editions?.length || 0} editions</CardDescription>
+              <CardDescription>{editions.length} editions</CardDescription>
             </div>
             <Button variant="outline" asChild>
               <Link href={`/editions?print=${print.id}`}>View in Editions</Link>
@@ -216,7 +249,7 @@ export default async function ArtworkDetailPage({ params }: PageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {editions?.map((edition) => (
+                {editions.map((edition) => (
                   <TableRow key={edition.id}>
                     <TableCell>
                       <Link

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { InventoryProvider } from './inventory-provider'
 
 const navigation = [
   { name: 'Overview', href: '/' },
@@ -104,7 +105,9 @@ export default async function DashboardLayout({
       {/* Main content area */}
       <main className="pt-16 pb-24 md:pb-12">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
-          {children}
+          <InventoryProvider>
+            {children}
+          </InventoryProvider>
         </div>
       </main>
     </div>

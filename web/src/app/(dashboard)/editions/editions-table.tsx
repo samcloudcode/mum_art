@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
 import Link from 'next/link'
 import {
   Table,
@@ -30,23 +30,7 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { useState, useTransition } from 'react'
-import { markEditionsAsPrinted, moveEditionsToGallery } from './actions'
-
-type Edition = {
-  id: number
-  edition_display_name: string
-  edition_number: number | null
-  size: string | null
-  frame_type: string | null
-  retail_price: number | null
-  is_printed: boolean | null
-  is_sold: boolean | null
-  is_settled: boolean | null
-  date_sold: string | null
-  prints: { id: number; name: string } | null
-  distributors: { id: number; name: string; commission_percentage: number | null } | null
-}
+import type { EditionWithRelations } from '@/lib/types'
 
 type Distributor = {
   id: number
@@ -55,29 +39,33 @@ type Distributor = {
 }
 
 type Props = {
-  editions: Edition[]
-  page: number
-  totalPages: number
-  pageSize: number
-  total: number
-  distributors?: Distributor[]
+  editions: EditionWithRelations[]
+  distributors: Distributor[]
+  isSaving: boolean
+  onMarkPrinted: (ids: number[]) => Promise<boolean>
+  onMoveToGallery: (ids: number[], distributorId: number, dateInGallery?: string) => Promise<boolean>
 }
 
-export function EditionsTable({ editions, page, totalPages, pageSize, total, distributors = [] }: Props) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+const PAGE_SIZE = 50
+
+export function EditionsTable({
+  editions,
+  distributors,
+  isSaving,
+  onMarkPrinted,
+  onMoveToGallery,
+}: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [isPending, startTransition] = useTransition()
   const [showMoveDialog, setShowMoveDialog] = useState(false)
   const [moveToDistributorId, setMoveToDistributorId] = useState('')
   const [moveDate, setMoveDate] = useState(new Date().toISOString().split('T')[0])
   const [actionError, setActionError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
-  const goToPage = (newPage: number) => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('page', newPage.toString())
-    router.push(`/editions?${params.toString()}`)
-  }
+  // Client-side pagination
+  const totalPages = Math.ceil(editions.length / PAGE_SIZE)
+  const startIndex = (page - 1) * PAGE_SIZE
+  const paginatedEditions = editions.slice(startIndex, startIndex + PAGE_SIZE)
 
   const toggleSelect = (id: number) => {
     const newSelected = new Set(selectedIds)
@@ -90,10 +78,10 @@ export function EditionsTable({ editions, page, totalPages, pageSize, total, dis
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === editions.length) {
+    if (selectedIds.size === paginatedEditions.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(editions.map((e) => e.id)))
+      setSelectedIds(new Set(paginatedEditions.map((e) => e.id)))
     }
   }
 
@@ -102,40 +90,39 @@ export function EditionsTable({ editions, page, totalPages, pageSize, total, dis
     return `£${price.toLocaleString()}`
   }
 
-  const startItem = (page - 1) * pageSize + 1
-  const endItem = Math.min(page * pageSize, total)
+  const startItem = startIndex + 1
+  const endItem = Math.min(startIndex + PAGE_SIZE, editions.length)
 
-  const handleMarkAsPrinted = () => {
+  const handleMarkAsPrinted = async () => {
     setActionError(null)
-    startTransition(async () => {
-      const result = await markEditionsAsPrinted(Array.from(selectedIds))
-      if (result.success) {
-        setSelectedIds(new Set())
-        router.refresh()
-      } else {
-        setActionError(result.error || 'Failed to mark as printed')
-      }
-    })
+    const success = await onMarkPrinted(Array.from(selectedIds))
+    if (success) {
+      setSelectedIds(new Set())
+    } else {
+      setActionError('Failed to mark as printed')
+    }
   }
 
-  const handleMoveToGallery = () => {
+  const handleMoveToGallery = async () => {
     if (!moveToDistributorId) return
     setActionError(null)
-    startTransition(async () => {
-      const result = await moveEditionsToGallery(
-        Array.from(selectedIds),
-        parseInt(moveToDistributorId),
-        moveDate
-      )
-      if (result.success) {
-        setSelectedIds(new Set())
-        setShowMoveDialog(false)
-        setMoveToDistributorId('')
-        router.refresh()
-      } else {
-        setActionError(result.error || 'Failed to move editions')
-      }
-    })
+    const success = await onMoveToGallery(
+      Array.from(selectedIds),
+      parseInt(moveToDistributorId),
+      moveDate
+    )
+    if (success) {
+      setSelectedIds(new Set())
+      setShowMoveDialog(false)
+      setMoveToDistributorId('')
+    } else {
+      setActionError('Failed to move editions')
+    }
+  }
+
+  const goToPage = (newPage: number) => {
+    setPage(newPage)
+    setSelectedIds(new Set()) // Clear selection when changing pages
   }
 
   return (
@@ -158,15 +145,15 @@ export function EditionsTable({ editions, page, totalPages, pageSize, total, dis
               size="sm"
               variant="outline"
               onClick={handleMarkAsPrinted}
-              disabled={isPending}
+              disabled={isSaving}
             >
-              {isPending ? 'Updating...' : 'Mark as Printed'}
+              {isSaving ? 'Updating...' : 'Mark as Printed'}
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => setShowMoveDialog(true)}
-              disabled={isPending}
+              disabled={isSaving}
             >
               Move to Gallery
             </Button>
@@ -218,9 +205,9 @@ export function EditionsTable({ editions, page, totalPages, pageSize, total, dis
             </Button>
             <Button
               onClick={handleMoveToGallery}
-              disabled={!moveToDistributorId || isPending}
+              disabled={!moveToDistributorId || isSaving}
             >
-              {isPending ? 'Moving...' : 'Move Editions'}
+              {isSaving ? 'Moving...' : 'Move Editions'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -233,7 +220,7 @@ export function EditionsTable({ editions, page, totalPages, pageSize, total, dis
             <TableRow>
               <TableHead className="w-12">
                 <Checkbox
-                  checked={selectedIds.size === editions.length && editions.length > 0}
+                  checked={selectedIds.size === paginatedEditions.length && paginatedEditions.length > 0}
                   onCheckedChange={toggleSelectAll}
                 />
               </TableHead>
@@ -247,14 +234,14 @@ export function EditionsTable({ editions, page, totalPages, pageSize, total, dis
             </TableRow>
           </TableHeader>
           <TableBody>
-            {editions.length === 0 ? (
+            {paginatedEditions.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   No editions found
                 </TableCell>
               </TableRow>
             ) : (
-              editions.map((edition) => (
+              paginatedEditions.map((edition) => (
                 <TableRow key={edition.id}>
                   <TableCell>
                     <Checkbox
@@ -335,55 +322,57 @@ export function EditionsTable({ editions, page, totalPages, pageSize, total, dis
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">
-          Showing {startItem} to {endItem} of {total.toLocaleString()} editions
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => goToPage(page - 1)}
-          >
-            Previous
-          </Button>
-          <div className="flex items-center gap-1">
-            {/* Show page numbers */}
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum: number
-              if (totalPages <= 5) {
-                pageNum = i + 1
-              } else if (page <= 3) {
-                pageNum = i + 1
-              } else if (page >= totalPages - 2) {
-                pageNum = totalPages - 4 + i
-              } else {
-                pageNum = page - 2 + i
-              }
-              return (
-                <Button
-                  key={pageNum}
-                  variant={pageNum === page ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => goToPage(pageNum)}
-                  className="w-10"
-                >
-                  {pageNum}
-                </Button>
-              )
-            })}
+      {editions.length > 0 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600">
+            Showing {startItem} to {endItem} of {editions.length.toLocaleString()} editions
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => goToPage(page - 1)}
+            >
+              Previous
+            </Button>
+            <div className="flex items-center gap-1">
+              {/* Show page numbers */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number
+                if (totalPages <= 5) {
+                  pageNum = i + 1
+                } else if (page <= 3) {
+                  pageNum = i + 1
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i
+                } else {
+                  pageNum = page - 2 + i
+                }
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={pageNum === page ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => goToPage(pageNum)}
+                    className="w-10"
+                  >
+                    {pageNum}
+                  </Button>
+                )
+              })}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => goToPage(page + 1)}
+            >
+              Next
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => goToPage(page + 1)}
-          >
-            Next
-          </Button>
         </div>
-      </div>
+      )}
     </div>
   )
 }

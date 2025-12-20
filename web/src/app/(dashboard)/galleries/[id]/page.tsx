@@ -1,6 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+'use client'
+
+import { use, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useInventory } from '@/lib/hooks/use-inventory'
+import { formatPrice, calculateNetAmount } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,52 +20,85 @@ type PageProps = {
   params: Promise<{ id: string }>
 }
 
-export default async function GalleryDetailPage({ params }: PageProps) {
-  const { id } = await params
-  const supabase = await createClient()
+export default function GalleryDetailPage({ params }: PageProps) {
+  const { id } = use(params)
+  const { distributors, allEditions, isReady, markSettled, isSaving } = useInventory()
+  const [error, setError] = useState<string | null>(null)
 
-  // Fetch the distributor
-  const { data: distributor, error: distError } = await supabase
-    .from('distributors')
-    .select('*')
-    .eq('id', parseInt(id))
-    .single()
+  const distributor = useMemo(
+    () => distributors.find(d => d.id === parseInt(id)),
+    [distributors, id]
+  )
 
-  if (distError || !distributor) {
-    notFound()
-  }
+  const editions = useMemo(
+    () => allEditions
+      .filter(e => e.distributor_id === parseInt(id))
+      .sort((a, b) => {
+        // Sort unsold first, then by display name
+        if (a.is_sold !== b.is_sold) return a.is_sold ? 1 : -1
+        return a.edition_display_name.localeCompare(b.edition_display_name)
+      }),
+    [allEditions, id]
+  )
 
-  // Fetch all editions at this location with print info
-  const { data: editions } = await supabase
-    .from('editions')
-    .select(`
-      *,
-      prints(id, name)
-    `)
-    .eq('distributor_id', parseInt(id))
-    .order('is_sold', { ascending: true })
-    .order('edition_display_name', { ascending: true })
+  const { inStock, sold, unsettled, stockValue, totalRevenue, unsettledAmount } = useMemo(() => {
+    const inStockEditions = editions.filter(e => e.is_printed && !e.is_sold)
+    const soldEditions = editions.filter(e => e.is_sold)
+    const unsettledEditions = soldEditions.filter(e => !e.is_settled)
 
-  // Calculate stats
-  const inStock = editions?.filter((e) => e.is_printed && !e.is_sold) || []
-  const sold = editions?.filter((e) => e.is_sold) || []
-  const unsettled = sold.filter((e) => !e.is_settled)
+    const stockValue = inStockEditions.reduce((sum, e) => sum + (e.retail_price || 0), 0)
+    const totalRevenue = soldEditions.reduce((sum, e) => sum + (e.retail_price || 0), 0)
+    const unsettledAmount = unsettledEditions.reduce((sum, e) => {
+      const commission = e.commission_percentage ?? distributor?.commission_percentage
+      return sum + calculateNetAmount(e.retail_price, commission)
+    }, 0)
 
-  const stockValue = inStock.reduce((sum, e) => sum + (e.retail_price || 0), 0)
-  const totalRevenue = sold.reduce((sum, e) => sum + (e.retail_price || 0), 0)
-  const unsettledAmount = unsettled.reduce((sum, e) => {
-    const commission = e.commission_percentage || distributor.commission_percentage || 0
-    return sum + (e.retail_price || 0) * (1 - commission / 100)
-  }, 0)
+    return {
+      inStock: inStockEditions,
+      sold: soldEditions,
+      unsettled: unsettledEditions,
+      stockValue,
+      totalRevenue,
+      unsettledAmount
+    }
+  }, [editions, distributor])
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return '-'
-    return `£${price.toLocaleString()}`
+  const handleMarkAllAsPaid = async () => {
+    setError(null)
+    const ids = unsettled.map(e => e.id)
+    const success = await markSettled(ids)
+    if (!success) {
+      setError('Failed to mark sales as paid. Please try again.')
+    }
   }
 
   const formatDate = (date: string | null) => {
     if (!date) return '-'
     return new Date(date).toLocaleDateString('en-GB')
+  }
+
+  if (!isReady) return null
+
+  if (!distributor) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Link href="/galleries" className="hover:text-gray-900">
+            Galleries
+          </Link>
+          <span>/</span>
+          <span className="text-gray-900">Not Found</span>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">Gallery not found</p>
+            <Button variant="outline" asChild className="mt-4">
+              <Link href="/galleries">Back to Galleries</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -243,8 +279,13 @@ export default async function GalleryDetailPage({ params }: PageProps) {
                 <CardDescription>
                   {unsettled.length} sales pending payment ({formatPrice(unsettledAmount)})
                 </CardDescription>
+                {error && (
+                  <p className="text-sm text-red-600 mt-2">{error}</p>
+                )}
               </div>
-              <Button>Mark All as Paid</Button>
+              <Button onClick={handleMarkAllAsPaid} disabled={isSaving}>
+                {isSaving ? 'Saving...' : 'Mark All as Paid'}
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -259,8 +300,8 @@ export default async function GalleryDetailPage({ params }: PageProps) {
               </TableHeader>
               <TableBody>
                 {unsettled.map((edition) => {
-                  const commission = edition.commission_percentage || distributor.commission_percentage || 0
-                  const netDue = (edition.retail_price || 0) * (1 - commission / 100)
+                  const commission = edition.commission_percentage ?? distributor.commission_percentage
+                  const netDue = calculateNetAmount(edition.retail_price, commission)
                   return (
                     <TableRow key={edition.id}>
                       <TableCell>

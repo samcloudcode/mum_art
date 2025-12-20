@@ -1,82 +1,74 @@
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { useState, useMemo } from 'react'
 import { EditionsTable } from './editions-table'
 import { EditionFilters } from './edition-filters'
+import { useInventory } from '@/lib/hooks/use-inventory'
+import type { EditionFilters as EditionFiltersType } from '@/lib/types'
 
-type SearchParams = Promise<{
-  search?: string
-  print?: string
-  distributor?: string
-  size?: string
-  frame?: string
-  printed?: string
-  sold?: string
-  page?: string
-}>
+export default function EditionsPage() {
+  const [filters, setFilters] = useState<EditionFiltersType>({})
 
-export default async function EditionsPage({
-  searchParams,
-}: {
-  searchParams: SearchParams
-}) {
-  const params = await searchParams
-  const supabase = await createClient()
+  const {
+    editions,
+    prints,
+    distributors,
+    isReady,
+    isSaving,
+    markPrinted,
+    moveToGallery,
+  } = useInventory(filters)
 
-  const page = parseInt(params.page || '1')
-  const pageSize = 50
-  const offset = (page - 1) * pageSize
+  // Convert filters to the format expected by EditionFilters component
+  const currentFilters = useMemo(() => ({
+    search: filters.search || '',
+    print: filters.printId?.toString() || '',
+    distributor: filters.distributorId?.toString() || '',
+    size: filters.size || '',
+    frame: filters.frameType || '',
+    printed: filters.isPrinted === true ? 'true' : filters.isPrinted === false ? 'false' : '',
+    sold: filters.isSold === true ? 'true' : filters.isSold === false ? 'false' : '',
+  }), [filters])
 
-  // Build the query
-  let query = supabase
-    .from('editions')
-    .select(`
-      *,
-      prints!inner(id, name),
-      distributors(id, name, commission_percentage)
-    `, { count: 'exact' })
-    .order('id', { ascending: true })
-    .range(offset, offset + pageSize - 1)
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => {
+      const next = { ...prev }
 
-  // Apply filters
-  if (params.search) {
-    query = query.ilike('edition_display_name', `%${params.search}%`)
-  }
-  if (params.print) {
-    query = query.eq('print_id', parseInt(params.print))
-  }
-  if (params.distributor) {
-    query = query.eq('distributor_id', parseInt(params.distributor))
-  }
-  if (params.size && params.size !== 'all') {
-    query = query.eq('size', params.size)
-  }
-  if (params.frame && params.frame !== 'all') {
-    query = query.eq('frame_type', params.frame)
-  }
-  if (params.printed === 'true') {
-    query = query.eq('is_printed', true)
-  } else if (params.printed === 'false') {
-    query = query.eq('is_printed', false)
-  }
-  if (params.sold === 'true') {
-    query = query.eq('is_sold', true)
-  } else if (params.sold === 'false') {
-    query = query.eq('is_sold', false)
+      switch (key) {
+        case 'search':
+          next.search = value || undefined
+          break
+        case 'print':
+          next.printId = value && value !== 'all' ? parseInt(value) : undefined
+          break
+        case 'distributor':
+          next.distributorId = value && value !== 'all' ? parseInt(value) : undefined
+          break
+        case 'size':
+          next.size = value && value !== 'all' ? value as EditionFiltersType['size'] : undefined
+          break
+        case 'frame':
+          next.frameType = value && value !== 'all' ? value as EditionFiltersType['frameType'] : undefined
+          break
+        case 'printed':
+          next.isPrinted = value === 'true' ? true : value === 'false' ? false : undefined
+          break
+        case 'sold':
+          next.isSold = value === 'true' ? true : value === 'false' ? false : undefined
+          break
+      }
+
+      return next
+    })
   }
 
-  const { data: editions, count, error } = await query
+  const handleClearFilters = () => {
+    setFilters({})
+  }
 
-  // Fetch filter options
-  const { data: prints } = await supabase
-    .from('prints')
-    .select('id, name')
-    .order('name')
-
-  const { data: distributors } = await supabase
-    .from('distributors')
-    .select('id, name, commission_percentage')
-    .order('name')
-
-  const totalPages = Math.ceil((count || 0) / pageSize)
+  if (!isReady) {
+    return null // InventoryProvider handles the loading state
+  }
 
   return (
     <div className="space-y-6">
@@ -84,31 +76,30 @@ export default async function EditionsPage({
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Editions</h1>
           <p className="text-sm text-gray-600">
-            {count?.toLocaleString() || 0} editions total
+            {editions.length.toLocaleString()} editions{filters.search || filters.printId || filters.distributorId || filters.size || filters.frameType || filters.isPrinted !== undefined || filters.isSold !== undefined ? ' (filtered)' : ' total'}
           </p>
         </div>
       </div>
 
       <EditionFilters
-        prints={prints || []}
-        distributors={distributors || []}
-        currentFilters={params}
+        prints={prints.map(p => ({ id: p.id, name: p.name }))}
+        distributors={distributors.map(d => ({ id: d.id, name: d.name }))}
+        currentFilters={currentFilters}
+        onFilterChange={handleFilterChange}
+        onClearFilters={handleClearFilters}
       />
 
-      {error ? (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <p className="text-red-700">Error loading editions: {error.message}</p>
-        </div>
-      ) : (
-        <EditionsTable
-          editions={editions || []}
-          page={page}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          total={count || 0}
-          distributors={distributors || []}
-        />
-      )}
+      <EditionsTable
+        editions={editions}
+        distributors={distributors.map(d => ({
+          id: d.id,
+          name: d.name,
+          commission_percentage: d.commission_percentage,
+        }))}
+        isSaving={isSaving}
+        onMarkPrinted={markPrinted}
+        onMoveToGallery={moveToGallery}
+      />
     </div>
   )
 }

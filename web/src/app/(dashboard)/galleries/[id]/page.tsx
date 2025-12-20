@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { EditionRowActions } from '@/components/edition-row-actions'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -22,7 +23,18 @@ type PageProps = {
 
 export default function GalleryDetailPage({ params }: PageProps) {
   const { id } = use(params)
-  const { distributors, allEditions, isReady, markSettled, isSaving } = useInventory()
+  const {
+    distributors,
+    allEditions,
+    sizes,
+    isReady,
+    isSaving,
+    markSold,
+    markSettled,
+    markPrinted,
+    moveToGallery,
+    updateSize,
+  } = useInventory()
   const [error, setError] = useState<string | null>(null)
 
   const distributor = useMemo(
@@ -75,6 +87,12 @@ export default function GalleryDetailPage({ params }: PageProps) {
   const formatDate = (date: string | null) => {
     if (!date) return '-'
     return new Date(date).toLocaleDateString('en-GB')
+  }
+
+  const getDaysInGallery = (dateInGallery: string | null) => {
+    if (!dateInGallery) return null
+    const days = Math.floor((Date.now() - new Date(dateInGallery).getTime()) / (1000 * 60 * 60 * 24))
+    return days
   }
 
   if (!isReady) return null
@@ -218,50 +236,67 @@ export default function GalleryDetailPage({ params }: PageProps) {
                     <TableHead>Size</TableHead>
                     <TableHead>Frame</TableHead>
                     <TableHead className="text-right">Price</TableHead>
-                    <TableHead>In Gallery Since</TableHead>
+                    <TableHead>Days in Gallery</TableHead>
+                    <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {inStock.map((edition) => (
-                    <TableRow key={edition.id}>
-                      <TableCell>
-                        <Link
-                          href={`/editions/${edition.id}`}
-                          className="font-medium text-blue-600 hover:underline"
-                        >
-                          {edition.edition_display_name}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        {edition.prints ? (
+                  {inStock.map((edition) => {
+                    const days = getDaysInGallery(edition.date_in_gallery)
+                    return (
+                      <TableRow key={edition.id} className="group">
+                        <TableCell>
                           <Link
-                            href={`/artworks/${edition.prints.id}`}
-                            className="hover:underline"
+                            href={`/editions/${edition.id}`}
+                            className="font-medium text-blue-600 hover:underline"
                           >
-                            {edition.prints.name}
+                            {edition.edition_display_name}
                           </Link>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {edition.size ? (
-                          <Badge variant="outline">{edition.size}</Badge>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell className="text-gray-600">
-                        {edition.frame_type || '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatPrice(edition.retail_price)}
-                      </TableCell>
-                      <TableCell className="text-gray-600">
-                        {formatDate(edition.date_in_gallery)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>
+                          {edition.prints ? (
+                            <Link
+                              href={`/artworks/${edition.prints.id}`}
+                              className="hover:underline"
+                            >
+                              {edition.prints.name}
+                            </Link>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {edition.size ? (
+                            <Badge variant="outline">{edition.size}</Badge>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell className="text-gray-600">
+                          {edition.frame_type || '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatPrice(edition.retail_price)}
+                        </TableCell>
+                        <TableCell className="text-gray-600">
+                          {days !== null ? `${days}d` : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <EditionRowActions
+                            edition={edition}
+                            distributors={distributors}
+                            sizes={sizes}
+                            onMarkSold={markSold}
+                            onMarkSettled={markSettled}
+                            onChangeSize={updateSize}
+                            onMoveToGallery={moveToGallery}
+                            onMarkPrinted={markPrinted}
+                            isSaving={isSaving}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -296,6 +331,7 @@ export default function GalleryDetailPage({ params }: PageProps) {
                   <TableHead>Date Sold</TableHead>
                   <TableHead className="text-right">Sale Price</TableHead>
                   <TableHead className="text-right">Net Due</TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -303,7 +339,7 @@ export default function GalleryDetailPage({ params }: PageProps) {
                   const commission = edition.commission_percentage ?? distributor.commission_percentage
                   const netDue = calculateNetAmount(edition.retail_price, commission)
                   return (
-                    <TableRow key={edition.id}>
+                    <TableRow key={edition.id} className="group">
                       <TableCell>
                         <Link
                           href={`/editions/${edition.id}`}
@@ -318,6 +354,19 @@ export default function GalleryDetailPage({ params }: PageProps) {
                       </TableCell>
                       <TableCell className="text-right font-medium text-green-600">
                         {formatPrice(netDue)}
+                      </TableCell>
+                      <TableCell>
+                        <EditionRowActions
+                          edition={edition}
+                          distributors={distributors}
+                          sizes={sizes}
+                          onMarkSold={markSold}
+                          onMarkSettled={markSettled}
+                          onChangeSize={updateSize}
+                          onMoveToGallery={moveToGallery}
+                          onMarkPrinted={markPrinted}
+                          isSaving={isSaving}
+                        />
                       </TableCell>
                     </TableRow>
                   )

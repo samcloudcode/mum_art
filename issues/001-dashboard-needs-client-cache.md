@@ -1,7 +1,7 @@
 # Issue: Dashboard Overview Page Needs Client-Side Cache
 
 ## Status
-Blocked - waiting on client-side cache implementation
+Complete - implemented 2024-12-20
 
 ## Description
 The dashboard overview page currently shows placeholder/loading state. It needs to be wired up to display real stats once the Zustand client-side cache is implemented.
@@ -38,5 +38,9 @@ Once the cache is built (see `planning/PRP-client-side-cache.md`), the dashboard
 - `web/src/app/(dashboard)/page.tsx` - placeholder currently
 - `planning/PRP-client-side-cache.md` - cache implementation plan
 
-## Blocked By
-- Client-side cache implementation (PRP-client-side-cache.md)
+## Implementation Notes
+All requirements implemented in `web/src/app/(dashboard)/page.tsx`:
+- Collection overview stats with unsettled count
+- Performance stats (YTD, last year, 30d, 12m)
+- Enhanced gallery locations with commission %, time-based sales, unsettled badge
+- Galleries filtered to only show those with stock or sales history

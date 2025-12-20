@@ -19,12 +19,25 @@ export function useInventory(filters: EditionFilters = {}) {
     })
   }, [store.editions, filters])
 
+  // Derive unique sizes and frame types from data
+  const sizes = useMemo(() => {
+    const unique = new Set(store.editions.map(e => e.size).filter(Boolean) as string[])
+    return Array.from(unique).sort()
+  }, [store.editions])
+
+  const frameTypes = useMemo(() => {
+    const unique = new Set(store.editions.map(e => e.frame_type).filter(Boolean) as string[])
+    return Array.from(unique).sort()
+  }, [store.editions])
+
   return {
     // Data
     editions: filtered,
     allEditions: store.editions,
     prints: store.prints,
     distributors: store.distributors,
+    sizes,
+    frameTypes,
 
     // Status
     isLoading: store.isLoading,
@@ -54,5 +67,7 @@ export function useInventory(filters: EditionFilters = {}) {
       }),
     markSettled: (ids: number[], paymentNote?: string) =>
       store.updateEditions(ids, { is_settled: true, payment_note: paymentNote || null }),
+    updateSize: (ids: number[], size: string) =>
+      store.updateEditions(ids, { size }),
   }
 }

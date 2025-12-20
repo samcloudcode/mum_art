@@ -330,8 +330,8 @@ export type EditionFilters = {
   search?: string
   printId?: number
   distributorId?: number
-  size?: 'Small' | 'Large' | 'Extra Large' | null
-  frameType?: 'Framed' | 'Tube only' | 'Mounted' | null
+  size?: string | null
+  frameType?: string | null
   isPrinted?: boolean | null
   isSold?: boolean | null
   isSettled?: boolean | null

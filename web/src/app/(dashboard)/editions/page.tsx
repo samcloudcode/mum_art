@@ -13,10 +13,14 @@ export default function EditionsPage() {
     editions,
     prints,
     distributors,
+    sizes,
     isReady,
     isSaving,
     markPrinted,
+    markSold,
+    markSettled,
     moveToGallery,
+    updateSize,
   } = useInventory(filters)
 
   // Convert filters to the format expected by EditionFilters component
@@ -91,14 +95,14 @@ export default function EditionsPage() {
 
       <EditionsTable
         editions={editions}
-        distributors={distributors.map(d => ({
-          id: d.id,
-          name: d.name,
-          commission_percentage: d.commission_percentage,
-        }))}
+        distributors={distributors}
+        sizes={sizes}
         isSaving={isSaving}
         onMarkPrinted={markPrinted}
+        onMarkSold={markSold}
+        onMarkSettled={markSettled}
         onMoveToGallery={moveToGallery}
+        onUpdateSize={updateSize}
       />
     </div>
   )

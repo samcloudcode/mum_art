@@ -5,42 +5,102 @@ import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { formatPrice, calculateNetAmount } from '@/lib/utils'
 import { ChevronRightIcon } from '@/components/ui/icons'
+import type { EditionWithRelations } from '@/lib/types'
 
 export default function DashboardPage() {
-  const { allEditions, distributors, isReady } = useInventory()
+  const { allEditions, prints, distributors, isReady } = useInventory()
 
   const stats = useMemo(() => {
-    const total = allEditions.length
+    const artworkCount = prints.length
     const sold = allEditions.filter(e => e.is_sold).length
     const printed = allEditions.filter(e => e.is_printed).length
     const inStock = allEditions.filter(e => e.is_printed && !e.is_sold).length
-    const totalRevenue = allEditions
+    const unsettledCount = allEditions.filter(e => e.is_sold && !e.is_settled).length
+    // Net revenue = revenue after commission
+    const netRevenue = allEditions
       .filter(e => e.is_sold && e.retail_price)
-      .reduce((sum, e) => sum + (e.retail_price || 0), 0)
+      .reduce((sum, e) => sum + calculateNetAmount(e.retail_price, e.commission_percentage), 0)
     const unsettledAmount = allEditions
       .filter(e => e.is_sold && !e.is_settled && e.retail_price)
       .reduce((sum, e) => sum + calculateNetAmount(e.retail_price, e.commission_percentage), 0)
-    return { total, sold, printed, inStock, totalRevenue, unsettledAmount }
+    // Sell-through = sold / printed (not sold / total)
+    const sellThrough = printed > 0 ? Math.round((sold / printed) * 100) : 0
+    return { artworkCount, sold, printed, inStock, unsettledCount, netRevenue, unsettledAmount, sellThrough }
+  }, [allEditions, prints])
+
+  // Performance stats by time period
+  const performanceStats = useMemo(() => {
+    const now = new Date()
+    const startOfYear = new Date(now.getFullYear(), 0, 1)
+    const lastYearStart = new Date(now.getFullYear() - 1, 0, 1)
+    const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59)
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const twelveMonthsAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+
+    const soldEditions = allEditions.filter(e => e.is_sold && e.date_sold)
+
+    const inRange = (dateStr: string, start: Date, end: Date) => {
+      const d = new Date(dateStr)
+      return d >= start && d <= end
+    }
+
+    const calcStats = (editions: EditionWithRelations[]) => ({
+      count: editions.length,
+      revenue: editions.reduce((sum, e) => sum + calculateNetAmount(e.retail_price, e.commission_percentage), 0)
+    })
+
+    return {
+      ytd: calcStats(soldEditions.filter(e => inRange(e.date_sold!, startOfYear, now))),
+      lastYear: calcStats(soldEditions.filter(e => inRange(e.date_sold!, lastYearStart, lastYearEnd))),
+      last30Days: calcStats(soldEditions.filter(e => inRange(e.date_sold!, thirtyDaysAgo, now))),
+      last12Months: calcStats(soldEditions.filter(e => inRange(e.date_sold!, twelveMonthsAgo, now))),
+    }
   }, [allEditions])
 
-  // Top galleries by stock
-  const topGalleries = useMemo(() => {
-    const stockByGallery = new Map<number, { name: string; count: number; sold: number }>()
+  // Enhanced gallery stats
+  const galleryStats = useMemo(() => {
+    const now = new Date()
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const twelveMonthsAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+
+    const stats = new Map<number, {
+      name: string
+      commission: number | null
+      stock: number
+      salesLast30: number
+      salesLast12M: number
+      hasUnsettled: boolean
+    }>()
+
     allEditions.forEach(e => {
-      if (!e.distributor_id || !e.is_printed) return
+      if (!e.distributor_id) return
       const dist = distributors.find(d => d.id === e.distributor_id)
       if (!dist) return
-      const current = stockByGallery.get(e.distributor_id) || { name: dist.name, count: 0, sold: 0 }
-      if (!e.is_sold) {
-        current.count++
-      } else {
-        current.sold++
+
+      const current = stats.get(e.distributor_id) || {
+        name: dist.name,
+        commission: dist.commission_percentage,
+        stock: 0,
+        salesLast30: 0,
+        salesLast12M: 0,
+        hasUnsettled: false
       }
-      stockByGallery.set(e.distributor_id, current)
+
+      if (e.is_printed && !e.is_sold) current.stock++
+      if (e.is_sold && e.date_sold) {
+        const saleDate = new Date(e.date_sold)
+        if (saleDate >= thirtyDaysAgo) current.salesLast30++
+        if (saleDate >= twelveMonthsAgo) current.salesLast12M++
+      }
+      if (e.is_sold && !e.is_settled) current.hasUnsettled = true
+
+      stats.set(e.distributor_id, current)
     })
-    return Array.from(stockByGallery.entries())
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 5)
+
+    // Filter: only galleries with stock OR any sales history
+    return Array.from(stats.entries())
+      .filter(([_, g]) => g.stock > 0 || g.salesLast12M > 0)
+      .sort((a, b) => b[1].stock - a[1].stock)
   }, [allEditions, distributors])
 
   if (!isReady) return null
@@ -51,7 +111,7 @@ export default function DashboardPage() {
       <header className="border-b border-border pb-8">
         <h1 className="text-foreground mb-2">Collection Overview</h1>
         <p className="text-muted-foreground text-lg font-light">
-          {stats.total.toLocaleString()} editions across your collection
+          {stats.artworkCount} original designs in your portfolio
         </p>
       </header>
 
@@ -59,11 +119,11 @@ export default function DashboardPage() {
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="gallery-plaque">
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-            Total Editions
+            Artworks
           </p>
-          <p className="stat-value text-foreground">{stats.total.toLocaleString()}</p>
+          <p className="stat-value text-foreground">{stats.artworkCount}</p>
           <p className="text-sm text-muted-foreground mt-2">
-            {stats.printed.toLocaleString()} printed
+            {stats.printed.toLocaleString()} editions printed
           </p>
         </div>
 
@@ -73,15 +133,15 @@ export default function DashboardPage() {
           </p>
           <p className="stat-value status-sold">{stats.sold.toLocaleString()}</p>
           <p className="text-sm text-muted-foreground mt-2">
-            {stats.total > 0 ? Math.round((stats.sold / stats.total) * 100) : 0}% sell-through
+            {stats.sellThrough}% of printed
           </p>
         </div>
 
         <div className="gallery-plaque">
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-            Total Revenue
+            Net Revenue
           </p>
-          <p className="stat-value text-foreground">{formatPrice(stats.totalRevenue)}</p>
+          <p className="stat-value text-foreground">{formatPrice(stats.netRevenue)}</p>
           <p className="text-sm text-muted-foreground mt-2">
             From {stats.sold.toLocaleString()} sales
           </p>
@@ -93,8 +153,54 @@ export default function DashboardPage() {
           </p>
           <p className="stat-value text-accent">{formatPrice(stats.unsettledAmount)}</p>
           <p className="text-sm text-muted-foreground mt-2">
-            Net to artist after commission
+            {stats.unsettledCount} sales pending
           </p>
+        </div>
+      </section>
+
+      {/* Performance Stats */}
+      <section>
+        <h2 className="text-foreground mb-6">Sales Performance</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="gallery-plaque">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Year to Date
+            </p>
+            <p className="stat-value text-foreground">{performanceStats.ytd.count}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {formatPrice(performanceStats.ytd.revenue)} revenue
+            </p>
+          </div>
+
+          <div className="gallery-plaque">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              {new Date().getFullYear() - 1}
+            </p>
+            <p className="stat-value text-foreground">{performanceStats.lastYear.count}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {formatPrice(performanceStats.lastYear.revenue)} revenue
+            </p>
+          </div>
+
+          <div className="gallery-plaque">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Last 30 Days
+            </p>
+            <p className="stat-value text-foreground">{performanceStats.last30Days.count}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {formatPrice(performanceStats.last30Days.revenue)} revenue
+            </p>
+          </div>
+
+          <div className="gallery-plaque">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Last 12 Months
+            </p>
+            <p className="stat-value text-foreground">{performanceStats.last12Months.count}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {formatPrice(performanceStats.last12Months.revenue)} revenue
+            </p>
+          </div>
         </div>
       </section>
 
@@ -112,7 +218,7 @@ export default function DashboardPage() {
                   Record Printing
                 </p>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  {stats.total - stats.printed} unprinted editions
+                  {allEditions.length - stats.printed} unprinted editions
                 </p>
               </div>
               <ChevronRightIcon className="text-muted-foreground/50 group-hover:text-accent group-hover:translate-x-1 transition-all" />
@@ -159,7 +265,7 @@ export default function DashboardPage() {
           <div>
             <h2 className="text-foreground">Gallery Locations</h2>
             <p className="text-muted-foreground text-sm mt-1">
-              Top galleries by stock
+              Galleries with stock or recent sales
             </p>
           </div>
           <Link
@@ -170,28 +276,37 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {topGalleries.length === 0 ? (
+        {galleryStats.length === 0 ? (
           <div className="border border-border rounded-sm p-8 text-center text-muted-foreground">
             <p>No stock assigned to galleries yet</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {topGalleries.map(([id, gallery]) => (
+            {galleryStats.map(([id, gallery]) => (
               <Link
                 key={id}
                 href={`/galleries/${id}`}
                 className="group flex items-center justify-between p-4 border border-border rounded-sm hover:border-accent/30 transition-colors"
               >
-                <span className="font-medium text-foreground group-hover:text-accent transition-colors">
-                  {gallery.name}
-                </span>
-                <div className="flex items-center gap-6">
-                  <span className="text-sm text-muted-foreground">
-                    {gallery.count} in stock
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-foreground group-hover:text-accent transition-colors">
+                    {gallery.name}
                   </span>
-                  <span className="text-sm text-muted-foreground">
-                    {gallery.sold} sold
-                  </span>
+                  {gallery.commission !== null && (
+                    <span className="text-xs px-2 py-0.5 bg-muted text-muted-foreground rounded">
+                      {gallery.commission}%
+                    </span>
+                  )}
+                  {gallery.hasUnsettled && (
+                    <span className="text-xs px-2 py-0.5 bg-accent/10 text-accent rounded">
+                      Unsettled
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                  <span>{gallery.stock} in stock</span>
+                  <span>{gallery.salesLast30} sold (30d)</span>
+                  <span>{gallery.salesLast12M} sold (12m)</span>
                   <ChevronRightIcon className="w-4 h-4 text-muted-foreground/50 group-hover:text-accent group-hover:translate-x-1 transition-all" />
                 </div>
               </Link>

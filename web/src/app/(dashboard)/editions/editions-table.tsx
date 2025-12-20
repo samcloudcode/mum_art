@@ -30,20 +30,19 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import type { EditionWithRelations } from '@/lib/types'
-
-type Distributor = {
-  id: number
-  name: string
-  commission_percentage: number | null
-}
+import { EditionRowActions } from '@/components/edition-row-actions'
+import type { EditionWithRelations, Distributor } from '@/lib/types'
 
 type Props = {
   editions: EditionWithRelations[]
   distributors: Distributor[]
+  sizes: string[]
   isSaving: boolean
   onMarkPrinted: (ids: number[]) => Promise<boolean>
+  onMarkSold: (id: number, price: number, date: string, commissionPercentage?: number) => Promise<boolean>
+  onMarkSettled: (ids: number[], paymentNote?: string) => Promise<boolean>
   onMoveToGallery: (ids: number[], distributorId: number, dateInGallery?: string) => Promise<boolean>
+  onUpdateSize: (ids: number[], size: string) => Promise<boolean>
 }
 
 const PAGE_SIZE = 50
@@ -51,14 +50,20 @@ const PAGE_SIZE = 50
 export function EditionsTable({
   editions,
   distributors,
+  sizes,
   isSaving,
   onMarkPrinted,
+  onMarkSold,
+  onMarkSettled,
   onMoveToGallery,
+  onUpdateSize,
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [showMoveDialog, setShowMoveDialog] = useState(false)
+  const [showSizeDialog, setShowSizeDialog] = useState(false)
   const [moveToDistributorId, setMoveToDistributorId] = useState('')
   const [moveDate, setMoveDate] = useState(new Date().toISOString().split('T')[0])
+  const [bulkSize, setBulkSize] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
 
@@ -120,6 +125,29 @@ export function EditionsTable({
     }
   }
 
+  const handleMarkAsSettled = async () => {
+    setActionError(null)
+    const success = await onMarkSettled(Array.from(selectedIds))
+    if (success) {
+      setSelectedIds(new Set())
+    } else {
+      setActionError('Failed to mark as settled')
+    }
+  }
+
+  const handleChangeSize = async () => {
+    if (!bulkSize) return
+    setActionError(null)
+    const success = await onUpdateSize(Array.from(selectedIds), bulkSize)
+    if (success) {
+      setSelectedIds(new Set())
+      setShowSizeDialog(false)
+      setBulkSize('')
+    } else {
+      setActionError('Failed to change size')
+    }
+  }
+
   const goToPage = (newPage: number) => {
     setPage(newPage)
     setSelectedIds(new Set()) // Clear selection when changing pages
@@ -140,14 +168,22 @@ export function EditionsTable({
           <span className="text-sm text-blue-700">
             {selectedIds.size} edition{selectedIds.size > 1 ? 's' : ''} selected
           </span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               size="sm"
               variant="outline"
               onClick={handleMarkAsPrinted}
               disabled={isSaving}
             >
-              {isSaving ? 'Updating...' : 'Mark as Printed'}
+              Mark as Printed
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleMarkAsSettled}
+              disabled={isSaving}
+            >
+              Mark as Settled
             </Button>
             <Button
               size="sm"
@@ -157,8 +193,16 @@ export function EditionsTable({
             >
               Move to Gallery
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowSizeDialog(true)}
+              disabled={isSaving}
+            >
+              Change Size
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())}>
-              Clear Selection
+              Clear
             </Button>
           </div>
         </div>
@@ -213,6 +257,44 @@ export function EditionsTable({
         </DialogContent>
       </Dialog>
 
+      {/* Change Size Dialog */}
+      <Dialog open={showSizeDialog} onOpenChange={setShowSizeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Size</DialogTitle>
+            <DialogDescription>
+              Update size for {selectedIds.size} edition{selectedIds.size > 1 ? 's' : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Size</Label>
+              <Select value={bulkSize} onValueChange={setBulkSize}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select size" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sizes.map((size) => (
+                    <SelectItem key={size} value={size}>{size}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSizeDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleChangeSize}
+              disabled={!bulkSize || isSaving}
+            >
+              {isSaving ? 'Updating...' : 'Update Size'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <Table>
@@ -231,18 +313,19 @@ export function EditionsTable({
               <TableHead>Location</TableHead>
               <TableHead className="text-right">Price</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedEditions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                   No editions found
                 </TableCell>
               </TableRow>
             ) : (
               paginatedEditions.map((edition) => (
-                <TableRow key={edition.id}>
+                <TableRow key={edition.id} className="group">
                   <TableCell>
                     <Checkbox
                       checked={selectedIds.has(edition.id)}
@@ -313,6 +396,19 @@ export function EditionsTable({
                         </Badge>
                       )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <EditionRowActions
+                      edition={edition}
+                      distributors={distributors}
+                      sizes={sizes}
+                      onMarkSold={onMarkSold}
+                      onMarkSettled={onMarkSettled}
+                      onChangeSize={onUpdateSize}
+                      onMoveToGallery={onMoveToGallery}
+                      onMarkPrinted={onMarkPrinted}
+                      isSaving={isSaving}
+                    />
                   </TableCell>
                 </TableRow>
               ))

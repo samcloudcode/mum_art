@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { flushSync } from 'react-dom'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -10,6 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type FilterProps = {
   prints: { id: number; name: string }[]
@@ -27,6 +30,70 @@ type FilterProps = {
   onClearFilters: () => void
 }
 
+type ToggleOption = {
+  value: string
+  label: string
+}
+
+function ToggleButtonGroup({
+  options,
+  value,
+  onChange,
+  className,
+}: {
+  options: ToggleOption[]
+  value: string
+  onChange: (value: string) => void
+  className?: string
+}) {
+  // Internal state for instant visual feedback
+  const [internalValue, setInternalValue] = useState(value)
+
+  // Sync with external value when it changes (e.g., clear filters)
+  useEffect(() => {
+    setInternalValue(value)
+  }, [value])
+
+  const handleClick = (newValue: string) => {
+    flushSync(() => setInternalValue(newValue))
+    onChange(newValue)
+  }
+
+  return (
+    <div className={cn('flex rounded-lg border border-gray-200 overflow-hidden', className)}>
+      {options.map((option, index) => (
+        <button
+          key={option.value}
+          onClick={() => handleClick(option.value)}
+          className={cn(
+            'px-3 py-1.5 text-sm font-medium transition-colors duration-75',
+            'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset',
+            internalValue === option.value
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-gray-700 hover:bg-gray-50',
+            index > 0 && 'border-l border-gray-200'
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+const printedOptions: ToggleOption[] = [
+  { value: 'all', label: 'All' },
+  { value: 'true', label: 'Printed' },
+  { value: 'false', label: 'Not Printed' },
+]
+
+const soldOptions: ToggleOption[] = [
+  { value: 'all', label: 'All' },
+  { value: 'true', label: 'Sold' },
+  { value: 'false', label: 'Available' },
+  { value: 'unpaid', label: 'Unpaid' },
+]
+
 export function EditionFilters({
   prints,
   distributors,
@@ -35,13 +102,18 @@ export function EditionFilters({
   onClearFilters,
 }: FilterProps) {
   const [searchValue, setSearchValue] = useState(currentFilters.search || '')
+  const [isSearching, setIsSearching] = useState(false)
 
   // Debounce search input
   useEffect(() => {
+    if (searchValue !== currentFilters.search) {
+      setIsSearching(true)
+    }
     const timeoutId = setTimeout(() => {
       if (searchValue !== currentFilters.search) {
         onFilterChange('search', searchValue)
       }
+      setIsSearching(false)
     }, 300)
     return () => clearTimeout(timeoutId)
   }, [searchValue, currentFilters.search, onFilterChange])
@@ -55,17 +127,48 @@ export function EditionFilters({
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Quick toggle filters - Printed and Sold */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-700">Printed:</span>
+          <ToggleButtonGroup
+            options={printedOptions}
+            value={currentFilters.printed || 'all'}
+            onChange={(value) => onFilterChange('printed', value)}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-700">Sold:</span>
+          <ToggleButtonGroup
+            options={soldOptions}
+            value={currentFilters.sold || 'all'}
+            onChange={(value) => onFilterChange('sold', value)}
+          />
+        </div>
+        {hasFilters && (
+          <Button variant="outline" size="sm" onClick={onClearFilters}>
+            Clear Filters
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Search */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Search
           </label>
-          <Input
-            placeholder="Search editions..."
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-          />
+          <div className="relative">
+            <Input
+              placeholder="e.g. Bembridge 4"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              className={cn(isSearching && 'pr-8')}
+            />
+            {isSearching && (
+              <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-gray-400" />
+            )}
+          </div>
         </div>
 
         {/* Artwork filter */}
@@ -134,9 +237,7 @@ export function EditionFilters({
             </SelectContent>
           </Select>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Frame type filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -156,55 +257,6 @@ export function EditionFilters({
               <SelectItem value="Mounted">Mounted</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-
-        {/* Printed filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Printed Status
-          </label>
-          <Select
-            value={currentFilters.printed || 'all'}
-            onValueChange={(value) => onFilterChange('printed', value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="true">Printed</SelectItem>
-              <SelectItem value="false">Not Printed</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Sold filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Sold Status
-          </label>
-          <Select
-            value={currentFilters.sold || 'all'}
-            onValueChange={(value) => onFilterChange('sold', value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="true">Sold</SelectItem>
-              <SelectItem value="false">Available</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Clear filters */}
-        <div className="flex items-end">
-          {hasFilters && (
-            <Button variant="outline" onClick={onClearFilters} className="w-full">
-              Clear Filters
-            </Button>
-          )}
         </div>
       </div>
     </div>

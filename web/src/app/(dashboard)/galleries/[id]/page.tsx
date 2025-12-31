@@ -12,16 +12,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { EditionsDataTable } from '@/components/editions/editions-data-table'
-import { EditionRowActions } from '@/components/edition-row-actions'
+import { EditionsTableWithFilters } from '@/components/editions/editions-table-with-filters'
+import { galleryPreviewPreset, galleryUnsettledPreset } from '@/lib/editions-presets'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -29,37 +21,24 @@ type PageProps = {
 
 export default function GalleryDetailPage({ params }: PageProps) {
   const { id } = use(params)
+  const distributorId = parseInt(id)
   const {
     distributors,
     allEditions,
-    sizes,
     isReady,
     isSaving,
-    update,
-    updateMany,
-    markSold,
     markSettled,
-    markPrinted,
-    moveToGallery,
-    updateSize,
   } = useInventory()
   const [error, setError] = useState<string | null>(null)
 
   const distributor = useMemo(
-    () => distributors.find((d) => d.id === parseInt(id)),
-    [distributors, id]
+    () => distributors.find((d) => d.id === distributorId),
+    [distributors, distributorId]
   )
 
   const editions = useMemo(
-    () =>
-      allEditions
-        .filter((e) => e.distributor_id === parseInt(id))
-        .sort((a, b) => {
-          // Sort unsold first, then by display name
-          if (a.is_sold !== b.is_sold) return a.is_sold ? 1 : -1
-          return a.edition_display_name.localeCompare(b.edition_display_name)
-        }),
-    [allEditions, id]
+    () => allEditions.filter((e) => e.distributor_id === distributorId),
+    [allEditions, distributorId]
   )
 
   const { inStock, sold, unsettled, stockValue, totalRevenue, unsettledAmount } = useMemo(() => {
@@ -91,11 +70,6 @@ export default function GalleryDetailPage({ params }: PageProps) {
     if (!success) {
       setError('Failed to mark sales as paid. Please try again.')
     }
-  }
-
-  const formatDate = (date: string | null) => {
-    if (!date) return '-'
-    return new Date(date).toLocaleDateString('en-GB')
   }
 
   if (!isReady) return null
@@ -212,9 +186,7 @@ export default function GalleryDetailPage({ params }: PageProps) {
               <CardDescription>{inStock.length} editions available</CardDescription>
             </div>
             <Button asChild>
-              <Link href={`/galleries/${id}/stock`}>
-                View Full Stock
-              </Link>
+              <Link href={`/galleries/${id}/stock`}>View Full Stock</Link>
             </Button>
           </div>
         </CardHeader>
@@ -223,22 +195,9 @@ export default function GalleryDetailPage({ params }: PageProps) {
             <p className="text-center py-8 text-gray-500">No stock at this location</p>
           ) : (
             <div className="max-h-[400px] overflow-auto">
-              <EditionsDataTable
-                editions={inStock}
-                distributors={distributors}
-                sizes={sizes}
-                showSelection={false}
-                showPagination={false}
-                showExpandableRows={true}
-                enableInlineEdit={true}
-                columns={['edition', 'artwork', 'size', 'frame', 'price', 'printed', 'sale']}
-                onUpdate={update}
-                onBulkUpdate={updateMany}
-                onMarkSold={markSold}
-                onMarkSettled={markSettled}
-                onMoveToGallery={moveToGallery}
-                onMarkPrinted={markPrinted}
-                isSaving={isSaving}
+              <EditionsTableWithFilters
+                {...galleryPreviewPreset(distributorId)}
+                showCard={false}
               />
             </div>
           )}
@@ -263,56 +222,11 @@ export default function GalleryDetailPage({ params }: PageProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Edition</TableHead>
-                  <TableHead>Date Sold</TableHead>
-                  <TableHead className="text-right">Sale Price</TableHead>
-                  <TableHead className="text-right">Net Due</TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {unsettled.map((edition) => {
-                  const commission =
-                    edition.commission_percentage ?? distributor.commission_percentage
-                  const netDue = calculateNetAmount(edition.retail_price, commission)
-                  return (
-                    <TableRow key={edition.id} className="group">
-                      <TableCell>
-                        <Link
-                          href={`/editions/${edition.id}`}
-                          className="font-medium text-blue-600 hover:underline"
-                        >
-                          {edition.edition_display_name}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{formatDate(edition.date_sold)}</TableCell>
-                      <TableCell className="text-right">
-                        {formatPrice(edition.retail_price)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-green-600">
-                        {formatPrice(netDue)}
-                      </TableCell>
-                      <TableCell>
-                        <EditionRowActions
-                          edition={edition}
-                          distributors={distributors}
-                          sizes={sizes}
-                          onMarkSold={markSold}
-                          onMarkSettled={markSettled}
-                          onChangeSize={updateSize}
-                          onMoveToGallery={moveToGallery}
-                          onMarkPrinted={markPrinted}
-                          isSaving={isSaving}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+            <EditionsTableWithFilters
+              {...galleryUnsettledPreset(distributorId)}
+              showCard={false}
+              distributor={distributor}
+            />
           </CardContent>
         </Card>
       )}

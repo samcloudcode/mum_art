@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { editionStatusStyles } from '@/lib/utils/badge-styles'
-import { EditionsDataTable } from '@/components/editions/editions-data-table'
+import { EditionsTableWithFilters } from '@/components/editions/editions-table-with-filters'
+import { artworkEditionsPreset } from '@/lib/editions-presets'
 import { ArtworkImageSection } from '@/components/artwork-image-section'
 import {
   BarChart,
@@ -32,20 +33,7 @@ type TimeGrouping = 'month' | 'quarter' | 'year'
 export default function ArtworkDetailPage({ params }: PageProps) {
   const { id } = use(params)
   const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>('month')
-  const {
-    prints,
-    allEditions,
-    distributors,
-    sizes,
-    isReady,
-    isSaving,
-    update,
-    updateMany,
-    markPrinted,
-    markSold,
-    markSettled,
-    moveToGallery,
-  } = useInventory()
+  const { prints, allEditions, isReady } = useInventory()
 
   const print = useMemo(() => prints.find((p) => p.id === parseInt(id)), [prints, id])
 
@@ -498,40 +486,17 @@ export default function ArtworkDetailPage({ params }: PageProps) {
       </div>
 
       {/* Editions Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>All Editions</CardTitle>
-              <CardDescription>{editions.length} editions</CardDescription>
-            </div>
-            <Button variant="outline" asChild>
-              <Link href={`/editions?print=${print.id}`}>View in Editions</Link>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="max-h-[500px] overflow-auto">
-            <EditionsDataTable
-              editions={editions}
-              distributors={distributors}
-              sizes={sizes}
-              showSelection={false}
-              showPagination={false}
-              showExpandableRows={true}
-              enableInlineEdit={true}
-              columns={['edition', 'size', 'frame', 'location', 'price', 'printed', 'sale']}
-              onUpdate={update}
-              onBulkUpdate={updateMany}
-              onMarkSold={markSold}
-              onMarkSettled={markSettled}
-              onMoveToGallery={moveToGallery}
-              onMarkPrinted={markPrinted}
-              isSaving={isSaving}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <EditionsTableWithFilters
+        {...artworkEditionsPreset(print.id)}
+        title="All Editions"
+        description={`${editions.length} editions`}
+        headerActions={
+          <Button variant="outline" asChild>
+            <Link href={`/editions?print=${print.id}`}>View in Editions</Link>
+          </Button>
+        }
+        maxHeight="500px"
+      />
 
       {/* Back button */}
       <Button variant="outline" asChild>

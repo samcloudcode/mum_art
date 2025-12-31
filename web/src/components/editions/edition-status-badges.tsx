@@ -31,7 +31,7 @@ export function EditionStatusBadges({ edition, showUnpaid = true }: Props) {
 export function EditionStatusBadge({
   status,
 }: {
-  status: 'sold' | 'printed' | 'not_printed' | 'unpaid'
+  status: 'sold' | 'printed' | 'not_printed' | 'unpaid' | 'unknown'
 }) {
   switch (status) {
     case 'sold':
@@ -42,5 +42,7 @@ export function EditionStatusBadge({
       return <Badge className={editionStatusStyles.not_printed.badge}>Not Printed</Badge>
     case 'unpaid':
       return <Badge className={paymentStatusStyles.unpaid.badge}>Unpaid</Badge>
+    case 'unknown':
+      return <Badge className={editionStatusStyles.unknown.badge}>Unknown</Badge>
   }
 }

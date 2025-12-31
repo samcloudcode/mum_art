@@ -96,21 +96,12 @@ export function useInventory(filters: EditionFilters = {}) {
 
   // Stage 2: Apply remaining filters (only recalculates when those specific filters change)
   const filtered = useMemo(() => {
-    // If no other filters, return search results directly
-    if (
-      !filters.printId &&
-      !filters.distributorId &&
-      !filters.size &&
-      !filters.frameType &&
-      filters.isPrinted === undefined &&
-      filters.isSold === undefined &&
-      filters.isSettled === undefined &&
-      !filters.isUnsettled
-    ) {
-      return searchFiltered
-    }
-
     return searchFiltered.filter((e) => {
+      // Exclude legacy_unknown editions by default (unless includeLegacy is true)
+      if (!filters.includeLegacy && e.status_confidence === 'legacy_unknown') {
+        return false
+      }
+
       if (filters.printId && e.print_id !== filters.printId) return false
       if (filters.distributorId && e.distributor_id !== filters.distributorId) return false
       if (filters.size && e.size !== filters.size) return false
@@ -147,7 +138,13 @@ export function useInventory(filters: EditionFilters = {}) {
     filters.isSold,
     filters.isSettled,
     filters.isUnsettled,
+    filters.includeLegacy,
   ])
+
+  // Count legacy/unknown editions (for showing "X hidden" in UI)
+  const legacyCount = useMemo(() => {
+    return allEditions.filter((e) => e.status_confidence === 'legacy_unknown').length
+  }, [allEditions])
 
   // Memoize all callback functions to maintain stable references
   // This is critical for preventing unnecessary re-renders of memoized child components
@@ -225,6 +222,7 @@ export function useInventory(filters: EditionFilters = {}) {
     distributors,
     sizes,
     frameTypes,
+    legacyCount,
 
     // Status
     isLoading,

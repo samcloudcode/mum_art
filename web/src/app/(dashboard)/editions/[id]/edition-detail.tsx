@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   editionStatusStyles,
   paymentStatusStyles,
+  statusConfidenceStyles,
   getEditionStatusStyle,
   getEditionStatusLabel,
 } from '@/lib/utils/badge-styles'
@@ -142,6 +143,11 @@ export function EditionDetail({ edition, distributors, onUpdate, isSaving }: Pro
           </Badge>
           {edition.is_sold && !edition.is_settled && (
             <Badge className={paymentStatusStyles.unpaid.badge}>Unpaid</Badge>
+          )}
+          {edition.status_confidence === 'legacy_unknown' && (
+            <Badge className={statusConfidenceStyles.legacy_unknown.badge}>
+              Status Unknown
+            </Badge>
           )}
         </div>
       </div>

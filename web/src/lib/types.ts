@@ -83,6 +83,7 @@ export type Database = {
           print_id: number
           retail_price: number | null
           size: string | null
+          status_confidence: 'verified' | 'unverified' | 'legacy_unknown' | null
           sync_version: number | null
           to_check_in_detail: boolean | null
           updated_at: string | null
@@ -110,6 +111,7 @@ export type Database = {
           print_id: number
           retail_price?: number | null
           size?: string | null
+          status_confidence?: 'verified' | 'unverified' | 'legacy_unknown' | null
           sync_version?: number | null
           to_check_in_detail?: boolean | null
           updated_at?: string | null
@@ -137,6 +139,7 @@ export type Database = {
           print_id?: number
           retail_price?: number | null
           size?: string | null
+          status_confidence?: 'verified' | 'unverified' | 'legacy_unknown' | null
           sync_version?: number | null
           to_check_in_detail?: boolean | null
           updated_at?: string | null
@@ -328,6 +331,9 @@ export type EditionWithRelations = Edition & {
   distributors: Distributor | null
 }
 
+// Status confidence type
+export type StatusConfidence = 'verified' | 'unverified' | 'legacy_unknown'
+
 // Filter types for editions
 export type EditionFilters = {
   search?: string
@@ -339,6 +345,7 @@ export type EditionFilters = {
   isSold?: boolean | null
   isSettled?: boolean | null
   isUnsettled?: boolean // Sold but not settled (unpaid)
+  includeLegacy?: boolean // Include legacy_unknown editions (default: false)
 }
 
 // Pagination

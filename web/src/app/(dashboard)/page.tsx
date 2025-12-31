@@ -11,21 +11,25 @@ export default function DashboardPage() {
   const { allEditions, prints, distributors, isReady } = useInventory()
 
   const stats = useMemo(() => {
+    // Exclude legacy_unknown editions from stats to avoid skewing numbers
+    const verifiedEditions = allEditions.filter(e => e.status_confidence !== 'legacy_unknown')
     const artworkCount = prints.length
-    const sold = allEditions.filter(e => e.is_sold).length
-    const printed = allEditions.filter(e => e.is_printed).length
-    const inStock = allEditions.filter(e => e.is_printed && !e.is_sold).length
-    const unsettledCount = allEditions.filter(e => e.is_sold && !e.is_settled).length
+    const sold = verifiedEditions.filter(e => e.is_sold).length
+    const printed = verifiedEditions.filter(e => e.is_printed).length
+    const inStock = verifiedEditions.filter(e => e.is_printed && !e.is_sold).length
+    const unsettledCount = verifiedEditions.filter(e => e.is_sold && !e.is_settled).length
     // Net revenue = revenue after commission
-    const netRevenue = allEditions
+    const netRevenue = verifiedEditions
       .filter(e => e.is_sold && e.retail_price)
       .reduce((sum, e) => sum + calculateNetAmount(e.retail_price, e.commission_percentage), 0)
-    const unsettledAmount = allEditions
+    const unsettledAmount = verifiedEditions
       .filter(e => e.is_sold && !e.is_settled && e.retail_price)
       .reduce((sum, e) => sum + calculateNetAmount(e.retail_price, e.commission_percentage), 0)
     // Sell-through = sold / printed (not sold / total)
     const sellThrough = printed > 0 ? Math.round((sold / printed) * 100) : 0
-    return { artworkCount, sold, printed, inStock, unsettledCount, netRevenue, unsettledAmount, sellThrough }
+    // Count legacy items separately
+    const legacyCount = allEditions.filter(e => e.status_confidence === 'legacy_unknown').length
+    return { artworkCount, sold, printed, inStock, unsettledCount, netRevenue, unsettledAmount, sellThrough, legacyCount }
   }, [allEditions, prints])
 
   // Performance stats by time period
@@ -37,7 +41,8 @@ export default function DashboardPage() {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     const twelveMonthsAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
 
-    const soldEditions = allEditions.filter(e => e.is_sold && e.date_sold)
+    // Exclude legacy_unknown editions from performance stats
+    const soldEditions = allEditions.filter(e => e.is_sold && e.date_sold && e.status_confidence !== 'legacy_unknown')
 
     const inRange = (dateStr: string, start: Date, end: Date) => {
       const d = new Date(dateStr)
@@ -72,7 +77,10 @@ export default function DashboardPage() {
       hasUnsettled: boolean
     }>()
 
-    allEditions.forEach(e => {
+    // Exclude legacy_unknown editions from gallery stats
+    const verifiedEditions = allEditions.filter(e => e.status_confidence !== 'legacy_unknown')
+
+    verifiedEditions.forEach(e => {
       if (!e.distributor_id) return
       const dist = distributors.find(d => d.id === e.distributor_id)
       if (!dist) return

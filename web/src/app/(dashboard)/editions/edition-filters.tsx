@@ -25,9 +25,11 @@ type FilterProps = {
     frame?: string
     printed?: string
     sold?: string
+    includeLegacy?: string
   }
   onFilterChange: (key: string, value: string) => void
   onClearFilters: () => void
+  legacyCount?: number
 }
 
 type ToggleOption = {
@@ -100,6 +102,7 @@ export function EditionFilters({
   currentFilters,
   onFilterChange,
   onClearFilters,
+  legacyCount = 0,
 }: FilterProps) {
   const [searchValue, setSearchValue] = useState(currentFilters.search || '')
   const [isSearching, setIsSearching] = useState(false)
@@ -145,6 +148,20 @@ export function EditionFilters({
             onChange={(value) => onFilterChange('sold', value)}
           />
         </div>
+        {legacyCount > 0 && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={currentFilters.includeLegacy === 'true'}
+              onChange={(e) => onFilterChange('includeLegacy', e.target.checked ? 'true' : 'false')}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-700">
+              Show legacy items
+              <span className="ml-1 text-xs text-amber-600">({legacyCount} hidden)</span>
+            </span>
+          </label>
+        )}
         {hasFilters && (
           <Button variant="outline" size="sm" onClick={onClearFilters}>
             Clear Filters

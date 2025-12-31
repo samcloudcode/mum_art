@@ -17,6 +17,7 @@ export type Database = {
           created_at: string | null
           id: number
           is_active: boolean | null
+          is_favorite: boolean | null
           last_synced_at: string | null
           last_update_date: string | null
           name: string
@@ -32,6 +33,7 @@ export type Database = {
           created_at?: string | null
           id?: number
           is_active?: boolean | null
+          is_favorite?: boolean | null
           last_synced_at?: string | null
           last_update_date?: string | null
           name: string
@@ -47,6 +49,7 @@ export type Database = {
           created_at?: string | null
           id?: number
           is_active?: boolean | null
+          is_favorite?: boolean | null
           last_synced_at?: string | null
           last_update_date?: string | null
           name?: string
@@ -335,6 +338,7 @@ export type EditionFilters = {
   isPrinted?: boolean | null
   isSold?: boolean | null
   isSettled?: boolean | null
+  isUnsettled?: boolean // Sold but not settled (unpaid)
 }
 
 // Pagination

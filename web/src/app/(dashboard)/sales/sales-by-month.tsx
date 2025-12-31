@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { paymentStatusStyles } from '@/lib/utils/badge-styles'
 import {
   Table,
   TableBody,
@@ -149,7 +150,7 @@ export function SalesByMonth({ monthlyData }: Props) {
                   </p>
                 </div>
                 {monthData.unsettledCount > 0 && (
-                  <Badge className="bg-amber-100 text-amber-800">
+                  <Badge className={paymentStatusStyles.unpaid.badge}>
                     {formatPrice(monthData.unsettledNet)} unsettled
                   </Badge>
                 )}
@@ -282,9 +283,9 @@ export function SalesByMonth({ monthlyData }: Props) {
                                   </TableCell>
                                   <TableCell>
                                     {sale.is_settled ? (
-                                      <Badge className="bg-green-100 text-green-800">Paid</Badge>
+                                      <Badge className={paymentStatusStyles.paid.badge}>Paid</Badge>
                                     ) : (
-                                      <Badge className="bg-amber-100 text-amber-800">Unpaid</Badge>
+                                      <Badge className={paymentStatusStyles.unpaid.badge}>Unpaid</Badge>
                                     )}
                                   </TableCell>
                                 </TableRow>

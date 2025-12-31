@@ -6,7 +6,9 @@ import { useInventoryStore } from '@/lib/store/inventory-store'
 export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const { initialize, isLoading, isReady, error, loadTimeMs } = useInventoryStore()
 
-  useEffect(() => { initialize() }, [initialize])
+  useEffect(() => {
+    initialize()
+  }, [initialize])
 
   if (!isReady && isLoading) {
     return (
@@ -25,7 +27,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         <div className="text-center space-y-4">
           <p className="text-red-600">Failed to load inventory: {error}</p>
           <button
-            onClick={initialize}
+            onClick={() => initialize()}
             className="px-4 py-2 bg-accent text-accent-foreground rounded-md hover:bg-accent/90 transition-colors"
           >
             Retry
@@ -38,11 +40,25 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      {loadTimeMs && (
-        <div className="fixed bottom-4 right-4 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded border border-border/50">
-          Loaded in {loadTimeMs}ms
-        </div>
-      )}
+      <div className="fixed bottom-4 right-4 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded border border-border/50 flex items-center gap-2">
+        {isLoading ? (
+          <>
+            <div className="animate-spin w-3 h-3 border border-accent border-t-transparent rounded-full" />
+            <span>Refreshing...</span>
+          </>
+        ) : (
+          <>
+            {loadTimeMs && <span>Loaded in {loadTimeMs}ms</span>}
+            <button
+              onClick={() => initialize()}
+              className="ml-1 hover:text-foreground transition-colors"
+              title="Refresh data"
+            >
+              ↻
+            </button>
+          </>
+        )}
+      </div>
     </>
   )
 }

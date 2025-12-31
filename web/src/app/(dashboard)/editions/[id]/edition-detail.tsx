@@ -8,6 +8,12 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
+  editionStatusStyles,
+  paymentStatusStyles,
+  getEditionStatusStyle,
+  getEditionStatusLabel,
+} from '@/lib/utils/badge-styles'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -131,15 +137,11 @@ export function EditionDetail({ edition, distributors, onUpdate, isSaving }: Pro
           )}
         </div>
         <div className="flex gap-2">
-          {edition.is_sold ? (
-            <Badge className="bg-green-100 text-green-800">Sold</Badge>
-          ) : edition.is_printed ? (
-            <Badge className="bg-blue-100 text-blue-800">Printed</Badge>
-          ) : (
-            <Badge variant="secondary">Not Printed</Badge>
-          )}
+          <Badge className={getEditionStatusStyle(edition).badge}>
+            {getEditionStatusLabel(edition)}
+          </Badge>
           {edition.is_sold && !edition.is_settled && (
-            <Badge className="bg-amber-100 text-amber-800">Unpaid</Badge>
+            <Badge className={paymentStatusStyles.unpaid.badge}>Unpaid</Badge>
           )}
         </div>
       </div>
@@ -329,9 +331,9 @@ export function EditionDetail({ edition, distributors, onUpdate, isSaving }: Pro
                   <dt className="text-gray-600">Payment Status</dt>
                   <dd>
                     {edition.is_settled ? (
-                      <Badge className="bg-green-100 text-green-800">Paid</Badge>
+                      <Badge className={paymentStatusStyles.paid.badge}>Paid</Badge>
                     ) : (
-                      <Badge className="bg-amber-100 text-amber-800">Unpaid</Badge>
+                      <Badge className={paymentStatusStyles.unpaid.badge}>Unpaid</Badge>
                     )}
                   </dd>
                 </div>

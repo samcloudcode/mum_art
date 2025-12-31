@@ -4,8 +4,13 @@ import { use, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { formatPrice, calculateNetAmount } from '@/lib/utils'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -15,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { EditionsDataTable } from '@/components/editions/editions-data-table'
 import { EditionRowActions } from '@/components/edition-row-actions'
 
 type PageProps = {
@@ -29,6 +35,8 @@ export default function GalleryDetailPage({ params }: PageProps) {
     sizes,
     isReady,
     isSaving,
+    update,
+    updateMany,
     markSold,
     markSettled,
     markPrinted,
@@ -38,25 +46,26 @@ export default function GalleryDetailPage({ params }: PageProps) {
   const [error, setError] = useState<string | null>(null)
 
   const distributor = useMemo(
-    () => distributors.find(d => d.id === parseInt(id)),
+    () => distributors.find((d) => d.id === parseInt(id)),
     [distributors, id]
   )
 
   const editions = useMemo(
-    () => allEditions
-      .filter(e => e.distributor_id === parseInt(id))
-      .sort((a, b) => {
-        // Sort unsold first, then by display name
-        if (a.is_sold !== b.is_sold) return a.is_sold ? 1 : -1
-        return a.edition_display_name.localeCompare(b.edition_display_name)
-      }),
+    () =>
+      allEditions
+        .filter((e) => e.distributor_id === parseInt(id))
+        .sort((a, b) => {
+          // Sort unsold first, then by display name
+          if (a.is_sold !== b.is_sold) return a.is_sold ? 1 : -1
+          return a.edition_display_name.localeCompare(b.edition_display_name)
+        }),
     [allEditions, id]
   )
 
   const { inStock, sold, unsettled, stockValue, totalRevenue, unsettledAmount } = useMemo(() => {
-    const inStockEditions = editions.filter(e => e.is_printed && !e.is_sold)
-    const soldEditions = editions.filter(e => e.is_sold)
-    const unsettledEditions = soldEditions.filter(e => !e.is_settled)
+    const inStockEditions = editions.filter((e) => e.is_printed && !e.is_sold)
+    const soldEditions = editions.filter((e) => e.is_sold)
+    const unsettledEditions = soldEditions.filter((e) => !e.is_settled)
 
     const stockValue = inStockEditions.reduce((sum, e) => sum + (e.retail_price || 0), 0)
     const totalRevenue = soldEditions.reduce((sum, e) => sum + (e.retail_price || 0), 0)
@@ -71,13 +80,13 @@ export default function GalleryDetailPage({ params }: PageProps) {
       unsettled: unsettledEditions,
       stockValue,
       totalRevenue,
-      unsettledAmount
+      unsettledAmount,
     }
   }, [editions, distributor])
 
   const handleMarkAllAsPaid = async () => {
     setError(null)
-    const ids = unsettled.map(e => e.id)
+    const ids = unsettled.map((e) => e.id)
     const success = await markSettled(ids)
     if (!success) {
       setError('Failed to mark sales as paid. Please try again.')
@@ -87,12 +96,6 @@ export default function GalleryDetailPage({ params }: PageProps) {
   const formatDate = (date: string | null) => {
     if (!date) return '-'
     return new Date(date).toLocaleDateString('en-GB')
-  }
-
-  const getDaysInGallery = (dateInGallery: string | null) => {
-    if (!dateInGallery) return null
-    const days = Math.floor((Date.now() - new Date(dateInGallery).getTime()) / (1000 * 60 * 60 * 24))
-    return days
   }
 
   if (!isReady) return null
@@ -135,9 +138,7 @@ export default function GalleryDetailPage({ params }: PageProps) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{distributor.name}</h1>
           {distributor.commission_percentage !== null && (
-            <p className="text-gray-600">
-              {distributor.commission_percentage}% commission
-            </p>
+            <p className="text-gray-600">{distributor.commission_percentage}% commission</p>
           )}
           {distributor.contact_number && (
             <p className="text-sm text-gray-500 mt-1">{distributor.contact_number}</p>
@@ -157,17 +158,17 @@ export default function GalleryDetailPage({ params }: PageProps) {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>In Stock</CardDescription>
-            <CardTitle className="text-3xl text-blue-600">{inStock.length}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-gray-500">
-              Value: {formatPrice(stockValue)}
-            </p>
-          </CardContent>
-        </Card>
+        <Link href={`/galleries/${id}/stock`}>
+          <Card className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
+            <CardHeader className="pb-2">
+              <CardDescription>In Stock</CardDescription>
+              <CardTitle className="text-3xl text-blue-600">{inStock.length}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-gray-500">Value: {formatPrice(stockValue)}</p>
+            </CardContent>
+          </Card>
+        </Link>
 
         <Card>
           <CardHeader className="pb-2">
@@ -175,9 +176,7 @@ export default function GalleryDetailPage({ params }: PageProps) {
             <CardTitle className="text-3xl text-green-600">{sold.length}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-gray-500">
-              Revenue: {formatPrice(totalRevenue)}
-            </p>
+            <p className="text-xs text-gray-500">Revenue: {formatPrice(totalRevenue)}</p>
           </CardContent>
         </Card>
 
@@ -187,18 +186,14 @@ export default function GalleryDetailPage({ params }: PageProps) {
             <CardTitle className="text-3xl text-amber-600">{unsettled.length}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-gray-500">
-              Amount due: {formatPrice(unsettledAmount)}
-            </p>
+            <p className="text-xs text-gray-500">Amount due: {formatPrice(unsettledAmount)}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Commission Rate</CardDescription>
-            <CardTitle className="text-3xl">
-              {distributor.commission_percentage ?? 0}%
-            </CardTitle>
+            <CardTitle className="text-3xl">{distributor.commission_percentage ?? 0}%</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-gray-500">
@@ -216,9 +211,9 @@ export default function GalleryDetailPage({ params }: PageProps) {
               <CardTitle>Current Stock</CardTitle>
               <CardDescription>{inStock.length} editions available</CardDescription>
             </div>
-            <Button variant="outline" asChild>
-              <Link href={`/editions?distributor=${distributor.id}&sold=false`}>
-                View in Editions
+            <Button asChild>
+              <Link href={`/galleries/${id}/stock`}>
+                View Full Stock
               </Link>
             </Button>
           </div>
@@ -228,77 +223,23 @@ export default function GalleryDetailPage({ params }: PageProps) {
             <p className="text-center py-8 text-gray-500">No stock at this location</p>
           ) : (
             <div className="max-h-[400px] overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Edition</TableHead>
-                    <TableHead>Artwork</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Frame</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead>Days in Gallery</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {inStock.map((edition) => {
-                    const days = getDaysInGallery(edition.date_in_gallery)
-                    return (
-                      <TableRow key={edition.id} className="group">
-                        <TableCell>
-                          <Link
-                            href={`/editions/${edition.id}`}
-                            className="font-medium text-blue-600 hover:underline"
-                          >
-                            {edition.edition_display_name}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          {edition.prints ? (
-                            <Link
-                              href={`/artworks/${edition.prints.id}`}
-                              className="hover:underline"
-                            >
-                              {edition.prints.name}
-                            </Link>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {edition.size ? (
-                            <Badge variant="outline">{edition.size}</Badge>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
-                        <TableCell className="text-gray-600">
-                          {edition.frame_type || '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatPrice(edition.retail_price)}
-                        </TableCell>
-                        <TableCell className="text-gray-600">
-                          {days !== null ? `${days}d` : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <EditionRowActions
-                            edition={edition}
-                            distributors={distributors}
-                            sizes={sizes}
-                            onMarkSold={markSold}
-                            onMarkSettled={markSettled}
-                            onChangeSize={updateSize}
-                            onMoveToGallery={moveToGallery}
-                            onMarkPrinted={markPrinted}
-                            isSaving={isSaving}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+              <EditionsDataTable
+                editions={inStock}
+                distributors={distributors}
+                sizes={sizes}
+                showSelection={false}
+                showPagination={false}
+                showExpandableRows={true}
+                enableInlineEdit={true}
+                columns={['edition', 'artwork', 'size', 'frame', 'price', 'printed', 'sale']}
+                onUpdate={update}
+                onBulkUpdate={updateMany}
+                onMarkSold={markSold}
+                onMarkSettled={markSettled}
+                onMoveToGallery={moveToGallery}
+                onMarkPrinted={markPrinted}
+                isSaving={isSaving}
+              />
             </div>
           )}
         </CardContent>
@@ -314,9 +255,7 @@ export default function GalleryDetailPage({ params }: PageProps) {
                 <CardDescription>
                   {unsettled.length} sales pending payment ({formatPrice(unsettledAmount)})
                 </CardDescription>
-                {error && (
-                  <p className="text-sm text-red-600 mt-2">{error}</p>
-                )}
+                {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
               </div>
               <Button onClick={handleMarkAllAsPaid} disabled={isSaving}>
                 {isSaving ? 'Saving...' : 'Mark All as Paid'}
@@ -336,7 +275,8 @@ export default function GalleryDetailPage({ params }: PageProps) {
               </TableHeader>
               <TableBody>
                 {unsettled.map((edition) => {
-                  const commission = edition.commission_percentage ?? distributor.commission_percentage
+                  const commission =
+                    edition.commission_percentage ?? distributor.commission_percentage
                   const netDue = calculateNetAmount(edition.retail_price, commission)
                   return (
                     <TableRow key={edition.id} className="group">

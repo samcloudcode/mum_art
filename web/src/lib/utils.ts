@@ -24,3 +24,16 @@ export function calculateNetAmount(
   const commission = commissionPercentage || 0
   return retailPrice * (1 - commission / 100)
 }
+
+/**
+ * Format a date string for display
+ */
+export function formatDate(dateString: string | null | undefined): string {
+  if (!dateString) return '-'
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}

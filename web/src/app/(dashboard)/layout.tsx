@@ -10,6 +10,7 @@ const navigation = [
   { name: 'Artworks', href: '/artworks' },
   { name: 'Galleries', href: '/galleries' },
   { name: 'Sales', href: '/sales' },
+  { name: 'Analytics', href: '/analytics' },
 ]
 
 export default async function DashboardLayout({

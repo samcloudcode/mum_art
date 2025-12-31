@@ -126,7 +126,9 @@ export default function GalleryDetailPage({ params }: PageProps) {
               </a>
             </Button>
           )}
-          <Button>Start Stock Check</Button>
+          <Button asChild>
+            <Link href={`/galleries/${id}/stock-check`}>Start Stock Check</Link>
+          </Button>
         </div>
       </div>
 

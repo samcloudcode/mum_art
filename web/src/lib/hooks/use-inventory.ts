@@ -234,6 +234,19 @@ export function useInventory(filters: EditionFilters = {}) {
     markSettled,
     updateSize,
 
+    // Stock check actions
+    markStockChecked: (ids: number[], checked: boolean = true) =>
+      store.updateEditions(ids, { is_stock_checked: checked }),
+    markNeedsReview: (ids: number[], needsReview: boolean = true) =>
+      store.updateEditions(ids, { to_check_in_detail: needsReview }),
+    resetStockCheckForGallery: async (distributorId: number) => {
+      const editionIds = store.editions
+        .filter((e) => e.distributor_id === distributorId && e.is_printed && !e.is_sold)
+        .map((e) => e.id)
+      if (editionIds.length === 0) return true
+      return store.updateEditions(editionIds, { is_stock_checked: false, to_check_in_detail: false })
+    },
+
     // Distributor actions
     toggleDistributorFavorite,
   }

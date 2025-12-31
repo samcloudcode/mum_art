@@ -67,6 +67,7 @@ type Props = {
 
   // State
   isSaving?: boolean
+  savingIds?: Set<number> // Optional: per-row saving state
 }
 
 const DEFAULT_COLUMNS: ColumnKey[] = ['edition', 'artwork', 'size', 'frame', 'location', 'price', 'printed', 'sale', 'actions']
@@ -104,6 +105,40 @@ type EditionTableRowProps = {
   isSaving: boolean
 }
 
+// Performance debugging - set to true via localStorage to enable
+// In browser console: localStorage.setItem('DEBUG_TABLE_RENDERS', 'true')
+const DEBUG_TABLE_RENDERS = typeof window !== 'undefined' && localStorage?.getItem('DEBUG_TABLE_RENDERS') === 'true'
+const rowRenderCounts = DEBUG_TABLE_RENDERS ? new Map<number, number>() : null
+const prevPropsMap = DEBUG_TABLE_RENDERS ? new Map<number, EditionTableRowProps>() : null
+
+function logPropChanges(id: number, prev: EditionTableRowProps | undefined, next: EditionTableRowProps) {
+  if (!prev || !DEBUG_TABLE_RENDERS) return
+  const changes: string[] = []
+
+  if (prev.edition !== next.edition) changes.push('edition')
+  if (prev.isSelected !== next.isSelected) changes.push('isSelected')
+  if (prev.isExpanded !== next.isExpanded) changes.push('isExpanded')
+  if (prev.isSaving !== next.isSaving) changes.push('isSaving')
+  if (prev.sizeOptions !== next.sizeOptions) changes.push('sizeOptions')
+  if (prev.distributorOptions !== next.distributorOptions) changes.push('distributorOptions')
+  if (prev.columns !== next.columns) changes.push('columns')
+  if (prev.onUpdate !== next.onUpdate) changes.push('onUpdate')
+  if (prev.onMarkSold !== next.onMarkSold) changes.push('onMarkSold')
+  if (prev.onBulkUpdate !== next.onBulkUpdate) changes.push('onBulkUpdate')
+  if (prev.onToggleSelect !== next.onToggleSelect) changes.push('onToggleSelect')
+  if (prev.onToggleExpand !== next.onToggleExpand) changes.push('onToggleExpand')
+  if (prev.onInlineSave !== next.onInlineSave) changes.push('onInlineSave')
+  if (prev.onMarkSettled !== next.onMarkSettled) changes.push('onMarkSettled')
+  if (prev.onMoveToGallery !== next.onMoveToGallery) changes.push('onMoveToGallery')
+  if (prev.onMarkPrinted !== next.onMarkPrinted) changes.push('onMarkPrinted')
+  if (prev.distributors !== next.distributors) changes.push('distributors')
+  if (prev.sizes !== next.sizes) changes.push('sizes')
+
+  if (changes.length > 0) {
+    console.log(`[ROW ${id}] Props changed:`, changes.join(', '))
+  }
+}
+
 // Memoized row component - only re-renders when its specific data changes
 const EditionTableRow = memo(function EditionTableRow({
   edition,
@@ -128,6 +163,25 @@ const EditionTableRow = memo(function EditionTableRow({
   sizes,
   isSaving,
 }: EditionTableRowProps) {
+  // Performance debugging - enable via: localStorage.setItem('DEBUG_TABLE_RENDERS', 'true')
+  if (DEBUG_TABLE_RENDERS && rowRenderCounts && prevPropsMap) {
+    const currentProps: EditionTableRowProps = {
+      edition, isSelected, isExpanded, showSelection, showExpandableRows,
+      enableInlineEdit, columns, sizeOptions, distributorOptions,
+      onToggleSelect, onToggleExpand, onInlineSave, onUpdate, onMarkSold,
+      onMarkSettled, onMoveToGallery, onMarkPrinted, onBulkUpdate,
+      distributors, sizes, isSaving,
+    }
+    const prevProps = prevPropsMap.get(edition.id)
+    const count = (rowRenderCounts.get(edition.id) || 0) + 1
+    rowRenderCounts.set(edition.id, count)
+
+    if (count > 1) {
+      console.log(`[ROW RE-RENDER] Edition ${edition.id} rendered ${count} times`)
+      logPropChanges(edition.id, prevProps, currentProps)
+    }
+    prevPropsMap.set(edition.id, currentProps)
+  }
   // Memoize callbacks to prevent child re-renders
   const handlePrintedUpdate = useCallback(
     (id: number, isPrinted: boolean) => onUpdate(id, { is_printed: isPrinted }),
@@ -325,26 +379,36 @@ const EditionTableRow = memo(function EditionTableRow({
   )
 }, (prevProps, nextProps) => {
   // Custom comparison - only re-render if this specific row's data changed
-  // Include all props that affect rendering or are used in callbacks
-  return (
-    // Row data
+  // IMPORTANT: All callbacks must be memoized by parent, or this check will fail
+  const equal = (
+    // Row data - changes frequently per-row
     prevProps.edition === nextProps.edition &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.isExpanded === nextProps.isExpanded &&
     prevProps.isSaving === nextProps.isSaving &&
-    // Options for inline edits
+    // Options for inline edits - should be memoized
     prevProps.sizeOptions === nextProps.sizeOptions &&
     prevProps.distributorOptions === nextProps.distributorOptions &&
-    // Config flags (rarely change but must be compared)
+    // Config flags (rarely change)
     prevProps.showSelection === nextProps.showSelection &&
     prevProps.showExpandableRows === nextProps.showExpandableRows &&
     prevProps.enableInlineEdit === nextProps.enableInlineEdit &&
     prevProps.columns === nextProps.columns &&
-    // Callbacks (compared by reference - parent must memoize)
+    // ALL callbacks must be compared - parent must memoize these
     prevProps.onUpdate === nextProps.onUpdate &&
     prevProps.onMarkSold === nextProps.onMarkSold &&
-    prevProps.onBulkUpdate === nextProps.onBulkUpdate
+    prevProps.onBulkUpdate === nextProps.onBulkUpdate &&
+    prevProps.onToggleSelect === nextProps.onToggleSelect &&
+    prevProps.onToggleExpand === nextProps.onToggleExpand &&
+    prevProps.onInlineSave === nextProps.onInlineSave &&
+    prevProps.onMarkSettled === nextProps.onMarkSettled &&
+    prevProps.onMoveToGallery === nextProps.onMoveToGallery &&
+    prevProps.onMarkPrinted === nextProps.onMarkPrinted &&
+    // Arrays - should be memoized or excluded if not used
+    prevProps.distributors === nextProps.distributors &&
+    prevProps.sizes === nextProps.sizes
   )
+  return equal
 })
 
 export function EditionsDataTable({
@@ -364,6 +428,7 @@ export function EditionsDataTable({
   onMoveToGallery,
   onMarkPrinted,
   isSaving = false,
+  savingIds,
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -730,7 +795,7 @@ export function EditionsDataTable({
                     onBulkUpdate={onBulkUpdate}
                     distributors={distributors}
                     sizes={sizes}
-                    isSaving={isSaving}
+                    isSaving={savingIds ? savingIds.has(edition.id) : isSaving}
                   />
                   {showExpandableRows && expandedId === edition.id && (
                     <EditionExpandableRow

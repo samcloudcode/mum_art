@@ -18,6 +18,7 @@ export default function EditionsPage() {
     sizes,
     isReady,
     isSaving,
+    savingIds,
     update,
     updateMany,
     markPrinted,
@@ -156,6 +157,7 @@ export default function EditionsPage() {
           onMoveToGallery={moveToGallery}
           onMarkPrinted={markPrinted}
           isSaving={isSaving}
+          savingIds={savingIds}
         />
       </div>
     </div>

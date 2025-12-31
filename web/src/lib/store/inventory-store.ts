@@ -24,7 +24,8 @@ interface InventoryStore {
   // Status
   isLoading: boolean
   isReady: boolean
-  isSaving: boolean
+  isSaving: boolean // Global saving indicator (true when any save is in progress)
+  savingIds: Set<number> // Track which specific edition IDs are currently saving
   error: string | null
   loadTimeMs: number | null
 
@@ -33,6 +34,7 @@ interface InventoryStore {
   updateEdition: (id: number, updates: Partial<Edition>) => Promise<boolean>
   updateEditions: (ids: number[], updates: Partial<Edition>) => Promise<boolean>
   toggleDistributorFavorite: (id: number) => Promise<boolean>
+  isEditionSaving: (id: number) => boolean
 }
 
 export const useInventoryStore = create<InventoryStore>()(
@@ -48,8 +50,11 @@ export const useInventoryStore = create<InventoryStore>()(
         isLoading: false,
         isReady: false,
         isSaving: false,
+        savingIds: new Set(),
         error: null,
         loadTimeMs: null,
+
+        isEditionSaving: (id: number) => get().savingIds.has(id),
 
         initialize: async () => {
           const state = get()
@@ -157,10 +162,15 @@ export const useInventoryStore = create<InventoryStore>()(
             artworkName: updatedEdition.prints?.name?.toLowerCase() || '',
           })
 
+          // Track this specific edition as saving
+          const newSavingIds = new Set(state.savingIds)
+          newSavingIds.add(id)
+
           set({
             editions: newEditions,
             _searchIndex: newSearchIndex,
             isSaving: true,
+            savingIds: newSavingIds,
           })
 
           // Sync to server
@@ -170,15 +180,21 @@ export const useInventoryStore = create<InventoryStore>()(
             .update({ ...updates, updated_at: new Date().toISOString() })
             .eq('id', id)
 
+          // Remove from saving IDs
+          const currentState = get()
+          const updatedSavingIds = new Set(currentState.savingIds)
+          updatedSavingIds.delete(id)
+          const stillSaving = updatedSavingIds.size > 0
+
           if (error) {
             // Rollback
-            const rollback = [...get().editions]
+            const rollback = [...currentState.editions]
             rollback[index] = previous
-            set({ editions: rollback, isSaving: false })
+            set({ editions: rollback, isSaving: stillSaving, savingIds: updatedSavingIds })
             return false
           }
 
-          set({ isSaving: false })
+          set({ isSaving: stillSaving, savingIds: updatedSavingIds })
           return true
         },
 
@@ -223,10 +239,17 @@ export const useInventoryStore = create<InventoryStore>()(
             })
           }
 
+          // Track these specific editions as saving
+          const newSavingIds = new Set(state.savingIds)
+          for (const id of ids) {
+            newSavingIds.add(id)
+          }
+
           set({
             editions: newEditions,
             _searchIndex: newSearchIndex,
             isSaving: true,
+            savingIds: newSavingIds,
           })
 
           // Sync to server
@@ -236,17 +259,25 @@ export const useInventoryStore = create<InventoryStore>()(
             .update({ ...updates, updated_at: new Date().toISOString() })
             .in('id', ids)
 
+          // Remove from saving IDs
+          const currentState = get()
+          const updatedSavingIds = new Set(currentState.savingIds)
+          for (const id of ids) {
+            updatedSavingIds.delete(id)
+          }
+          const stillSaving = updatedSavingIds.size > 0
+
           if (error) {
             // Rollback
-            const rollback = [...get().editions]
+            const rollback = [...currentState.editions]
             for (const { index, previous } of targets) {
               rollback[index] = previous
             }
-            set({ editions: rollback, isSaving: false })
+            set({ editions: rollback, isSaving: stillSaving, savingIds: updatedSavingIds })
             return false
           }
 
-          set({ isSaving: false })
+          set({ isSaving: stillSaving, savingIds: updatedSavingIds })
           return true
         },
 

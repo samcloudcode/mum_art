@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
 import { useInventoryStore } from '@/lib/store/inventory-store'
 import type { EditionFilters } from '@/lib/types'
+import { useShallow } from 'zustand/react/shallow'
 
 /**
  * Parse search query for smart search patterns
@@ -24,18 +25,54 @@ function parseSmartSearch(query: string): { artwork: string; editionNum: number 
 }
 
 export function useInventory(filters: EditionFilters = {}) {
-  const store = useInventoryStore()
+  // Use shallow comparison to prevent unnecessary re-renders
+  // This only re-renders when the selected values actually change
+  const {
+    editions: allEditions,
+    prints,
+    distributors,
+    _searchIndex,
+    isLoading,
+    isReady,
+    isSaving,
+    savingIds,
+    loadTimeMs,
+    error,
+    initialize,
+    updateEdition,
+    updateEditions,
+    toggleDistributorFavorite,
+    isEditionSaving,
+  } = useInventoryStore(
+    useShallow((state) => ({
+      editions: state.editions,
+      prints: state.prints,
+      distributors: state.distributors,
+      _searchIndex: state._searchIndex,
+      isLoading: state.isLoading,
+      isReady: state.isReady,
+      isSaving: state.isSaving,
+      savingIds: state.savingIds,
+      loadTimeMs: state.loadTimeMs,
+      error: state.error,
+      initialize: state.initialize,
+      updateEdition: state.updateEdition,
+      updateEditions: state.updateEditions,
+      toggleDistributorFavorite: state.toggleDistributorFavorite,
+      isEditionSaving: state.isEditionSaving,
+    }))
+  )
 
   // Stage 1: Apply search filter using pre-computed search index
   const searchFiltered = useMemo(() => {
-    if (!filters.search) return store.editions
+    if (!filters.search) return allEditions
 
     const searchLower = filters.search.toLowerCase()
     const smartSearch = parseSmartSearch(filters.search)
 
-    return store.editions.filter((e) => {
+    return allEditions.filter((e) => {
       // Use pre-computed lowercase strings from search index
-      const cached = store._searchIndex.get(e.id)
+      const cached = _searchIndex.get(e.id)
       if (!cached) return false
 
       // Smart search - match artwork name + edition number
@@ -51,7 +88,7 @@ export function useInventory(filters: EditionFilters = {}) {
       // Regular search on display name and artwork name
       return cached.displayName.includes(searchLower) || cached.artworkName.includes(searchLower)
     })
-  }, [store.editions, store._searchIndex, filters.search])
+  }, [allEditions, _searchIndex, filters.search])
 
   // Stage 2: Apply remaining filters (only recalculates when those specific filters change)
   const filtered = useMemo(() => {
@@ -110,58 +147,94 @@ export function useInventory(filters: EditionFilters = {}) {
 
   // Derive unique sizes and frame types from data
   const sizes = useMemo(() => {
-    const unique = new Set(store.editions.map((e) => e.size).filter(Boolean) as string[])
+    const unique = new Set(allEditions.map((e) => e.size).filter(Boolean) as string[])
     return Array.from(unique).sort()
-  }, [store.editions])
+  }, [allEditions])
 
   const frameTypes = useMemo(() => {
-    const unique = new Set(store.editions.map((e) => e.frame_type).filter(Boolean) as string[])
+    const unique = new Set(allEditions.map((e) => e.frame_type).filter(Boolean) as string[])
     return Array.from(unique).sort()
-  }, [store.editions])
+  }, [allEditions])
 
-  return {
-    // Data
-    editions: filtered,
-    allEditions: store.editions,
-    prints: store.prints,
-    distributors: store.distributors,
-    sizes,
-    frameTypes,
+  // Memoize all callback functions to maintain stable references
+  // This is critical for preventing unnecessary re-renders of memoized child components
+  const markPrinted = useCallback(
+    (ids: number[]) => updateEditions(ids, { is_printed: true }),
+    [updateEditions]
+  )
 
-    // Status
-    isLoading: store.isLoading,
-    isReady: store.isReady,
-    isSaving: store.isSaving,
-    loadTimeMs: store.loadTimeMs,
-    error: store.error,
+  const markNotPrinted = useCallback(
+    (ids: number[]) => updateEditions(ids, { is_printed: false }),
+    [updateEditions]
+  )
 
-    // Mutations
-    update: store.updateEdition,
-    updateMany: store.updateEditions,
-
-    // Force refresh
-    refresh: () => store.initialize(),
-
-    // Convenience wrappers
-    markPrinted: (ids: number[]) => store.updateEditions(ids, { is_printed: true }),
-    markNotPrinted: (ids: number[]) => store.updateEditions(ids, { is_printed: false }),
-    markSold: (id: number, price: number, date: string, commissionPercentage?: number) =>
-      store.updateEdition(id, {
+  const markSold = useCallback(
+    (id: number, price: number, date: string, commissionPercentage?: number) =>
+      updateEdition(id, {
         is_sold: true,
         retail_price: price,
         date_sold: date,
         commission_percentage: commissionPercentage,
       }),
-    moveToGallery: (ids: number[], distributorId: number, dateInGallery?: string) =>
-      store.updateEditions(ids, {
+    [updateEdition]
+  )
+
+  const moveToGallery = useCallback(
+    (ids: number[], distributorId: number, dateInGallery?: string) =>
+      updateEditions(ids, {
         distributor_id: distributorId,
         date_in_gallery: dateInGallery || new Date().toISOString().split('T')[0],
       }),
-    markSettled: (ids: number[], paymentNote?: string) =>
-      store.updateEditions(ids, { is_settled: true, payment_note: paymentNote || null }),
-    updateSize: (ids: number[], size: string) => store.updateEditions(ids, { size }),
+    [updateEditions]
+  )
+
+  const markSettled = useCallback(
+    (ids: number[], paymentNote?: string) =>
+      updateEditions(ids, { is_settled: true, payment_note: paymentNote || null }),
+    [updateEditions]
+  )
+
+  const updateSize = useCallback(
+    (ids: number[], size: string) => updateEditions(ids, { size }),
+    [updateEditions]
+  )
+
+  const refresh = useCallback(() => initialize(), [initialize])
+
+  return {
+    // Data
+    editions: filtered,
+    allEditions,
+    prints,
+    distributors,
+    sizes,
+    frameTypes,
+
+    // Status
+    isLoading,
+    isReady,
+    isSaving,
+    savingIds, // Set of edition IDs currently being saved - for per-row saving state
+    isEditionSaving, // Function to check if a specific edition is saving
+    loadTimeMs,
+    error,
+
+    // Mutations - these are already stable from the store
+    update: updateEdition,
+    updateMany: updateEditions,
+
+    // Force refresh
+    refresh,
+
+    // Convenience wrappers - memoized for stable references
+    markPrinted,
+    markNotPrinted,
+    markSold,
+    moveToGallery,
+    markSettled,
+    updateSize,
 
     // Distributor actions
-    toggleDistributorFavorite: store.toggleDistributorFavorite,
+    toggleDistributorFavorite,
   }
 }

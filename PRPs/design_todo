@@ -1,0 +1,169 @@
+Design Analysis: Editions Table
+Current State
+The table is functionally rich (inline editing, expandable rows, bulk actions) but visually generic - it uses standard shadcn/radix styling that doesn't leverage your beautiful coastal palette or the art gallery context.
+Design Direction: Gallery Catalog Aesthetic
+Given this is an art print inventory system, the table should feel like browsing a gallery exhibition catalog - refined, editorial, with attention to typography and subtle spatial rhythm.
+Key Improvements
+1. Table Container & Header - Gallery Plaque Treatment
+Current: Generic white card with gray border Proposed: Use existing .gallery-plaque utility with refined header styling
+
+// Table wrapper - add subtle depth and warmth
+<div className="gallery-plaque overflow-hidden">
+  <Table>
+    <TableHeader className="bg-secondary/50 border-b border-border">
+2. Edition Name - Display Typography
+Current: Standard blue link text Proposed: Use serif display font to make edition names feel like gallery labels
+
+<Link
+  href={`/editions/${edition.id}`}
+  className="font-serif text-primary hover:text-accent transition-colors"
+>
+  {edition.edition_display_name}
+</Link>
+3. Status Badges - Coastal Color Palette
+Current: Generic green/blue/gray badges Proposed: Leverage your --seafoam, --coral, --gold variables
+
+// badge-styles.ts - Updated palette
+export const editionStatusStyles = {
+  sold: {
+    badge: 'bg-seafoam/15 text-seafoam border border-seafoam/30',
+    dot: 'bg-seafoam',
+  },
+  printed: {
+    badge: 'bg-accent/10 text-accent border border-accent/20',
+    dot: 'bg-accent',
+  },
+  not_printed: {
+    badge: 'bg-muted text-muted-foreground border border-border',
+    dot: 'bg-muted-foreground/50',
+  },
+}
+
+export const paymentStatusStyles = {
+  paid: {
+    badge: 'bg-seafoam/15 text-seafoam border border-seafoam/30',
+  },
+  unpaid: {
+    badge: 'bg-coral/15 text-coral border border-coral/30',
+  },
+}
+4. Row Hover States - Refined Interaction
+Current: hover:bg-muted/50 Proposed: Elegant left-border accent on hover (like exhibition labels)
+
+<TableRow className="group border-l-2 border-l-transparent hover:border-l-accent hover:bg-secondary/30 transition-all duration-200">
+5. Expandable Row - Exhibition Card
+Current: Gray background, standard grid Proposed: Card-like treatment with accent border
+
+<tr className="bg-card border-b-0">
+  <td colSpan={colSpan} className="p-0">
+    <div className="exhibition-label mx-4 my-3 rounded-sm">
+      {/* Content with improved spacing and typography */}
+    </div>
+  </td>
+</tr>
+6. Inline Selects - Ghost Style with Hover Reveal
+Your inline selects already have nice ghost styling. Enhance with:
+Subtle background transition on the cell itself
+Use accent ring color on focus
+7. Bulk Action Bar - More Refined
+Current: Blue alert-style bar Proposed: Subtle floating bar with accent styling
+
+<div className="sticky top-0 z-10 bg-card/95 backdrop-blur border border-accent/20 rounded-lg p-3 shadow-sm flex items-center justify-between">
+  <span className="text-sm font-medium text-accent">
+    {selectedIds.size} selected
+  </span>
+  {/* Actions */}
+</div>
+8. Pagination - Gallery Navigation Feel
+Current: Standard Previous/Next with number buttons Proposed: More minimal, serif page numbers
+
+<div className="flex items-center justify-between pt-4 border-t border-border/50">
+  <p className="text-sm text-muted-foreground">
+    <span className="font-serif">{startItem}</span>–<span className="font-serif">{endItem}</span> of{' '}
+    <span className="font-serif">{editions.length.toLocaleString()}</span>
+  </p>
+  {/* Minimal pagination controls */}
+</div>
+9. Price Column - Refined Typography
+Use the stat styling for prices to give them more presence:
+
+<span className="font-serif tabular-nums">{formatPrice(edition.retail_price)}</span>
+10. Empty State - Gallery Feel
+
+<TableRow>
+  <TableCell colSpan={colCount} className="text-center py-16">
+    <p className="font-serif text-lg text-muted-foreground">No editions found</p>
+    <p className="text-sm text-muted-foreground/70 mt-1">Try adjusting your filters</p>
+  </TableCell>
+</TableRow>
+Summary of Visual Changes
+Now I have a complete picture of the editions table. Let me provide a comprehensive design review and improvement recommendations.
+Editions Table Design Review
+Current State Analysis
+The table is functionally solid with good features (inline editing, expandable rows, bulk actions, pagination), but visually it feels like a standard enterprise data table rather than a tool befitting an art gallery inventory system.
+Aesthetic Direction: "Gallery Curator's Desk"
+Given the existing coastal aesthetic with serif typography and sandy/ocean tones, I recommend evolving toward a refined gallery documentation aesthetic — think museum inventory cards, exhibition catalogs, and archival records. Clean, elegant, yet highly functional.
+Key Improvements
+1. Table Container & Headers
+Current: Plain white box with generic gray borders Proposed: Subtle elevation with refined borders, header that feels like archival tabs
+
+┌─ Edition ─┬─ Artwork ─┬─ Size ─┬─ Location ─┬─ Price ─┬─ Status ─┐
+│  #4/350   │ Bembridge │ Large  │ Purbeck    │  £450   │    ●     │
+Add a subtle left accent border on the container (using the accent color)
+Header row with slightly warmer background and refined typography
+Sticky header on scroll with a soft shadow reveal
+2. Status Indicators — Visual Revolution
+Replace dropdown selects with visual status chips that are immediately scannable: Printing Status:
+○ Empty circle = Not Printed (gray)
+● Filled circle = Printed (ocean blue)
+Sale Status:
+◇ Diamond outline = Available (neutral)
+◆ Filled diamond = Sold (seafoam)
+✓ Checkmark = Settled (gold)
+This allows at-a-glance scanning of 50+ rows instantly.
+3. Row Hover & Selection States
+Current: Generic gray hover, blue selection Proposed:
+Hover: Subtle warm sand tint + left accent reveal
+Selected: Soft blue-gray with checkmark indicator
+Active row glow when editing
+4. Inline Editing UX Improvements
+Current: Click to edit, input appears Proposed:
+Pencil icon hint on hover (subtle, right-aligned)
+Double-click to edit (single click for navigation)
+Inline validation with soft red/green border feedback
+Success checkmark animation on save
+5. Expandable Row — "Exhibition Card"
+Current: Gray background panel with dense text Proposed: Transform into an exhibition documentation card:
+Left accent border (using coastal palette)
+Section dividers with subtle horizontal rules
+Key-value layout with elegant spacing
+Notes section styled like curatorial annotations
+6. Pagination — Refined Controls
+Current: Standard button row Proposed:
+"Showing 1-50 of 7,879" with elegant typography
+Compact page selector (no numbered buttons, just prev/next + direct input)
+Optional: "Jump to edition" quick search
+7. Bulk Action Bar — Contextual Actions
+Current: Blue banner with button row Proposed:
+Slide-up animation from bottom
+Icon-based actions with labels on hover
+Count displayed with subtle animation
+Undo option for recent actions
+Color Refinements for Status
+Leverage the existing coastal palette:
+
+/* Status Palette */
+--status-sold: var(--seafoam);      /* Emerald teal - completed sale */
+--status-printed: var(--accent);     /* Ocean blue - ready inventory */
+--status-pending: var(--coral);      /* Sunset orange - needs attention */
+--status-settled: var(--gold);       /* Sandy gold - fully resolved */
+--status-available: var(--muted-foreground); /* Neutral */
+Implementation Priority
+Priority	Change	Impact
+High	Status indicator redesign (circles/diamonds)	Immediate scannability
+High	Row hover/selection states	Better interaction feedback
+Medium	Expandable row styling	Consistent aesthetic
+Medium	Inline edit affordances	Clearer UX patterns
+Low	Pagination refinement	Minor polish
+Low	Bulk action animation	Delight factor
+Would you like me to implement these improvements? I can start with the highest-impact changes (status indicators and row styling) and work down from there.

@@ -549,7 +549,6 @@ function ArtworksTab({ artworkStats }: { artworkStats: ArtworkStats[] }) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
     } else {
       setSortKey(key)
-      // Default to desc for most columns, asc for name/remaining
       setSortDirection(key === 'name' ? 'asc' : 'desc')
     }
   }
@@ -599,11 +598,57 @@ function ArtworksTab({ artworkStats }: { artworkStats: ArtworkStats[] }) {
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        Click column headers to sort. All {artworkStats.length} artworks shown.
+        <span className="hidden md:inline">Click column headers to sort. </span>
+        All {artworkStats.length} artworks shown.
       </p>
 
-      {/* Artworks table */}
-      <div className="border border-border rounded-sm overflow-hidden">
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {sortedStats.map(artwork => (
+          <Link
+            key={artwork.printId}
+            href={`/artworks/${artwork.printId}`}
+            className="block p-4 bg-card border border-border rounded-lg active:bg-secondary/50 transition-colors touch-manipulation"
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <h3 className="font-serif text-lg font-medium text-foreground">
+                {artwork.name}
+              </h3>
+              <span className={`font-mono text-lg font-semibold ${
+                artwork.sellThroughRate >= 90 ? 'text-green-600' :
+                artwork.sellThroughRate >= 50 ? 'text-foreground' :
+                'text-muted-foreground'
+              }`}>
+                {artwork.sellThroughRate.toFixed(0)}%
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground text-xs uppercase tracking-wider">Sold</p>
+                <p className="font-medium">{artwork.sold} / {artwork.totalEditions}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs uppercase tracking-wider">12mo</p>
+                <p className={artwork.velocityPercentage >= 30 ? 'text-green-600 font-medium' : ''}>
+                  {artwork.velocityLast12Months}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs uppercase tracking-wider">Revenue</p>
+                <p className="font-medium">{formatPrice(artwork.totalRevenue)}</p>
+              </div>
+            </div>
+            {artwork.remaining <= 5 && artwork.remaining > 0 && (
+              <div className="mt-3 text-xs text-amber-600 font-medium">
+                Only {artwork.remaining} remaining
+              </div>
+            )}
+          </Link>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block border border-border rounded-sm overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -829,11 +874,70 @@ function GalleriesTab({
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        Click column headers to sort. All {galleryStats.length} galleries shown. YoY uses rolling 12-month periods.
+        <span className="hidden md:inline">Click column headers to sort. </span>
+        All {galleryStats.length} galleries shown.
       </p>
 
-      {/* Galleries table */}
-      <div className="border border-border rounded-sm overflow-hidden">
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {sortedStats.map(gallery => (
+          <Link
+            key={gallery.distributorId}
+            href={`/galleries/${gallery.distributorId}`}
+            className="block p-4 bg-card border border-border rounded-lg active:bg-secondary/50 transition-colors touch-manipulation"
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="font-serif text-lg font-medium text-foreground">
+                  {gallery.name}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {gallery.commission}% commission
+                </p>
+              </div>
+              <span className={`font-mono text-lg font-semibold ${
+                gallery.conversionRate >= 70 ? 'text-green-600' :
+                gallery.conversionRate >= 40 ? 'text-foreground' :
+                'text-amber-600'
+              }`}>
+                {gallery.conversionRate.toFixed(0)}%
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground text-xs uppercase tracking-wider">Sold</p>
+                <p className="font-medium">{gallery.totalSold} / {gallery.totalAllocated}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs uppercase tracking-wider">In Stock</p>
+                <p className={gallery.inStock <= 3 && gallery.inStock > 0 ? 'text-amber-600 font-medium' : ''}>
+                  {gallery.inStock}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs uppercase tracking-wider">Revenue</p>
+                <p className="font-medium">{formatPrice(gallery.netRevenue)}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                12mo: {gallery.salesLast12Months} sales
+              </span>
+              <span className={gallery.rollingMetrics.yoyChangePercent >= 0 ? 'text-green-600' : 'text-red-500'}>
+                YoY {formatPercentChange(gallery.rollingMetrics.yoyChangePercent)} {getTrendIndicator(gallery.rollingMetrics.yoyChangePercent)}
+              </span>
+            </div>
+            {gallery.unsettledCount > 0 && (
+              <div className="mt-2 text-xs text-amber-600 font-medium">
+                {gallery.unsettledCount} unsettled ({formatPrice(gallery.unsettledAmount)})
+              </div>
+            )}
+          </Link>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block border border-border rounded-sm overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>

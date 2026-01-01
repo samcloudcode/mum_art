@@ -12,6 +12,7 @@ const navigation = [
   { name: 'Galleries', href: '/galleries' },
   { name: 'Sales', href: '/sales' },
   { name: 'Analytics', href: '/analytics' },
+  { name: 'Tax Report', href: '/reports/uk-tax-year' },
   { name: 'Change History', href: '/changelog' },
   { name: 'Guides', href: '/guide' },
 ]

@@ -36,9 +36,9 @@ import { PrintStatusSelect, SaleStatusSelect } from './edition-status-selects'
 import { EditionInlineCell } from './edition-inline-cell'
 import { EditionExpandableRow } from './edition-expandable-row'
 import type { EditionWithRelations, Distributor, EditionUpdate } from '@/lib/types'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, formatDate } from '@/lib/utils'
 
-type ColumnKey = 'edition' | 'artwork' | 'size' | 'frame' | 'location' | 'price' | 'printed' | 'sale' | 'actions'
+type ColumnKey = 'edition' | 'artwork' | 'size' | 'frame' | 'location' | 'price' | 'printed' | 'sale' | 'dateSold' | 'dateInGallery' | 'actions'
 
 type Props = {
   editions: EditionWithRelations[]
@@ -70,7 +70,7 @@ type Props = {
   savingIds?: Set<number> // Optional: per-row saving state
 }
 
-const DEFAULT_COLUMNS: ColumnKey[] = ['edition', 'artwork', 'size', 'frame', 'location', 'price', 'printed', 'sale', 'actions']
+const DEFAULT_COLUMNS: ColumnKey[] = ['edition', 'artwork', 'size', 'frame', 'location', 'price', 'printed', 'sale', 'dateSold', 'dateInGallery', 'actions']
 const DEFAULT_PAGE_SIZE = 50
 
 // Static options - defined outside component to avoid recreation
@@ -358,6 +358,16 @@ const EditionTableRow = memo(function EditionTableRow({
             onMarkSettled={handleMarkSettled}
             disabled={isSaving}
           />
+        </TableCell>
+      )}
+      {columns.includes('dateSold') && (
+        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+          {formatDate(edition.date_sold)}
+        </TableCell>
+      )}
+      {columns.includes('dateInGallery') && (
+        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+          {formatDate(edition.date_in_gallery)}
         </TableCell>
       )}
       {columns.includes('actions') && onMarkSold && onMarkSettled && onMoveToGallery && onMarkPrinted && onBulkUpdate && (
@@ -740,8 +750,8 @@ export function EditionsDataTable({
       </Dialog>
 
       {/* Table */}
-      <div className="gallery-plaque overflow-hidden">
-        <Table>
+      <div className="gallery-plaque overflow-x-auto">
+        <Table className="min-w-[1200px]">
           <TableHeader className="bg-secondary/50 border-b border-border">
             <TableRow>
               {showExpandableRows && <TableHead className="w-10" />}
@@ -761,6 +771,8 @@ export function EditionsDataTable({
               {columns.includes('price') && <TableHead className="text-right">Price</TableHead>}
               {columns.includes('printed') && <TableHead>Printed</TableHead>}
               {columns.includes('sale') && <TableHead>Sale</TableHead>}
+              {columns.includes('dateSold') && <TableHead className="whitespace-nowrap">Date Sold</TableHead>}
+              {columns.includes('dateInGallery') && <TableHead className="whitespace-nowrap">In Gallery</TableHead>}
               {columns.includes('actions') && <TableHead className="w-10"></TableHead>}
             </TableRow>
           </TableHeader>

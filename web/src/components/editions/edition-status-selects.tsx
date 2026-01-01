@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -19,7 +20,7 @@ import {
 import { Loader2, Check } from 'lucide-react'
 import type { EditionWithRelations } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { feedbackStyles } from '@/lib/utils/badge-styles'
+import { feedbackStyles, editionStatusStyles, saleStatusStyles } from '@/lib/utils/badge-styles'
 
 // =============================================================================
 // Print Status Select - "Not Printed" / "Printed"
@@ -52,36 +53,46 @@ export function PrintStatusSelect({
     }
   }
 
+  const isPrinted = edition.is_printed
+  const badgeStyle = isPrinted ? editionStatusStyles.printed : editionStatusStyles.not_printed
+
   return (
     <div className={cn(
       'relative rounded transition-colors duration-300',
       justSaved && feedbackStyles.saved
     )}>
       <Select
-        value={edition.is_printed ? 'printed' : 'not_printed'}
+        value={isPrinted ? 'printed' : 'not_printed'}
         onValueChange={handleChange}
         disabled={disabled || isSaving}
       >
         <SelectTrigger
           className={cn(
-            'h-7 text-sm w-[110px]',
+            'h-auto py-0.5 px-0 w-auto min-w-[90px]',
             'border-transparent bg-transparent shadow-none',
-            'hover:border-gray-300 hover:bg-gray-50',
-            'focus:border-gray-300 focus:bg-white focus:ring-0',
-            'data-[state=open]:border-gray-300 data-[state=open]:bg-white',
+            'hover:bg-secondary/50',
+            'focus:ring-0 focus:ring-offset-0',
+            'data-[state=open]:bg-secondary/50',
             '[&>svg]:opacity-0 hover:[&>svg]:opacity-50 data-[state=open]:[&>svg]:opacity-100',
+            '[&>svg]:ml-1 [&>svg]:h-3 [&>svg]:w-3',
             'transition-all duration-200'
           )}
         >
-          <SelectValue />
+          <Badge className={cn(badgeStyle.badge, 'text-xs font-medium whitespace-nowrap')}>
+            {isPrinted ? 'Printed' : 'Not Printed'}
+          </Badge>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="not_printed">Not Printed</SelectItem>
-          <SelectItem value="printed">Printed</SelectItem>
+          <SelectItem value="not_printed">
+            <Badge className={cn(editionStatusStyles.not_printed.badge, 'text-xs')}>Not Printed</Badge>
+          </SelectItem>
+          <SelectItem value="printed">
+            <Badge className={cn(editionStatusStyles.printed.badge, 'text-xs')}>Printed</Badge>
+          </SelectItem>
         </SelectContent>
       </Select>
       {isSaving && (
-        <Loader2 className="absolute right-8 top-1.5 h-4 w-4 animate-spin text-gray-400" />
+        <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-gray-400" />
       )}
     </div>
   )
@@ -192,6 +203,10 @@ export function SaleStatusSelect({
     }
   }
 
+  const displayStatus = pendingStatus || currentStatus
+  const badgeStyle = saleStatusStyles[displayStatus as keyof typeof saleStatusStyles]
+  const statusLabel = displayStatus === 'unsold' ? 'Unsold' : displayStatus === 'sold' ? 'Sold' : 'Settled'
+
   return (
     <Popover open={showSoldPopover} onOpenChange={setShowSoldPopover}>
       <div className={cn(
@@ -201,28 +216,37 @@ export function SaleStatusSelect({
         <PopoverTrigger asChild>
           <div>
             <Select
-              value={pendingStatus || currentStatus}
+              value={displayStatus}
               onValueChange={handleChange}
               disabled={disabled || isSaving}
             >
               <SelectTrigger
                 className={cn(
-                  'h-7 text-sm w-[90px]',
+                  'h-auto py-0.5 px-0 w-auto min-w-[70px]',
                   'border-transparent bg-transparent shadow-none',
-                  'hover:border-gray-300 hover:bg-gray-50',
-                  'focus:border-gray-300 focus:bg-white focus:ring-0',
-                  'data-[state=open]:border-gray-300 data-[state=open]:bg-white',
+                  'hover:bg-secondary/50',
+                  'focus:ring-0 focus:ring-offset-0',
+                  'data-[state=open]:bg-secondary/50',
                   '[&>svg]:opacity-0 hover:[&>svg]:opacity-50 data-[state=open]:[&>svg]:opacity-100',
+                  '[&>svg]:ml-1 [&>svg]:h-3 [&>svg]:w-3',
                   'transition-all duration-200'
                 )}
                 onClick={(e) => e.stopPropagation()}
               >
-                <SelectValue />
+                <Badge className={cn(badgeStyle.badge, 'text-xs font-medium whitespace-nowrap')}>
+                  {statusLabel}
+                </Badge>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="unsold">Unsold</SelectItem>
-                <SelectItem value="sold">Sold</SelectItem>
-                <SelectItem value="settled">Settled</SelectItem>
+                <SelectItem value="unsold">
+                  <Badge className={cn(saleStatusStyles.unsold.badge, 'text-xs')}>Unsold</Badge>
+                </SelectItem>
+                <SelectItem value="sold">
+                  <Badge className={cn(saleStatusStyles.sold.badge, 'text-xs')}>Sold</Badge>
+                </SelectItem>
+                <SelectItem value="settled">
+                  <Badge className={cn(saleStatusStyles.settled.badge, 'text-xs')}>Settled</Badge>
+                </SelectItem>
                 {edition.is_sold && (
                   <>
                     <div className="h-px bg-gray-200 my-1" />
@@ -236,7 +260,7 @@ export function SaleStatusSelect({
           </div>
         </PopoverTrigger>
         {isSaving && !showSoldPopover && (
-          <Loader2 className="absolute right-8 top-1.5 h-4 w-4 animate-spin text-gray-400" />
+          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-gray-400" />
         )}
       </div>
 

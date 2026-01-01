@@ -88,6 +88,26 @@ export type YearOverYearComparison = {
   vsThreeYearAvgPercent: number
 }
 
+export type RollingMetrics = {
+  // Rolling 12-month period (current)
+  rolling12MonthSales: number
+  rolling12MonthRevenue: number
+  rolling12MonthNetRevenue: number
+  // Previous rolling 12-month period (for YoY)
+  previousRolling12MonthSales: number
+  previousRolling12MonthRevenue: number
+  previousRolling12MonthNetRevenue: number
+  // Rolling 3-year average (36 months / 3)
+  rolling3YearAvgSales: number
+  rolling3YearAvgRevenue: number
+  rolling3YearAvgNetRevenue: number
+  // Change percentages
+  yoyChangePercent: number
+  yoyRevenueChangePercent: number
+  vsThreeYearAvgPercent: number
+  vsThreeYearAvgRevenuePercent: number
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -284,7 +304,13 @@ export function calculateArtworkStats(
   })
 
   return Array.from(statsMap.values())
-    .sort((a, b) => b.sellThroughRate - a.sellThroughRate)
+    .sort((a, b) => {
+      // Primary sort by sell-through rate
+      const rateDiff = b.sellThroughRate - a.sellThroughRate
+      if (Math.abs(rateDiff) > 0.01) return rateDiff
+      // Secondary sort by sold count (highest first) for equal rates
+      return b.sold - a.sold
+    })
 }
 
 /**
@@ -410,7 +436,13 @@ export function calculateGalleryStats(
 
   return Array.from(statsMap.values())
     .filter(s => s.totalAllocated > 0 || s.totalSold > 0)
-    .sort((a, b) => b.conversionRate - a.conversionRate)
+    .sort((a, b) => {
+      // Primary sort by conversion rate
+      const rateDiff = b.conversionRate - a.conversionRate
+      if (Math.abs(rateDiff) > 0.01) return rateDiff
+      // Secondary sort by sold count (highest first) for equal rates
+      return b.totalSold - a.totalSold
+    })
 }
 
 /**
@@ -572,6 +604,100 @@ export function calculateYearOverYear(
     threeYearAvgRevenue,
     yoyChangePercent,
     vsThreeYearAvgPercent,
+  }
+}
+
+/**
+ * Calculate rolling 12-month metrics with YoY comparison and 3-year average
+ * Uses rolling periods instead of calendar years for more accurate trend analysis
+ */
+export function calculateRollingMetrics(
+  editions: EditionWithRelations[],
+  galleryId?: number
+): RollingMetrics {
+  const now = new Date()
+
+  // Define rolling periods
+  const rolling12MonthsStart = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+  const previousRolling12MonthsEnd = new Date(rolling12MonthsStart.getTime() - 1) // Day before current period
+  const previousRolling12MonthsStart = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate())
+  const rolling3YearsStart = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate())
+
+  const filteredEditions = galleryId
+    ? editions.filter(e => e.distributor_id === galleryId)
+    : editions
+
+  // Aggregate by period
+  let current = { count: 0, revenue: 0, netRevenue: 0 }
+  let previous = { count: 0, revenue: 0, netRevenue: 0 }
+  let threeYear = { count: 0, revenue: 0, netRevenue: 0 }
+
+  filteredEditions.forEach(e => {
+    if (!e.is_sold || !e.date_sold) return
+
+    const saleDate = new Date(e.date_sold)
+    const price = e.retail_price || 0
+    const commission = e.commission_percentage ?? e.distributors?.commission_percentage ?? 0
+    const netAmount = price * (1 - commission / 100)
+
+    // Current rolling 12 months
+    if (saleDate >= rolling12MonthsStart && saleDate <= now) {
+      current.count++
+      current.revenue += price
+      current.netRevenue += netAmount
+    }
+
+    // Previous rolling 12 months (for YoY)
+    if (saleDate >= previousRolling12MonthsStart && saleDate <= previousRolling12MonthsEnd) {
+      previous.count++
+      previous.revenue += price
+      previous.netRevenue += netAmount
+    }
+
+    // Rolling 3 years (for average - includes all 36 months before current period)
+    if (saleDate >= rolling3YearsStart && saleDate < rolling12MonthsStart) {
+      threeYear.count++
+      threeYear.revenue += price
+      threeYear.netRevenue += netAmount
+    }
+  })
+
+  // Calculate 3-year averages (annual averages from 36-month data)
+  const rolling3YearAvgSales = threeYear.count / 3
+  const rolling3YearAvgRevenue = threeYear.revenue / 3
+  const rolling3YearAvgNetRevenue = threeYear.netRevenue / 3
+
+  // Calculate change percentages
+  const yoyChangePercent = previous.count > 0
+    ? ((current.count - previous.count) / previous.count) * 100
+    : current.count > 0 ? 100 : 0
+
+  const yoyRevenueChangePercent = previous.revenue > 0
+    ? ((current.revenue - previous.revenue) / previous.revenue) * 100
+    : current.revenue > 0 ? 100 : 0
+
+  const vsThreeYearAvgPercent = rolling3YearAvgSales > 0
+    ? ((current.count - rolling3YearAvgSales) / rolling3YearAvgSales) * 100
+    : current.count > 0 ? 100 : 0
+
+  const vsThreeYearAvgRevenuePercent = rolling3YearAvgRevenue > 0
+    ? ((current.revenue - rolling3YearAvgRevenue) / rolling3YearAvgRevenue) * 100
+    : current.revenue > 0 ? 100 : 0
+
+  return {
+    rolling12MonthSales: current.count,
+    rolling12MonthRevenue: current.revenue,
+    rolling12MonthNetRevenue: current.netRevenue,
+    previousRolling12MonthSales: previous.count,
+    previousRolling12MonthRevenue: previous.revenue,
+    previousRolling12MonthNetRevenue: previous.netRevenue,
+    rolling3YearAvgSales,
+    rolling3YearAvgRevenue,
+    rolling3YearAvgNetRevenue,
+    yoyChangePercent,
+    yoyRevenueChangePercent,
+    vsThreeYearAvgPercent,
+    vsThreeYearAvgRevenuePercent,
   }
 }
 

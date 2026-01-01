@@ -4,7 +4,7 @@
 Art print inventory management system for tracking fine art editions as they move between home and galleries. Tracks print locations, sales status, and commissions.
 
 **Backend:** Supabase (PostgreSQL)
-**Future Frontend:** Next.js + Supabase Auth (see `planning/PRP-nextjs-supabase-migration.md`)
+**Frontend:** Next.js + Supabase Auth (in `web/` directory)
 
 ## Business Context
 - Artist creates original print designs (artwork)
@@ -48,10 +48,26 @@ echo "IMPORT" | uv run python smart_import.py
 uv run python main.py db stats
 ```
 
+## Frontend (Next.js)
+
+```bash
+# Development
+cd web && npm run dev
+
+# Deploy to Vercel (from project root)
+vercel --prod --cwd web
+
+# First-time setup: link Vercel project
+vercel link --cwd web
+```
+
+**Important:** The Next.js app lives in `web/`. Always use `--cwd web` when running Vercel CLI commands from the project root.
+
 ## Project Structure
 
 ```
 mum_art/
+├── web/                # Next.js frontend (deployed to Vercel)
 ├── db/                 # Database models (SQLAlchemy) and manager
 ├── sync/               # CSV import logic
 ├── cleaning/           # Data standardization from Airtable format

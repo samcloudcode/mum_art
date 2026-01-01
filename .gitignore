@@ -43,3 +43,5 @@ Thumbs.db
 *.bak
 *.orig
 test_*.py
+.vercel
+.env*.local

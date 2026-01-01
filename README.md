@@ -1,6 +1,10 @@
-# Art Database Migration System
+# Art Print Inventory System
 
-High-performance data migration tool for transferring 8,400+ art edition records from Airtable CSV exports to PostgreSQL. Features intelligent duplicate handling, bulk imports, and comprehensive data standardization.
+Art print inventory management system for tracking fine art editions as they move between home and galleries. Tracks print locations, sales status, and commissions.
+
+**Frontend:** Next.js + Supabase Auth (in `web/` directory)
+**Backend:** Supabase (PostgreSQL)
+**Data Import:** High-performance migration from Airtable CSV exports
 
 ## Performance
 
@@ -21,6 +25,7 @@ High-performance data migration tool for transferring 8,400+ art edition records
 
 ```
 mum_art/
+├── web/                      # Next.js frontend (deployed to Vercel)
 ├── db/                       # Database layer
 │   ├── models.py            # SQLAlchemy models with constraints
 │   └── manager.py           # Connection pooling & operations
@@ -62,6 +67,30 @@ uv run python main.py sync --mode full
 ```bash
 uv run python main.py db stats
 ```
+
+## Frontend Development
+
+The Next.js app lives in the `web/` directory.
+
+### Local Development
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+### Deploy to Vercel
+
+```bash
+# From project root - use --cwd web flag
+vercel --prod --cwd web
+
+# First-time setup: link Vercel project
+vercel link --cwd web
+```
+
+**Important:** Always use `--cwd web` when running Vercel CLI from the project root, since the Next.js app is in a subdirectory.
 
 ## CLI Commands
 

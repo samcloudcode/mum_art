@@ -1,9 +1,30 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
 import { login } from './actions'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { AlertCircle } from 'lucide-react'
 
 export default function LoginPage() {
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(formData: FormData) {
+    setError(null)
+    setLoading(true)
+
+    const result = await login(formData)
+
+    if (result?.error) {
+      setError(result.error)
+      setLoading(false)
+    }
+    // On success, the server action redirects automatically
+  }
+
   return (
     <div className="space-y-8">
       {/* Logo and title */}
@@ -34,8 +55,16 @@ export default function LoginPage() {
         </p>
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="flex items-start gap-3 p-4 rounded-md bg-red-50 border border-red-200 text-red-800">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
+
       {/* Login form */}
-      <form className="space-y-5">
+      <form action={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label
             htmlFor="email"
@@ -49,29 +78,40 @@ export default function LoginPage() {
             type="email"
             placeholder="you@example.com"
             required
+            disabled={loading}
             className="h-11 bg-muted/30 border-border focus:border-accent focus:ring-accent/20"
           />
         </div>
         <div className="space-y-2">
-          <Label
-            htmlFor="password"
-            className="text-xs uppercase tracking-wider text-muted-foreground"
-          >
-            Password
-          </Label>
+          <div className="flex items-center justify-between">
+            <Label
+              htmlFor="password"
+              className="text-xs uppercase tracking-wider text-muted-foreground"
+            >
+              Password
+            </Label>
+            <Link
+              href="/forgot-password"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <Input
             id="password"
             name="password"
             type="password"
             required
+            disabled={loading}
             className="h-11 bg-muted/30 border-border focus:border-accent focus:ring-accent/20"
           />
         </div>
         <Button
-          formAction={login}
+          type="submit"
+          disabled={loading}
           className="w-full h-11 mt-2 bg-foreground text-background hover:bg-foreground/90 font-medium"
         >
-          Sign in
+          {loading ? 'Signing in...' : 'Sign in'}
         </Button>
       </form>
 

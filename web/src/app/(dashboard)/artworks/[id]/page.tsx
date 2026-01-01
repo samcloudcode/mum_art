@@ -406,26 +406,33 @@ export default function ArtworkDetailPage({ params }: PageProps) {
                       checked={selectedUnsettled.has(edition.id)}
                       onCheckedChange={() => toggleUnsettledSelection(edition.id)}
                     />
-                    <span className="font-medium">{edition.name}</span>
-                    <Badge variant="outline">{edition.location}</Badge>
-                    {edition.size && (
-                      <span className="text-sm text-gray-500">{edition.size}</span>
-                    )}
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{edition.name}</span>
+                        {edition.size && (
+                          <span className="text-sm text-gray-500">{edition.size}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <span>{edition.location}</span>
+                        {edition.dateSold && (
+                          <>
+                            <span>·</span>
+                            <span>
+                              {new Date(edition.dateSold).toLocaleDateString('en-GB', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    {edition.dateSold && (
-                      <span className="text-sm text-gray-500">
-                        {new Date(edition.dateSold).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </span>
-                    )}
-                    <span className="font-medium text-amber-600">
-                      {formatPrice(edition.netAmount)} net
-                    </span>
-                  </div>
+                  <span className="font-medium text-amber-600">
+                    {formatPrice(edition.netAmount)} net
+                  </span>
                 </div>
               ))}
             </div>

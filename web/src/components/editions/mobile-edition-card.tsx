@@ -54,7 +54,7 @@ export const MobileEditionCard = memo(function MobileEditionCard({
         )}
       </div>
 
-      {/* Middle row: Size, Frame, Location */}
+      {/* Middle row: Size, Frame, Variation, Location */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {edition.size && (
           <Badge variant="outline" className="text-xs">
@@ -64,6 +64,11 @@ export const MobileEditionCard = memo(function MobileEditionCard({
         {edition.frame_type && (
           <Badge variant="outline" className="text-xs">
             {edition.frame_type}
+          </Badge>
+        )}
+        {edition.variation && (
+          <Badge variant="secondary" className="text-xs">
+            {edition.variation}
           </Badge>
         )}
         {showLocation && edition.distributors && (

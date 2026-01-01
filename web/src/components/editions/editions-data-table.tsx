@@ -38,7 +38,7 @@ import { EditionExpandableRow } from './edition-expandable-row'
 import type { EditionWithRelations, Distributor, EditionUpdate } from '@/lib/types'
 import { formatPrice, formatDate } from '@/lib/utils'
 
-type ColumnKey = 'edition' | 'artwork' | 'size' | 'frame' | 'location' | 'price' | 'printed' | 'sale' | 'dateSold' | 'dateInGallery' | 'actions'
+type ColumnKey = 'edition' | 'artwork' | 'variation' | 'size' | 'frame' | 'location' | 'price' | 'printed' | 'sale' | 'dateSold' | 'dateInGallery' | 'actions'
 
 type Props = {
   editions: EditionWithRelations[]
@@ -70,7 +70,7 @@ type Props = {
   savingIds?: Set<number> // Optional: per-row saving state
 }
 
-const DEFAULT_COLUMNS: ColumnKey[] = ['edition', 'artwork', 'size', 'frame', 'location', 'price', 'printed', 'sale', 'dateSold', 'dateInGallery', 'actions']
+const DEFAULT_COLUMNS: ColumnKey[] = ['edition', 'artwork', 'variation', 'size', 'frame', 'location', 'price', 'printed', 'sale', 'dateSold', 'dateInGallery', 'actions']
 const DEFAULT_PAGE_SIZE = 50
 
 // Static options - defined outside component to avoid recreation
@@ -258,6 +258,17 @@ const EditionTableRow = memo(function EditionTableRow({
             </Link>
           ) : (
             '-'
+          )}
+        </TableCell>
+      )}
+      {columns.includes('variation') && (
+        <TableCell>
+          {edition.variation ? (
+            <Badge variant="secondary" className="font-normal">
+              {edition.variation}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">-</span>
           )}
         </TableCell>
       )}
@@ -787,6 +798,7 @@ export function EditionsDataTable({
               )}
               {columns.includes('edition') && <TableHead>Edition</TableHead>}
               {columns.includes('artwork') && <TableHead>Artwork</TableHead>}
+              {columns.includes('variation') && <TableHead>Variation</TableHead>}
               {columns.includes('size') && <TableHead>Size</TableHead>}
               {columns.includes('frame') && <TableHead>Frame</TableHead>}
               {columns.includes('location') && <TableHead>Location</TableHead>}

@@ -263,6 +263,16 @@ export function EditionDetail({ edition, distributors, onUpdate, isSaving }: Pro
                   <dd className="font-medium">{edition.size || '-'}</dd>
                 </div>
                 <div className="flex justify-between">
+                  <dt className="text-gray-600">Variation</dt>
+                  <dd className="font-medium">
+                    {edition.variation ? (
+                      <Badge variant="secondary">{edition.variation}</Badge>
+                    ) : (
+                      '-'
+                    )}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
                   <dt className="text-gray-600">Frame Type</dt>
                   <dd className="font-medium">{edition.frame_type || '-'}</dd>
                 </div>

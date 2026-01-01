@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, type ReactNode } from 'react'
 import { Plus, Search, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,7 +22,7 @@ import type { EditionWithRelations } from '@/lib/types'
 type Props = {
   distributorId: number
   distributorName: string
-  trigger?: React.ReactNode
+  trigger?: ReactNode
 }
 
 export function AddEditionsToGalleryDialog({

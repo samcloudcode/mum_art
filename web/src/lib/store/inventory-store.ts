@@ -35,6 +35,7 @@ interface InventoryStore {
 
   // Actions
   initialize: () => Promise<void>
+  refresh: () => Promise<void>
   updateEdition: (id: number, updates: Partial<Edition>) => Promise<boolean>
   updateEditions: (ids: number[], updates: Partial<Edition>) => Promise<boolean>
   toggleDistributorFavorite: (id: number) => Promise<boolean>
@@ -61,6 +62,12 @@ export const useInventoryStore = create<InventoryStore>()(
         loadTimeMs: null,
 
         isEditionSaving: (id: number) => get().savingIds.has(id),
+
+        refresh: async () => {
+          // Reset state and force re-initialization
+          set({ isReady: false, isLoading: false })
+          await get().initialize()
+        },
 
         initialize: async () => {
           const state = get()

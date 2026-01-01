@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useMemo, useState } from 'react'
+import { use, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { formatPrice, calculateNetAmount } from '@/lib/utils'
@@ -168,23 +168,27 @@ export default function ArtworkDetailPage({ params }: PageProps) {
     }
   }
 
-  const toggleUnsettledSelection = (id: number) => {
-    const newSelected = new Set(selectedUnsettled)
-    if (newSelected.has(id)) {
-      newSelected.delete(id)
-    } else {
-      newSelected.add(id)
-    }
-    setSelectedUnsettled(newSelected)
-  }
+  const toggleUnsettledSelection = useCallback((id: number) => {
+    setSelectedUnsettled(prev => {
+      const newSelected = new Set(prev)
+      if (newSelected.has(id)) {
+        newSelected.delete(id)
+      } else {
+        newSelected.add(id)
+      }
+      return newSelected
+    })
+  }, [])
 
-  const toggleAllUnsettled = () => {
-    if (selectedUnsettled.size === unsettledEditions.length) {
-      setSelectedUnsettled(new Set())
-    } else {
-      setSelectedUnsettled(new Set(unsettledEditions.map(e => e.id)))
-    }
-  }
+  const toggleAllUnsettled = useCallback(() => {
+    setSelectedUnsettled(prev => {
+      if (prev.size === unsettledEditions.length) {
+        return new Set()
+      } else {
+        return new Set(unsettledEditions.map(e => e.id))
+      }
+    })
+  }, [unsettledEditions])
 
   // Sales over time chart data
   const salesOverTimeData = useMemo(() => {

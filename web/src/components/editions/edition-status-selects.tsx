@@ -328,11 +328,9 @@ export function SaleStatusSelect({
         <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-gray-400" />
       )}
 
-      <Popover open={showSoldPopover} onOpenChange={setShowSoldPopover}>
-        <PopoverTrigger asChild>
-          <span className="sr-only">Sale details form trigger</span>
-        </PopoverTrigger>
-        <PopoverContent className="w-56 p-3" align="start" onClick={(e) => e.stopPropagation()}>
+      {/* Controlled popover for sale details - no trigger needed as we open via state */}
+      <Popover open={showSoldPopover} onOpenChange={setShowSoldPopover} modal={false}>
+        <PopoverContent className="w-56 p-3" align="start" onClick={(e) => e.stopPropagation()} onOpenAutoFocus={(e) => e.preventDefault()}>
           <div className="space-y-3">
             <h4 className="font-medium text-sm">Sale Details</h4>
             <div className="space-y-1.5">

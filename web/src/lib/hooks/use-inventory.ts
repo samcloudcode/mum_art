@@ -41,6 +41,7 @@ export function useInventory(filters: EditionFilters = {}) {
     loadTimeMs,
     error,
     initialize,
+    refresh: storeRefresh,
     updateEdition,
     updateEditions,
     toggleDistributorFavorite,
@@ -60,6 +61,7 @@ export function useInventory(filters: EditionFilters = {}) {
       loadTimeMs: state.loadTimeMs,
       error: state.error,
       initialize: state.initialize,
+      refresh: state.refresh,
       updateEdition: state.updateEdition,
       updateEditions: state.updateEditions,
       toggleDistributorFavorite: state.toggleDistributorFavorite,
@@ -189,7 +191,7 @@ export function useInventory(filters: EditionFilters = {}) {
     [updateEditions]
   )
 
-  const refresh = useCallback(() => initialize(), [initialize])
+  const refresh = useCallback(() => storeRefresh(), [storeRefresh])
 
   const markStockChecked = useCallback(
     (ids: number[], checked: boolean = true) =>

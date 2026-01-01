@@ -38,7 +38,7 @@ type PrintStats = {
 }
 
 export default function ArtworksPage() {
-  const { prints, allEditions, isReady } = useInventory()
+  const { prints, allEditions, isReady, refresh } = useInventory()
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
@@ -115,10 +115,10 @@ export default function ArtworksPage() {
         return
       }
 
-      // Success - reload the page to refresh data
+      // Success - refresh the inventory store to load new data
       setShowAddDialog(false)
       setNewArtwork({ name: '', description: '', totalEditions: '', webLink: '' })
-      window.location.reload()
+      await refresh()
     } catch (err) {
       setCreateError('An unexpected error occurred')
     } finally {

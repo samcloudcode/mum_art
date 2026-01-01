@@ -11,6 +11,7 @@ const navigation = [
   { name: 'Galleries', href: '/galleries' },
   { name: 'Sales', href: '/sales' },
   { name: 'Analytics', href: '/analytics' },
+  { name: 'Guide', href: '/guide' },
 ]
 
 export default async function DashboardLayout({

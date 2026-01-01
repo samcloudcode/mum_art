@@ -412,6 +412,12 @@ class AirtableDataCleaner:
 
         clean_name = str(name).strip()
 
+        # Filter out values that aren't valid distributor names
+        # 'checked' is a boolean value that ended up in the distributor field
+        invalid_distributors = ['checked']
+        if clean_name.lower() in invalid_distributors:
+            return None
+
         # Specific mappings
         distributor_mapping = {
             'kendalls': 'Kendalls',

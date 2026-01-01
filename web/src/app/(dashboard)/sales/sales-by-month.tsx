@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { paymentStatusStyles } from '@/lib/utils/badge-styles'
 import { Badge } from '@/components/ui/badge'
-import { SalesPaymentStatus } from './sales-payment-status'
+import { PaymentStatusSelect } from '@/components/editions/edition-status-selects'
 import {
   Table,
   TableBody,
@@ -50,6 +50,9 @@ export function SalesByMonth({ monthlyData }: Props) {
     new Set(monthlyData.length > 0 && monthlyData[0].unsettledCount > 0 ? [monthlyData[0].key] : [])
   )
   const [selectedSales, setSelectedSales] = useState<Map<string, Set<number>>>(new Map())
+  // Track local status overrides for optimistic UI updates
+  // Maps sale ID -> updated is_settled value
+  const [statusOverrides, setStatusOverrides] = useState<Map<number, boolean>>(new Map())
 
   const toggleMonth = (key: string) => {
     const newExpanded = new Set(expandedMonths)
@@ -92,13 +95,24 @@ export function SalesByMonth({ monthlyData }: Props) {
 
     const success = await markSettled(saleIds)
     if (success) {
+      // Update local overrides for immediate UI feedback
+      setStatusOverrides(prev => {
+        const next = new Map(prev)
+        saleIds.forEach(id => next.set(id, true))
+        return next
+      })
       clearSelection(monthKey)
     }
   }
 
-  const handleToggleSettled = async (id: number, isSettled: boolean): Promise<boolean> => {
-    return update(id, { is_settled: isSettled })
-  }
+  const handleToggleSettled = useCallback(async (id: number, isSettled: boolean): Promise<boolean> => {
+    const success = await update(id, { is_settled: isSettled })
+    if (success) {
+      // Update local override for immediate UI feedback
+      setStatusOverrides(prev => new Map(prev).set(id, isSettled))
+    }
+    return success
+  }, [update])
 
   const formatPrice = (price: number | null) => {
     if (price === null) return '-'
@@ -244,11 +258,15 @@ export function SalesByMonth({ monthlyData }: Props) {
                               const commission = sale.commission_percentage || sale.distributors?.commission_percentage || 0
                               const net = (sale.retail_price || 0) * (1 - commission / 100)
                               const isSelected = monthSelection.has(sale.id)
+                              // Use local override if available, otherwise use prop value
+                              const isSettled = statusOverrides.has(sale.id)
+                                ? statusOverrides.get(sale.id)!
+                                : (sale.is_settled ?? false)
 
                               return (
                                 <TableRow key={sale.id}>
                                   <TableCell>
-                                    {!sale.is_settled && (
+                                    {!isSettled && (
                                       <Checkbox
                                         checked={isSelected}
                                         onCheckedChange={() =>
@@ -287,10 +305,10 @@ export function SalesByMonth({ monthlyData }: Props) {
                                     {formatPrice(net)}
                                   </TableCell>
                                   <TableCell>
-                                    <SalesPaymentStatus
+                                    <PaymentStatusSelect
                                       saleId={sale.id}
-                                      isSettled={sale.is_settled ?? false}
-                                      onToggleSettled={handleToggleSettled}
+                                      isSettled={isSettled}
+                                      onToggle={handleToggleSettled}
                                     />
                                   </TableCell>
                                 </TableRow>

@@ -17,7 +17,7 @@ function formatTitle(filename: string): string {
 }
 
 async function getGuideDocs(): Promise<GuideDoc[]> {
-  const docsDir = path.join(process.cwd(), '..', 'docs', 'user')
+  const docsDir = path.join(process.cwd(), 'docs', 'user')
 
   try {
     const files = fs.readdirSync(docsDir).filter(f => f.endsWith('.md'))

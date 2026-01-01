@@ -4,7 +4,7 @@ import { use, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useInventory } from '@/lib/hooks/use-inventory'
-import { formatPrice, calculateNetAmount } from '@/lib/utils'
+import { formatPrice, calculateNetAmount, MONTHS } from '@/lib/utils'
 import {
   Card,
   CardContent,
@@ -36,11 +36,6 @@ type PageProps = {
   params: Promise<{ id: string }>
 }
 
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-]
-
 export default function GalleryDetailPage({ params }: PageProps) {
   const { id } = use(params)
   const distributorId = parseInt(id)
@@ -55,10 +50,9 @@ export default function GalleryDetailPage({ params }: PageProps) {
   const [error, setError] = useState<string | null>(null)
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false)
 
-  // Invoice month/year selection - default to current month
-  const now = new Date()
-  const [invoiceMonth, setInvoiceMonth] = useState(String(now.getMonth() + 1))
-  const [invoiceYear, setInvoiceYear] = useState(String(now.getFullYear()))
+  // Invoice month/year selection - default to current month (lazy init)
+  const [invoiceMonth, setInvoiceMonth] = useState(() => String(new Date().getMonth() + 1))
+  const [invoiceYear, setInvoiceYear] = useState(() => String(new Date().getFullYear()))
 
   const distributor = useMemo(
     () => distributors.find((d) => d.id === distributorId),

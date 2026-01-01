@@ -4,26 +4,11 @@ import { use, useMemo } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useInventory } from '@/lib/hooks/use-inventory'
-import { formatPrice, calculateNetAmount, formatDate } from '@/lib/utils'
+import { formatPrice, calculateNetAmount, formatDate, cn, getMonthName, getMonthDateRange } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
 type PageProps = {
   params: Promise<{ id: string }>
-}
-
-function getMonthName(month: number): string {
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ]
-  return months[month - 1] || ''
-}
-
-function getMonthDateRange(year: number, month: number): { start: Date; end: Date } {
-  const start = new Date(year, month - 1, 1)
-  const end = new Date(year, month, 0) // Last day of the month
-  return { start, end }
 }
 
 export default function InvoicePage({ params }: PageProps) {
@@ -32,9 +17,17 @@ export default function InvoicePage({ params }: PageProps) {
   const searchParams = useSearchParams()
 
   // Get month/year from query params, default to current month
+  // Validate and clamp to valid ranges
   const now = new Date()
-  const year = parseInt(searchParams.get('year') || String(now.getFullYear()))
-  const month = parseInt(searchParams.get('month') || String(now.getMonth() + 1))
+  const rawYear = parseInt(searchParams.get('year') || '')
+  const rawMonth = parseInt(searchParams.get('month') || '')
+
+  const year = !isNaN(rawYear) && rawYear >= 2000 && rawYear <= 2100
+    ? rawYear
+    : now.getFullYear()
+  const month = !isNaN(rawMonth) && rawMonth >= 1 && rawMonth <= 12
+    ? rawMonth
+    : now.getMonth() + 1
 
   const { distributors, allEditions, prints, isReady } = useInventory()
 
@@ -52,7 +45,8 @@ export default function InvoicePage({ params }: PageProps) {
         if (e.distributor_id !== distributorId) return false
         if (!e.is_sold || !e.date_sold) return false
 
-        const saleDate = new Date(e.date_sold)
+        // String comparison works for ISO date format (YYYY-MM-DD)
+        const saleDate = e.date_sold.split('T')[0]
         return saleDate >= start && saleDate <= end
       })
       .map((e) => {

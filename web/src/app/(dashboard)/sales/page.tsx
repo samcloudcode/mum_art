@@ -28,13 +28,15 @@ export default async function SalesPage() {
   }>()
 
   sales?.forEach((sale) => {
-    const date = sale.date_sold ? new Date(sale.date_sold) : new Date()
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-    const monthName = date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+    // Sales without a date go into a separate "Unknown" group instead of current month
+    const hasDate = !!sale.date_sold
+    const date = hasDate ? new Date(sale.date_sold) : null
+    const monthKey = hasDate ? `${date!.getFullYear()}-${String(date!.getMonth() + 1).padStart(2, '0')}` : '0000-00'
+    const monthName = hasDate ? date!.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'Date Unknown'
 
     const current = monthlyGroups.get(monthKey) || {
       month: monthName,
-      year: date.getFullYear(),
+      year: date?.getFullYear() ?? 0,
       sales: [],
       totalRetail: 0,
       totalNet: 0,

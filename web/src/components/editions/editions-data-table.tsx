@@ -269,7 +269,6 @@ const EditionTableRow = memo(function EditionTableRow({
               editionId={edition.id}
               field="variation"
               value={edition.variation}
-              placeholder="Variation"
               onSave={onInlineSave}
               className="w-[100px]"
             />

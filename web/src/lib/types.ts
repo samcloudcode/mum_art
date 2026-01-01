@@ -334,6 +334,25 @@ export type EditionWithRelations = Edition & {
 // Status confidence type
 export type StatusConfidence = 'verified' | 'unverified' | 'legacy_unknown'
 
+// Activity log for tracking user changes
+export type ActivityLog = {
+  id: number
+  user_id: string | null
+  user_email: string | null
+  action: string
+  entity_type: string
+  entity_id: number | null
+  entity_name: string | null
+  field_name: string | null
+  old_value: string | null
+  new_value: string | null
+  description: string | null
+  related_entity_type: string | null
+  related_entity_id: number | null
+  related_entity_name: string | null
+  created_at: string
+}
+
 // Filter types for editions
 export type EditionFilters = {
   search?: string

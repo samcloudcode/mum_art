@@ -3,6 +3,89 @@ import { devtools } from 'zustand/middleware'
 import { createClient } from '@/lib/supabase/client'
 import type { Edition, Print, Distributor, EditionWithRelations } from '@/lib/types'
 
+// Helper to log activity
+async function logActivity(params: {
+  action: string
+  entityType: string
+  entityId: number
+  entityName: string
+  fieldName?: string
+  oldValue?: string | null
+  newValue?: string | null
+  description?: string
+  relatedEntityType?: string
+  relatedEntityId?: number
+  relatedEntityName?: string
+}) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  await supabase.from('activity_log').insert({
+    user_id: user?.id,
+    user_email: user?.email,
+    action: params.action,
+    entity_type: params.entityType,
+    entity_id: params.entityId,
+    entity_name: params.entityName,
+    field_name: params.fieldName,
+    old_value: params.oldValue,
+    new_value: params.newValue,
+    description: params.description,
+    related_entity_type: params.relatedEntityType,
+    related_entity_id: params.relatedEntityId,
+    related_entity_name: params.relatedEntityName,
+  })
+}
+
+// Generate human-readable description of changes
+function describeChanges(
+  previous: EditionWithRelations,
+  updates: Partial<Edition>,
+  distributorMap: Map<number, Distributor>
+): { action: string; description: string; fieldName?: string; oldValue?: string; newValue?: string; relatedEntityType?: string; relatedEntityId?: number; relatedEntityName?: string } {
+  // Check for specific meaningful changes
+  if (updates.is_sold === true && !previous.is_sold) {
+    return { action: 'sell', description: 'Marked as sold' }
+  }
+  if (updates.is_sold === false && previous.is_sold) {
+    return { action: 'update', description: 'Unmarked as sold' }
+  }
+  if (updates.is_settled === true && !previous.is_settled) {
+    return { action: 'settle', description: 'Marked as settled' }
+  }
+  if (updates.is_settled === false && previous.is_settled) {
+    return { action: 'update', description: 'Unmarked as settled' }
+  }
+  if (updates.distributor_id !== undefined && updates.distributor_id !== previous.distributor_id) {
+    const newDist = updates.distributor_id ? distributorMap.get(updates.distributor_id) : null
+    const oldDist = previous.distributors
+    return {
+      action: 'move',
+      description: `Moved from ${oldDist?.name || 'unassigned'} to ${newDist?.name || 'unassigned'}`,
+      fieldName: 'location',
+      oldValue: oldDist?.name || 'unassigned',
+      newValue: newDist?.name || 'unassigned',
+      relatedEntityType: 'distributor',
+      relatedEntityId: updates.distributor_id || undefined,
+      relatedEntityName: newDist?.name,
+    }
+  }
+  if (updates.is_printed === true && !previous.is_printed) {
+    return { action: 'update', description: 'Marked as printed' }
+  }
+
+  // Generic field updates
+  const fields = Object.keys(updates).filter(k => k !== 'updated_at')
+  if (fields.length === 1) {
+    const field = fields[0]
+    const oldVal = String(previous[field as keyof typeof previous] ?? '')
+    const newVal = String(updates[field as keyof typeof updates] ?? '')
+    return { action: 'update', description: `Updated ${field}`, fieldName: field, oldValue: oldVal, newValue: newVal }
+  }
+
+  return { action: 'update', description: `Updated ${fields.length} fields` }
+}
+
 // Lookup maps for O(1) access
 type PrintMap = Map<number, Print>
 type DistributorMap = Map<number, Distributor>
@@ -212,6 +295,22 @@ export const useInventoryStore = create<InventoryStore>()(
             return false
           }
 
+          // Log activity (fire and forget - don't block on this)
+          const changeInfo = describeChanges(previous, updates, state._distributorMap)
+          logActivity({
+            action: changeInfo.action,
+            entityType: 'edition',
+            entityId: id,
+            entityName: previous.edition_display_name,
+            fieldName: changeInfo.fieldName,
+            oldValue: changeInfo.oldValue,
+            newValue: changeInfo.newValue,
+            description: changeInfo.description,
+            relatedEntityType: changeInfo.relatedEntityType,
+            relatedEntityId: changeInfo.relatedEntityId,
+            relatedEntityName: changeInfo.relatedEntityName,
+          }).catch(console.error)
+
           set({ isSaving: stillSaving, savingIds: updatedSavingIds })
           return true
         },
@@ -295,6 +394,24 @@ export const useInventoryStore = create<InventoryStore>()(
             return false
           }
 
+          // Log activity for each edition (fire and forget)
+          for (const { previous } of targets) {
+            const changeInfo = describeChanges(previous, updates, state._distributorMap)
+            logActivity({
+              action: changeInfo.action,
+              entityType: 'edition',
+              entityId: previous.id,
+              entityName: previous.edition_display_name,
+              fieldName: changeInfo.fieldName,
+              oldValue: changeInfo.oldValue,
+              newValue: changeInfo.newValue,
+              description: `${changeInfo.description} (bulk update of ${targets.length} editions)`,
+              relatedEntityType: changeInfo.relatedEntityType,
+              relatedEntityId: changeInfo.relatedEntityId,
+              relatedEntityName: changeInfo.relatedEntityName,
+            }).catch(console.error)
+          }
+
           set({ isSaving: stillSaving, savingIds: updatedSavingIds })
           return true
         },
@@ -341,6 +458,18 @@ export const useInventoryStore = create<InventoryStore>()(
             set({ distributors: rollback, _distributorMap: rollbackMap, isSaving: false })
             return false
           }
+
+          // Log activity
+          logActivity({
+            action: 'update',
+            entityType: 'distributor',
+            entityId: id,
+            entityName: previous.name,
+            fieldName: 'is_favorite',
+            oldValue: String(previous.is_favorite),
+            newValue: String(newIsFavorite),
+            description: newIsFavorite ? 'Added to favorites' : 'Removed from favorites',
+          }).catch(console.error)
 
           set({ isSaving: false })
           return true

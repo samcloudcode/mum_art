@@ -4,10 +4,11 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from uuid import uuid4
-from typing import Dict, Set, List
+from typing import Dict, Set, List, Optional
 from sqlalchemy.dialects.postgresql import insert
 
 from db.models import Print, Distributor, Edition, SyncLog
+from sync.import_report import ImportReport
 
 
 class SmartImporter:
@@ -77,8 +78,13 @@ class SmartImporter:
         self.db = db_manager
         self.cleaner = cleaner
         self.sync_id = str(uuid4())
-        self.skip_indices = self._load_skip_indices()
         self.post_processing_stats = {}
+        # Create import report for tracking what was actually done
+        self.import_report = ImportReport()
+        # Attach report to cleaner so it can record transformations
+        self.cleaner.report = self.import_report
+        # Load skip indices (uses import_report, so must come after)
+        self.skip_indices = self._load_skip_indices()
 
     def _load_skip_indices(self) -> Set[int]:
         """Load indices to skip from duplicate handling decisions."""
@@ -89,7 +95,15 @@ class SmartImporter:
 
         try:
             df = pd.read_csv(skip_file)
-            skip_rows = df[df['action'] == 'SKIP']['index'].tolist()
+            skip_df = df[df['action'] == 'SKIP']
+            skip_rows = skip_df['index'].tolist()
+
+            # Record each duplicate skip in the import report
+            for _, row in skip_df.iterrows():
+                edition_name = row.get('print_edition', 'Unknown')
+                reason = row.get('decision', 'Duplicate')
+                self.import_report.record_duplicate_skipped(edition_name, reason)
+
             print(f"   📋 Loaded {len(skip_rows)} rows to skip from duplicate handling", flush=True)
             return set(skip_rows)
         except Exception as e:
@@ -143,21 +157,45 @@ class SmartImporter:
             return updated
 
     def _generate_assumptions_file(self) -> str:
-        """Generate import_assumptions.md documenting all import assumptions."""
+        """Generate import_assumptions.md documenting all import assumptions and actions taken."""
         docs_dir = Path('docs')
         docs_dir.mkdir(exist_ok=True)
         output_path = docs_dir / 'import_assumptions.md'
 
         content = [
-            "# Import Assumptions",
+            "# Import Report",
             "",
             f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             f"Sync ID: {self.sync_id}",
             "",
-            "This document lists all assumptions made during the data import process.",
-            "Understanding these assumptions is important for data integrity and troubleshooting.",
-            "",
         ]
+
+        # Add the actual import report (what was done)
+        content.append("# Actions Taken During This Import")
+        content.append("")
+        content.append("This section documents the actual transformations and actions")
+        content.append("performed during this specific import run.")
+        content.append("")
+        content.append(self.import_report.generate_markdown())
+
+        # Add post-processing stats
+        if self.post_processing_stats:
+            content.append("## Post-Processing Actions")
+            content.append("")
+            if 'old_sales_settled' in self.post_processing_stats:
+                content.append(f"- **Old sales auto-settled:** {self.post_processing_stats['old_sales_settled']} editions (sales >6 months old)")
+            if 'direct_old_marked' in self.post_processing_stats:
+                content.append(f"- **Direct Old marked legacy_unknown:** {self.post_processing_stats['direct_old_marked']} editions")
+            content.append("")
+
+        # Add the static assumptions documentation
+        content.append("---")
+        content.append("")
+        content.append("# Import Assumptions (Reference)")
+        content.append("")
+        content.append("This section documents the rules and assumptions the import process follows.")
+        content.append("These are the configured behaviors, not necessarily what happened in this run.")
+        content.append("")
 
         # Group assumptions by category
         categories = {}
@@ -174,16 +212,6 @@ class SmartImporter:
                 content.append(f"### {a['assumption']}")
                 content.append(f"**Reason:** {a['reason']}")
                 content.append("")
-
-        # Add post-processing stats if available
-        if self.post_processing_stats:
-            content.append("## Post-Processing Results")
-            content.append("")
-            if 'old_sales_settled' in self.post_processing_stats:
-                content.append(f"- **Old sales auto-settled:** {self.post_processing_stats['old_sales_settled']} editions")
-            if 'direct_old_marked' in self.post_processing_stats:
-                content.append(f"- **Direct Old marked legacy_unknown:** {self.post_processing_stats['direct_old_marked']} editions")
-            content.append("")
 
         content.append("---")
         content.append("")
@@ -254,6 +282,7 @@ class SmartImporter:
                         # Skip duplicate names
                         if cleaned['name'] in seen_names:
                             stats['skipped'] += 1
+                            self.import_report.record_duplicate_print_skipped(cleaned['name'])
                             print(f"   ⚠️ Skipping duplicate print: {cleaned['name']}", flush=True)
                             continue
 
@@ -340,6 +369,11 @@ class SmartImporter:
                     if cleaned.get('print_name'):
                         cleaned['print_id'] = prints.get(cleaned['print_name'])
                         if not cleaned['print_id']:
+                            # Record edition skipped due to missing print
+                            self.import_report.record_missing_print(
+                                cleaned.get('edition_display_name', 'Unknown'),
+                                cleaned.get('print_name', 'Unknown')
+                            )
                             stats['failed'] += 1
                             continue
                     else:
@@ -347,7 +381,13 @@ class SmartImporter:
                         continue
 
                     # Always set distributor_id (even if None) to ensure consistent columns
-                    cleaned['distributor_id'] = distributors.get(cleaned.get('distributor_name'))
+                    distributor_name = cleaned.get('distributor_name')
+                    cleaned['distributor_id'] = distributors.get(distributor_name)
+                    # Record if distributor was not found
+                    if distributor_name and not cleaned['distributor_id']:
+                        self.import_report.record_missing_distributor(
+                            cleaned.get('edition_display_name', 'Unknown')
+                        )
 
                     # Remove lookup fields
                     cleaned.pop('print_name', None)

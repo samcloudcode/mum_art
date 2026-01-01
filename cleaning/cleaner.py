@@ -2,12 +2,20 @@
 """Enhanced data cleaning utilities for 8000+ edition records."""
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+if TYPE_CHECKING:
+    from sync.import_report import ImportReport
+
+
 class AirtableDataCleaner:
     """Enhanced cleaner for large-scale Airtable data with name standardization."""
+
+    def __init__(self, report: Optional['ImportReport'] = None):
+        """Initialize cleaner with optional import report for tracking."""
+        self.report = report
 
     # Mapping for consistent, friendly print names
     PRINT_NAME_MAPPING = {
@@ -271,12 +279,18 @@ class AirtableDataCleaner:
         # If no pattern match, return the whole thing as print name
         return AirtableDataCleaner.standardize_print_name(edition_name), None
 
-    @staticmethod
-    def clean_print_data(row: Dict[str, Any]) -> Dict[str, Any]:
+    def clean_print_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """Clean a row from the Prints CSV."""
+        original_name = row.get('Print Name')
+        standardized_name = AirtableDataCleaner.standardize_print_name(original_name)
+
+        # Record the transformation if it changed
+        if self.report and original_name and standardized_name:
+            self.report.record_print_name_transform(str(original_name), standardized_name)
+
         return {
             'airtable_id': row.get('Record_id'),
-            'name': AirtableDataCleaner.standardize_print_name(row.get('Print Name')),
+            'name': standardized_name,
             'description': AirtableDataCleaner.clean_text(row.get('Description')),
             'total_editions': AirtableDataCleaner.clean_integer(row.get('Total Editions')),
             'web_link': AirtableDataCleaner.clean_text(row.get('Web link')),
@@ -284,12 +298,18 @@ class AirtableDataCleaner:
             'image_urls': AirtableDataCleaner.parse_image_urls(row.get('Image')),
         }
 
-    @staticmethod
-    def clean_distributor_data(row: Dict[str, Any]) -> Dict[str, Any]:
+    def clean_distributor_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """Clean a row from the Distributors CSV."""
+        original_name = row.get('Name')
+        standardized_name = AirtableDataCleaner.standardize_distributor_name(original_name)
+
+        # Record the transformation if it changed
+        if self.report and original_name and standardized_name:
+            self.report.record_distributor_name_transform(str(original_name), standardized_name)
+
         return {
             'airtable_id': row.get('Record_id'),
-            'name': AirtableDataCleaner.standardize_distributor_name(row.get('Name')),
+            'name': standardized_name,
             'commission_percentage': AirtableDataCleaner.clean_percentage(row.get('Commission')),
             'notes': AirtableDataCleaner.clean_text(row.get('Notes')),
             'contact_number': AirtableDataCleaner.clean_text(row.get('Contact Number')),
@@ -302,8 +322,7 @@ class AirtableDataCleaner:
             'last_update_date': AirtableDataCleaner.parse_date(row.get('Date')),
         }
 
-    @staticmethod
-    def clean_edition_data(row: Dict[str, Any]) -> Dict[str, Any]:
+    def clean_edition_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """Clean a row from the Editions CSV with 8000+ records."""
 
         # Extract print name and edition number
@@ -314,6 +333,30 @@ class AirtableDataCleaner:
         # If we couldn't parse from "Print - Edition", try "Print" field
         if not print_name:
             print_name = AirtableDataCleaner.standardize_print_name(row.get('Print'))
+
+        # Track size normalization
+        original_size = row.get('Size')
+        normalized_size = AirtableDataCleaner.normalize_size(original_size)
+        if self.report:
+            self.report.record_size_normalization(original_size, normalized_size)
+            # Track if default was applied
+            if not original_size or str(original_size).lower() in ['nan', 'none', '', 'unknown']:
+                self.report.record_default_applied('size')
+
+        # Track frame type normalization
+        original_frame = row.get('Frame')
+        normalized_frame = AirtableDataCleaner.normalize_frame_type(original_frame)
+        if self.report:
+            self.report.record_frame_type_normalization(original_frame, normalized_frame or 'Framed')
+            # Track if default was applied
+            if not original_frame or str(original_frame).lower() in ['nan', 'none', '']:
+                self.report.record_default_applied('frame_type')
+
+        # Track distributor name transformation
+        original_distributor = row.get('Distributor')
+        standardized_distributor = AirtableDataCleaner.standardize_distributor_name(original_distributor)
+        if self.report and original_distributor and standardized_distributor:
+            self.report.record_distributor_name_transform(str(original_distributor), standardized_distributor)
 
         return {
             'airtable_id': row.get('record_id'),
@@ -328,8 +371,8 @@ class AirtableDataCleaner:
             ),
 
             # Physical attributes
-            'size': AirtableDataCleaner.normalize_size(row.get('Size')),
-            'frame_type': AirtableDataCleaner.normalize_frame_type(row.get('Frame')),
+            'size': normalized_size,
+            'frame_type': normalized_frame,
             'variation': AirtableDataCleaner.clean_text(row.get('Variation'))[:20] if AirtableDataCleaner.clean_text(row.get('Variation')) else None,
 
             # Status flags
@@ -358,9 +401,7 @@ class AirtableDataCleaner:
             'payment_note': AirtableDataCleaner.clean_text(row.get('Payment')),
 
             # Distributor name (for lookup)
-            'distributor_name': AirtableDataCleaner.standardize_distributor_name(
-                row.get('Distributor')
-            )
+            'distributor_name': standardized_distributor
         }
 
     @staticmethod

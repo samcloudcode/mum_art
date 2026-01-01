@@ -263,7 +263,17 @@ const EditionTableRow = memo(function EditionTableRow({
       )}
       {columns.includes('variation') && (
         <TableCell>
-          {edition.variation ? (
+          {enableInlineEdit ? (
+            <EditionInlineCell
+              type="text"
+              editionId={edition.id}
+              field="variation"
+              value={edition.variation}
+              placeholder="Variation"
+              onSave={onInlineSave}
+              className="w-[100px]"
+            />
+          ) : edition.variation ? (
             <Badge variant="secondary" className="font-normal">
               {edition.variation}
             </Badge>

@@ -321,9 +321,13 @@ export function EditionsTableWithFilters({
   const isUnsettledView = columns.includes('dateSold') || columns.includes('netDue')
 
   // Map columns to standard EditionsDataTable columns (filtering out special ones)
-  const tableColumns = columns.filter(
-    (c): c is Exclude<ColumnKey, 'dateSold' | 'netDue'> =>
-      STANDARD_COLUMNS.includes(c)
+  // Memoized to prevent re-renders when filter state changes
+  const tableColumns = useMemo(
+    () => columns.filter(
+      (c): c is Exclude<ColumnKey, 'dateSold' | 'netDue'> =>
+        STANDARD_COLUMNS.includes(c)
+    ),
+    [columns]
   )
 
   // Render filters

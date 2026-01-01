@@ -7,6 +7,7 @@ import { formatPrice } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { EditionsTableWithFilters } from '@/components/editions/editions-table-with-filters'
+import { AddEditionsToGalleryDialog } from '@/components/add-editions-to-gallery-dialog'
 import { galleryStockPreset } from '@/lib/editions-presets'
 import { ArrowLeft } from 'lucide-react'
 
@@ -99,6 +100,10 @@ export default function GalleryStockPage({ params }: PageProps) {
             </p>
           </div>
         </div>
+        <AddEditionsToGalleryDialog
+          distributorId={distributorId}
+          distributorName={distributor.name}
+        />
       </div>
 
       {/* Stock Table with Filters */}

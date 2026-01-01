@@ -252,8 +252,8 @@ class DatabaseManager:
         total_editions: int,
         image_url: Optional[Union[str, List[str]]] = None,
         description: Optional[str] = None,
-        default_size: str = 'Small',
-        default_frame_type: str = 'Framed'
+        default_size: Optional[str] = None,
+        default_frame_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create a new artwork (print) with all its edition records.
@@ -266,8 +266,8 @@ class DatabaseManager:
             total_editions: Total number of editions to create (e.g., 350)
             image_url: Single URL string or list of image URLs
             description: Optional description of the artwork
-            default_size: Size for all editions ('Small', 'Large', 'Extra Large')
-            default_frame_type: Frame type ('Framed', 'Tube only', 'Mounted')
+            default_size: Optional size for editions ('Small', 'Large', 'Extra Large')
+            default_frame_type: Optional frame type ('Framed', 'Tube only', 'Mounted')
 
         Returns:
             Dict with:
@@ -311,18 +311,18 @@ class DatabaseManager:
                 'error_code': 'INVALID_DATA'
             }
 
-        # Validate size and frame_type
+        # Validate size and frame_type if provided
         valid_sizes = ['Small', 'Large', 'Extra Large']
         valid_frame_types = ['Framed', 'Tube only', 'Mounted']
 
-        if default_size not in valid_sizes:
+        if default_size is not None and default_size not in valid_sizes:
             return {
                 'success': False,
                 'error': f"Invalid size. Must be one of: {', '.join(valid_sizes)}",
                 'error_code': 'INVALID_DATA'
             }
 
-        if default_frame_type not in valid_frame_types:
+        if default_frame_type is not None and default_frame_type not in valid_frame_types:
             return {
                 'success': False,
                 'error': f"Invalid frame type. Must be one of: {', '.join(valid_frame_types)}",

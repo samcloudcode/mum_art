@@ -7,14 +7,14 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface ImageUploadProps {
-  printId: number
+  airtableId: string
   currentImagePath: string | null
   onUploadComplete: (path: string) => void
   className?: string
 }
 
 export function ImageUpload({
-  printId,
+  airtableId,
   currentImagePath,
   onUploadComplete,
   className,
@@ -49,7 +49,7 @@ export function ImageUpload({
       setPreviewUrl(objectUrl)
 
       try {
-        const path = await uploadArtworkImage(supabase, printId, file)
+        const path = await uploadArtworkImage(supabase, airtableId, file)
         onUploadComplete(path)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Upload failed')
@@ -59,7 +59,7 @@ export function ImageUpload({
         URL.revokeObjectURL(objectUrl)
       }
     },
-    [supabase, printId, onUploadComplete]
+    [supabase, airtableId, onUploadComplete]
   )
 
   const handleDrop = useCallback(
@@ -95,7 +95,7 @@ export function ImageUpload({
     [handleFile]
   )
 
-  const displayUrl = previewUrl || getThumbnailUrl(currentImagePath, { width: 400, height: 400 })
+  const displayUrl = previewUrl || getThumbnailUrl(currentImagePath)
 
   return (
     <div className={cn('space-y-3', className)}>

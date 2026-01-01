@@ -9,18 +9,21 @@ import { Button } from '@/components/ui/button'
 
 interface ArtworkImageSectionProps {
   printId: number
+  airtableId: string
   printName: string
   initialImagePath: string | null
 }
 
 export function ArtworkImageSection({
   printId,
+  airtableId,
   printName,
   initialImagePath,
 }: ArtworkImageSectionProps) {
   const [imagePath, setImagePath] = useState(initialImagePath)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [useFallback, setUseFallback] = useState(false)
 
   const supabase = createClient()
 
@@ -35,6 +38,7 @@ export function ArtworkImageSection({
       if (error) throw error
 
       setImagePath(path)
+      setUseFallback(false) // Reset fallback since new upload has thumbnail
       setIsEditing(false)
     } catch (err) {
       console.error('Failed to save image path:', err)
@@ -44,13 +48,13 @@ export function ArtworkImageSection({
   }
 
   const imageUrl = getImageUrl(imagePath)
-  const thumbnailUrl = getThumbnailUrl(imagePath, { width: 600, height: 600 })
+  const thumbnailUrl = getThumbnailUrl(imagePath)
 
   if (isEditing) {
     return (
       <div className="space-y-4">
         <ImageUpload
-          printId={printId}
+          airtableId={airtableId}
           currentImagePath={imagePath}
           onUploadComplete={handleUploadComplete}
         />
@@ -77,18 +81,26 @@ export function ArtworkImageSection({
     )
   }
 
+  // Use thumbnail if available, fall back to original if thumbnail fails
+  const displayUrl = useFallback ? imageUrl : thumbnailUrl
+
   return (
     <div className="space-y-4">
       <div className="relative aspect-square max-w-md overflow-hidden rounded-lg bg-muted border">
-        {thumbnailUrl ? (
+        {displayUrl ? (
           <a href={imageUrl || '#'} target="_blank" rel="noopener noreferrer">
             <Image
-              src={thumbnailUrl}
+              src={displayUrl}
               alt={printName}
               fill
               className="object-cover hover:opacity-90 transition-opacity"
               sizes="(max-width: 768px) 100vw, 400px"
               priority
+              onError={() => {
+                if (!useFallback && imageUrl) {
+                  setUseFallback(true)
+                }
+              }}
             />
           </a>
         ) : (

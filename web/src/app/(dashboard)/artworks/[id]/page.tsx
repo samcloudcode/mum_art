@@ -273,6 +273,7 @@ export default function ArtworkDetailPage({ params }: PageProps) {
         <div className="md:w-1/3">
           <ArtworkImageSection
             printId={print.id}
+            airtableId={print.airtable_id}
             printName={print.name}
             initialImagePath={print.primary_image_path}
           />

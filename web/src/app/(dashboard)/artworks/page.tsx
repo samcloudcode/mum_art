@@ -2,10 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useInventory } from '@/lib/hooks/use-inventory'
-import { getThumbnailUrl } from '@/lib/supabase/storage'
 import { createClient } from '@/lib/supabase/client'
+import { ArtworkImage } from '@/components/artwork-image'
 import { ImagePlaceholderIcon, SearchIcon, ExternalLinkIcon } from '@/components/ui/icons'
 import { Plus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -344,8 +343,8 @@ function ArtworkListItem({
         {/* Image on the left */}
         <div className="relative w-32 h-40 sm:w-40 sm:h-52 flex-shrink-0 overflow-hidden rounded-sm bg-muted">
           {print.primary_image_path ? (
-            <Image
-              src={getThumbnailUrl(print.primary_image_path, { width: 200, height: 260, resize: 'contain' }) || ''}
+            <ArtworkImage
+              imagePath={print.primary_image_path}
               alt={print.name}
               fill
               className="object-contain transition-transform duration-500 group-hover:scale-105"

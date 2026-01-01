@@ -1,14 +1,34 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import { EditionsDataTable } from '@/components/editions/editions-data-table'
+import { MobileEditionList } from '@/components/editions/mobile-edition-list'
 import { EditionFilters } from './edition-filters'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { LayoutGrid, LayoutList } from 'lucide-react'
 import type { EditionFilters as EditionFiltersType } from '@/lib/types'
+
+type ViewMode = 'table' | 'cards'
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  return isMobile
+}
 
 export default function EditionsPage() {
   const [filters, setFilters] = useState<EditionFiltersType>({})
+  const isMobile = useIsMobile()
+  const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [isPending, startTransition] = useTransition()
 
   const {
@@ -126,6 +146,9 @@ export default function EditionsPage() {
     filters.isSold !== undefined ||
     filters.isUnsettled
 
+  // Auto-switch to cards on mobile
+  const effectiveViewMode = isMobile ? 'cards' : viewMode
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -135,6 +158,27 @@ export default function EditionsPage() {
             {editions.length.toLocaleString()} editions
             {hasActiveFilters ? ' (filtered)' : ' total'}
           </p>
+        </div>
+        {/* View toggle - hidden on mobile since it auto-switches */}
+        <div className="hidden md:flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
+          <Button
+            variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('table')}
+            className="gap-2"
+          >
+            <LayoutList className="h-4 w-4" />
+            Table
+          </Button>
+          <Button
+            variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('cards')}
+            className="gap-2"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Cards
+          </Button>
         </div>
       </div>
 
@@ -148,23 +192,37 @@ export default function EditionsPage() {
       />
 
       <div className={cn('transition-opacity duration-150', isPending && 'opacity-60')}>
-        <EditionsDataTable
-          editions={editions}
-          distributors={distributors}
-          sizes={sizes}
-          showSelection={true}
-          showPagination={true}
-          showExpandableRows={true}
-          enableInlineEdit={true}
-          onUpdate={update}
-          onBulkUpdate={updateMany}
-          onMarkSold={markSold}
-          onMarkSettled={markSettled}
-          onMoveToGallery={moveToGallery}
-          onMarkPrinted={markPrinted}
-          isSaving={isSaving}
-          savingIds={savingIds}
-        />
+        {effectiveViewMode === 'cards' ? (
+          <MobileEditionList
+            editions={editions}
+            distributors={distributors}
+            onUpdate={update}
+            onBulkUpdate={updateMany}
+            onMarkSold={markSold}
+            onMarkSettled={markSettled}
+            onMoveToGallery={moveToGallery}
+            onMarkPrinted={markPrinted}
+            isSaving={isSaving}
+          />
+        ) : (
+          <EditionsDataTable
+            editions={editions}
+            distributors={distributors}
+            sizes={sizes}
+            showSelection={true}
+            showPagination={true}
+            showExpandableRows={true}
+            enableInlineEdit={true}
+            onUpdate={update}
+            onBulkUpdate={updateMany}
+            onMarkSold={markSold}
+            onMarkSettled={markSettled}
+            onMoveToGallery={moveToGallery}
+            onMarkPrinted={markPrinted}
+            isSaving={isSaving}
+            savingIds={savingIds}
+          />
+        )}
       </div>
     </div>
   )

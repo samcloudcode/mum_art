@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { InventoryProvider } from './inventory-provider'
+import { MobileNav } from '@/components/mobile-nav'
 
 const navigation = [
   { name: 'Overview', href: '/' },
@@ -91,19 +92,7 @@ export default async function DashboardLayout({
       </nav>
 
       {/* Mobile bottom nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border/50 z-10 safe-area-inset-bottom">
-        <div className="flex justify-around py-3 px-2">
-          {navigation.map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              className="flex flex-col items-center px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {item.name}
-            </Link>
-          ))}
-        </div>
-      </div>
+      <MobileNav />
 
       {/* Main content area */}
       <main className="pt-16 pb-24 md:pb-12">

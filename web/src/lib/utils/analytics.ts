@@ -131,6 +131,14 @@ function daysBetween(start: string | null, end: string | null): number | null {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 }
 
+/**
+ * Check if an edition should be counted in analytics
+ * Excludes edition 0 and negative editions (artist proofs, test prints, etc.)
+ */
+function shouldCountEdition(edition: EditionWithRelations): boolean {
+  return edition.edition_number != null && edition.edition_number > 0
+}
+
 // ============================================================================
 // Core Analytics Functions
 // ============================================================================
@@ -176,6 +184,9 @@ export function calculateArtworkStats(
     const stats = statsMap.get(edition.print_id)
     if (!stats) return
 
+    // Skip edition 0 and negative editions from counts
+    if (!shouldCountEdition(edition)) return
+
     if (edition.is_sold) {
       stats.sold++
 
@@ -220,7 +231,8 @@ export function calculateArtworkStats(
   // Calculate derived stats
   statsMap.forEach((stats, printId) => {
     // Use actual edition count if total_editions not set
-    const printEditions = editions.filter(e => e.print_id === printId)
+    // Only count editions with edition_number > 0
+    const printEditions = editions.filter(e => e.print_id === printId && shouldCountEdition(e))
     if (stats.totalEditions === 0) {
       stats.totalEditions = printEditions.length
     }
@@ -316,6 +328,9 @@ export function calculateGalleryStats(
     const stats = statsMap.get(edition.distributor_id)
     if (!stats) return
 
+    // Skip edition 0 and negative editions from counts
+    if (!shouldCountEdition(edition)) return
+
     // Only count printed editions as allocated
     if (edition.is_printed) {
       stats.totalAllocated++
@@ -410,6 +425,9 @@ export function buildGalleryArtworkMatrix(
 
   editions.forEach(edition => {
     if (!edition.distributor_id || !edition.is_printed) return
+
+    // Skip edition 0 and negative editions from counts
+    if (!shouldCountEdition(edition)) return
 
     const key = `${edition.distributor_id}-${edition.print_id}`
     let cell = matrix.get(key)
@@ -645,6 +663,8 @@ export function generateInventoryAlerts(
   // Stale inventory (in gallery for 180+ days without selling)
   const staleByGallery = new Map<number, number>()
   editions.forEach(e => {
+    // Skip edition 0 and negative editions
+    if (!shouldCountEdition(e)) return
     if (e.distributor_id && e.is_printed && !e.is_sold && e.date_in_gallery) {
       const daysInGallery = daysBetween(e.date_in_gallery, now.toISOString())
       if (daysInGallery !== null && daysInGallery >= 180) {

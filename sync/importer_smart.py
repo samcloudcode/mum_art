@@ -158,8 +158,8 @@ class SmartImporter:
 
     def _generate_assumptions_file(self) -> str:
         """Generate import_assumptions.md documenting all import assumptions and actions taken."""
-        docs_dir = Path('docs')
-        docs_dir.mkdir(exist_ok=True)
+        docs_dir = Path('docs/user')
+        docs_dir.mkdir(parents=True, exist_ok=True)
         output_path = docs_dir / 'import_assumptions.md'
 
         content = [

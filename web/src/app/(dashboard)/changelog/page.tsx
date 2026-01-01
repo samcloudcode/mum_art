@@ -58,8 +58,18 @@ export default async function ChangelogPage({
       </header>
 
       {error ? (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-sm p-4">
-          <p className="text-destructive">Error loading activity: {error.message}</p>
+        <div className="gallery-plaque text-center py-12">
+          {error.message.includes('activity_log') ? (
+            <>
+              <p className="text-muted-foreground">Activity logging is not yet set up</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                The activity_log table needs to be created in the database.
+                Run the migration in supabase/migrations/003_add_activity_log.sql
+              </p>
+            </>
+          ) : (
+            <p className="text-destructive">Error loading activity: {error.message}</p>
+          )}
         </div>
       ) : (
         <ActivityLogList

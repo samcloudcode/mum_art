@@ -17,92 +17,127 @@ class AirtableDataCleaner:
         """Initialize cleaner with optional import report for tracking."""
         self.report = report
 
-    # Mapping for consistent, friendly print names
-    PRINT_NAME_MAPPING = {
-        # Fix spacing and formatting
-        'nomanfort': "No Man's Fort",
-        'nomansfort': "No Man's Fort",
-        'stcatherines': "St Catherine's",
-        'st catherines': "St Catherine's",
-        'seaviewtwo': 'Seaview Two',
-        'seaview twooo': 'Seaview Two',
+    # Canonical print names: maps raw input variations to (short_name, full_name)
+    # short_name: abbreviated for handwritten notes (max ~10 chars)
+    # full_name: complete display name
+    PRINT_NAMES = {
+        # === Isle of Wight Locations ===
+        'bembridge': ('Bemb', 'Bembridge'),
+        'bemlbsl': ('Bemb LS', 'Bembridge Lifeboat Station'),
+        'lifeboatstation': ('Bemb LS', 'Bembridge Lifeboat Station'),
+        'eastcowes': ('E Cowes', 'East Cowes'),
+        'westcowes': ('W Cowes', 'West Cowes'),
+        'cowesraceday': ('Cowes RD', 'Cowes Race Day'),
+        'hurst': ('Hurst', 'Hurst'),
+        'needles': ('Needles', 'Needles'),
+        'needleslighthouse': ('Needles LH', 'Needles Lighthouse'),
+        'nomanfort': ("NMF", "No Man's Fort"),
+        'nomansfort': ("NMF", "No Man's Fort"),
+        'osborne': ('Osborne', 'Osborne'),
+        'priory': ('Priory', 'Priory'),
+        'quarr': ('Quarr', 'Quarr'),
+        'quayrocks': ('Quay Rks', 'Quay Rocks'),
+        'quayrockslandscape': ('Quay Rks L', 'Quay Rocks Landscape'),
+        'roundtheisland': ('RTI', 'Round the Island'),
+        'stcatherines': ("St Cath", "St Catherine's"),
+        'seagrove': ('Seagrove', 'Seagrove'),
+        'seaview': ('Seaview', 'Seaview'),
+        'seagv2l': ('Seaview V2L', 'Seaview V2 Large'),
+        'yarmouth': ('Yarm', 'Yarmouth'),
+        'yarmouthpier': ('Yarm Pier', 'Yarmouth Pier'),
+        'lymington': ('Lym', 'Lymington'),
+        'nerthek': ('Nerthek', 'Nerthek'),
 
-        # Standardize abbreviations
-        'bemlbsl': 'Bembridge Lifeboat Station',
-        'seagv2l': 'Seaview V2 Large',
-        'seagrove': 'Seagrove',
-        'rys': 'Royal Yacht Squadron',
+        # === Sailing & Boats ===
+        'royalyachtsquadron': ('RYS', 'Royal Yacht Squadron'),
+        'rys': ('RYS', 'Royal Yacht Squadron'),
+        'etchells': ('Etchells', 'Etchells'),
+        'contessa32': ('C32', 'Contessa 32'),
+        'scooter': ('Scooter', 'Scooter'),
+        'sb20': ('SB20', 'SB20'),
+        'scows': ('Scows', 'Scows'),
+        'regatta': ('Regatta', 'Regatta'),
+        'classics': ('Classics', 'Classics'),
+        'classracinglym': ('Class Lym', 'Class Racing Lymington'),
+        'ducie': ('Ducie', 'Ducie'),
+        'corby': ('Corby', 'Corby'),
+        'galatea': ('Galatea', 'Galatea'),
+        'beatrice': ('Beatrice', 'Beatrice'),
+        'otto': ('Otto', 'Otto'),
+        'brambles': ('Brambles', 'Brambles'),
 
-        # Fix capitalization
-        'cowes race day': 'Cowes Race Day',
-        'quay rocks': 'Quay Rocks',
-        'quayrocks': 'Quay Rocks',
-        'quayrocks landscape': 'Quay Rocks Landscape',
-        'lifeboat station': 'Lifeboat Station',
-        'priory': 'Priory',
+        # === Mermaids variations ===
+        'amermaids': ('Mermaids', 'Mermaids'),
+        'a.mermaids': ('Mermaids', 'Mermaids'),
+        'mermaids': ('Mermaids', 'Mermaids'),
+        'svycmermaids': ('SVYC Merm', 'SVYC Mermaids'),
+        'bsvycm': ('B SVYCM', 'B SVYC Mermaids'),
 
-        # Proper names
-        'ducie': 'Ducie',
-        'etchells': 'Etchells',
-        'lymington': 'Lymington',
-        'bembridge': 'Bembridge',
-        'osborne': 'Osborne',
-        'contessa32': 'Contessa 32',
+        # === Wildlife ===
+        'puffin': ('Puffin', 'Puffin'),
 
-        # Wildlife
-        'puffin': 'Puffin',
-        'seagull': 'Seagull',
-
-        # Special editions
-        'jubilee': 'Jubilee',
-        'classics': 'Classics',
-        'regatta': 'Regatta',
-
-        # Landscape names
-        'nerthek': 'Nerthek',
-        'quarr': 'Quarr',
-        'seauew': 'Sea View',
-        'seaview': 'Seaview',
-
-        # From actual data
-        'a.mermaids': 'Mermaids',
-        'amermaids': 'Mermaids',
-        'a mermaids': 'Mermaids',
+        # === Special/Other ===
+        'wrongflagraceday': ('Wrong Flag', 'Wrong Flag Race Day'),
+        'miscellaneous': ('Misc', 'Miscellaneous'),
     }
 
+
     @staticmethod
-    def standardize_print_name(name: Any) -> Optional[str]:
+    def _normalize_lookup_key(name: str) -> str:
+        """Normalize a name to a lookup key (lowercase, no spaces/dashes/underscores/dots)."""
+        return name.lower().replace('-', '').replace('_', '').replace(' ', '').replace('.', '')
+
+    @staticmethod
+    def get_print_names(name: Any) -> Tuple[Optional[str], Optional[str]]:
         """
-        Standardize print names to be consistent and friendly.
+        Get both short and full names for a print.
+
+        Returns:
+            Tuple of (short_name, full_name), or (None, None) if invalid input.
 
         Examples:
-        - "NoMansFort " -> "No Man's Fort"
-        - "COWES RACE DAY" -> "Cowes Race Day"
-        - "BEMLBSL" -> "Bembridge Lifeboat Station"
+            "NoMansFort " -> ("NMF", "No Man's Fort")
+            "RYS" -> ("RYS", "Royal Yacht Squadron")
+            "BEMLBSL" -> ("Bemb LS", "Bembridge Lifeboat Station")
         """
         if not name or str(name).lower() in ['nan', 'none', '']:
-            return None
+            return None, None
 
-        # Clean whitespace and convert to string
         clean_name = str(name).strip()
+        lookup_key = AirtableDataCleaner._normalize_lookup_key(clean_name)
 
-        # Check if we have a direct mapping (case-insensitive)
-        lookup_key = clean_name.lower().replace('-', '').replace('_', '').replace(' ', '')
-        if lookup_key in AirtableDataCleaner.PRINT_NAME_MAPPING:
-            return AirtableDataCleaner.PRINT_NAME_MAPPING[lookup_key]
+        # Check canonical mapping first
+        if lookup_key in AirtableDataCleaner.PRINT_NAMES:
+            return AirtableDataCleaner.PRINT_NAMES[lookup_key]
 
-        # If no direct mapping, apply smart title casing
-        words = clean_name.split()
+        # Fallback: use smart title casing for full name
+        # For short name, use first word or abbreviation of multi-word names
+        full_name = AirtableDataCleaner._apply_title_casing(clean_name)
+        if not full_name:
+            return None, None
+
+        words = full_name.split()
+        if len(words) == 1:
+            short_name = full_name
+        else:
+            # For multi-word names, create initials (e.g., "New Print" -> "NP")
+            short_name = ''.join(w[0].upper() for w in words if w)
+
+        return short_name, full_name
+
+    @staticmethod
+    def _apply_title_casing(name: str) -> str:
+        """Apply smart title casing rules to a name."""
+        words = name.split()
         result = []
 
         # Words that should stay uppercase
-        uppercase_words = {'RYS', 'IOW', 'UK', 'V2', 'V2L'}
+        uppercase_words = {'RYS', 'IOW', 'UK', 'V2', 'V2L', 'SVYC', 'SB20'}
 
         # Words that should stay lowercase (unless first word)
         lowercase_words = {'and', 'the', 'of', 'at', 'in', 'on'}
 
         for i, word in enumerate(words):
-            # Remove extra characters
             clean_word = word.strip('.,;:')
 
             if clean_word.upper() in uppercase_words:
@@ -118,6 +153,20 @@ class AirtableDataCleaner:
                     result.append(clean_word.capitalize())
 
         return ' '.join(result)
+
+    @staticmethod
+    def standardize_print_name(name: Any) -> Optional[str]:
+        """
+        Standardize print names to be consistent and friendly.
+        Returns the full display name only (for backwards compatibility).
+
+        Examples:
+        - "NoMansFort " -> "No Man's Fort"
+        - "COWES RACE DAY" -> "Cowes Race Day"
+        - "BEMLBSL" -> "Bembridge Lifeboat Station"
+        """
+        _, full_name = AirtableDataCleaner.get_print_names(name)
+        return full_name
 
     @staticmethod
     def clean_text(value: Any) -> Optional[str]:
@@ -282,15 +331,16 @@ class AirtableDataCleaner:
     def clean_print_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """Clean a row from the Prints CSV."""
         original_name = row.get('Print Name')
-        standardized_name = AirtableDataCleaner.standardize_print_name(original_name)
+        short_name, full_name = AirtableDataCleaner.get_print_names(original_name)
 
         # Record the transformation if it changed
-        if self.report and original_name and standardized_name:
-            self.report.record_print_name_transform(str(original_name), standardized_name)
+        if self.report and original_name and full_name:
+            self.report.record_print_name_transform(str(original_name), full_name)
 
         return {
             'airtable_id': row.get('Record_id'),
-            'name': standardized_name,
+            'name': full_name,
+            'short_name': short_name,
             'description': AirtableDataCleaner.clean_text(row.get('Description')),
             'total_editions': AirtableDataCleaner.clean_integer(row.get('Total Editions')),
             'web_link': AirtableDataCleaner.clean_text(row.get('Web link')),

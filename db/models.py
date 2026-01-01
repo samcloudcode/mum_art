@@ -17,7 +17,8 @@ class Print(Base):
 
     id = Column(Integer, primary_key=True)
     airtable_id = Column(String(20), unique=True, nullable=False)
-    name = Column(String(100), nullable=False, unique=True)
+    name = Column(String(100), nullable=False, unique=True)  # Full display name
+    short_name = Column(String(30))  # Abbreviated name for handwritten notes
     description = Column(Text)
     total_editions = Column(Integer)
     web_link = Column(String(500))
@@ -37,7 +38,7 @@ class Print(Base):
     editions = relationship("Edition", back_populates="print")
 
     def __repr__(self):
-        return f"<Print(name='{self.name}', editions={self.total_editions})>"
+        return f"<Print(short='{self.short_name}', name='{self.name}', editions={self.total_editions})>"
 
 
 class Distributor(Base):

@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { paymentStatusStyles } from '@/lib/utils/badge-styles'
+import { Badge } from '@/components/ui/badge'
+import { SalesPaymentStatus } from './sales-payment-status'
 import {
   Table,
   TableBody,
@@ -43,7 +44,7 @@ type Props = {
 }
 
 export function SalesByMonth({ monthlyData }: Props) {
-  const { markSettled, isSaving } = useInventory()
+  const { markSettled, update, isSaving } = useInventory()
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(
     // Auto-expand first month if there are unsettled sales
     new Set(monthlyData.length > 0 && monthlyData[0].unsettledCount > 0 ? [monthlyData[0].key] : [])
@@ -93,6 +94,10 @@ export function SalesByMonth({ monthlyData }: Props) {
     if (success) {
       clearSelection(monthKey)
     }
+  }
+
+  const handleToggleSettled = async (id: number, isSettled: boolean): Promise<boolean> => {
+    return update(id, { is_settled: isSettled })
   }
 
   const formatPrice = (price: number | null) => {
@@ -282,11 +287,11 @@ export function SalesByMonth({ monthlyData }: Props) {
                                     {formatPrice(net)}
                                   </TableCell>
                                   <TableCell>
-                                    {sale.is_settled ? (
-                                      <Badge className={paymentStatusStyles.paid.badge}>Paid</Badge>
-                                    ) : (
-                                      <Badge className={paymentStatusStyles.unpaid.badge}>Unpaid</Badge>
-                                    )}
+                                    <SalesPaymentStatus
+                                      saleId={sale.id}
+                                      isSettled={sale.is_settled ?? false}
+                                      onToggleSettled={handleToggleSettled}
+                                    />
                                   </TableCell>
                                 </TableRow>
                               )

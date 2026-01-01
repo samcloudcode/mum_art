@@ -23,6 +23,7 @@ class Print(Base):
     web_link = Column(String(500))
     notes = Column(Text)
     image_urls = Column(ARRAY(Text))
+    primary_image_path = Column(Text)  # Storage path for main display image
 
     # Sync metadata
     last_synced_at = Column(TIMESTAMP)

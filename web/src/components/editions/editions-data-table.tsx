@@ -324,7 +324,7 @@ const EditionTableRow = memo(function EditionTableRow({
         </TableCell>
       )}
       {columns.includes('price') && (
-        <TableCell className="text-right">
+        <TableCell className="text-right min-w-[100px]">
           {enableInlineEdit ? (
             <EditionInlineCell
               type="number"
@@ -333,7 +333,7 @@ const EditionTableRow = memo(function EditionTableRow({
               value={edition.retail_price}
               prefix="£"
               onSave={onInlineSave}
-              className="text-right"
+              className="text-right w-[90px]"
             />
           ) : (
             <span className="font-serif tabular-nums">{formatPrice(edition.retail_price)}</span>
@@ -362,12 +362,34 @@ const EditionTableRow = memo(function EditionTableRow({
       )}
       {columns.includes('dateSold') && (
         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-          {formatDate(edition.date_sold)}
+          {enableInlineEdit ? (
+            <EditionInlineCell
+              type="date"
+              editionId={edition.id}
+              field="date_sold"
+              value={edition.date_sold}
+              onSave={onInlineSave}
+              className="w-[120px]"
+            />
+          ) : (
+            formatDate(edition.date_sold)
+          )}
         </TableCell>
       )}
       {columns.includes('dateInGallery') && (
         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-          {formatDate(edition.date_in_gallery)}
+          {enableInlineEdit ? (
+            <EditionInlineCell
+              type="date"
+              editionId={edition.id}
+              field="date_in_gallery"
+              value={edition.date_in_gallery}
+              onSave={onInlineSave}
+              className="w-[120px]"
+            />
+          ) : (
+            formatDate(edition.date_in_gallery)
+          )}
         </TableCell>
       )}
       {columns.includes('actions') && onMarkSold && onMarkSettled && onMoveToGallery && onMarkPrinted && onBulkUpdate && (
@@ -751,7 +773,7 @@ export function EditionsDataTable({
 
       {/* Table */}
       <div className="gallery-plaque overflow-x-auto">
-        <Table className="min-w-[1200px]">
+        <Table className="min-w-[1400px]">
           <TableHeader className="bg-secondary/50 border-b border-border">
             <TableRow>
               {showExpandableRows && <TableHead className="w-10" />}

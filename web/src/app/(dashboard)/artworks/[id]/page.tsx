@@ -1,16 +1,18 @@
 'use client'
 
-import { use, useMemo, useState } from 'react'
+import { use, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { formatPrice, calculateNetAmount } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { editionStatusStyles } from '@/lib/utils/badge-styles'
 import { EditionsTableWithFilters } from '@/components/editions/editions-table-with-filters'
 import { artworkEditionsPreset } from '@/lib/editions-presets'
 import { ArtworkImageSection } from '@/components/artwork-image-section'
+import { Loader2, Check } from 'lucide-react'
 import {
   BarChart,
   Bar,
@@ -27,11 +29,15 @@ type PageProps = {
 }
 
 type TimeGrouping = 'month' | 'quarter' | 'year'
+type SalesTimeFilter = '12m' | '24m' | '36m' | 'all'
 
 export default function ArtworkDetailPage({ params }: PageProps) {
   const { id } = use(params)
   const [timeGrouping, setTimeGrouping] = useState<TimeGrouping>('month')
-  const { prints, allEditions, isReady } = useInventory()
+  const [salesTimeFilter, setSalesTimeFilter] = useState<SalesTimeFilter>('all')
+  const [selectedUnsettled, setSelectedUnsettled] = useState<Set<number>>(new Set())
+  const [isSettling, setIsSettling] = useState(false)
+  const { prints, allEditions, isReady, markSettled } = useInventory()
 
   const print = useMemo(() => prints.find((p) => p.id === parseInt(id)), [prints, id])
 
@@ -115,11 +121,32 @@ export default function ArtworkDetailPage({ params }: PageProps) {
     return groups
   }, [editions])
 
-  // Sales by gallery chart data
+  // Sales by gallery chart data with time filter
   const salesByGalleryData = useMemo(() => {
+    const now = new Date()
+    const filterDate = (filter: SalesTimeFilter) => {
+      switch (filter) {
+        case '12m':
+          return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+        case '24m':
+          return new Date(now.getFullYear() - 2, now.getMonth(), now.getDate())
+        case '36m':
+          return new Date(now.getFullYear() - 3, now.getMonth(), now.getDate())
+        default:
+          return null
+      }
+    }
+    const minDate = filterDate(salesTimeFilter)
+
     const gallerySales = new Map<string, number>()
     editions
-      .filter((e) => e.is_sold)
+      .filter((e) => {
+        if (!e.is_sold) return false
+        if (minDate && e.date_sold) {
+          return new Date(e.date_sold) >= minDate
+        }
+        return salesTimeFilter === 'all'
+      })
       .forEach((e) => {
         const loc = e.distributors?.name || 'Direct'
         gallerySales.set(loc, (gallerySales.get(loc) || 0) + 1)
@@ -127,7 +154,41 @@ export default function ArtworkDetailPage({ params }: PageProps) {
     return Array.from(gallerySales.entries())
       .map(([name, sales]) => ({ name, sales }))
       .sort((a, b) => b.sales - a.sales)
-  }, [editions])
+  }, [editions, salesTimeFilter])
+
+  // Handle marking selected editions as settled
+  const handleMarkSettled = async () => {
+    if (selectedUnsettled.size === 0) return
+    setIsSettling(true)
+    try {
+      await markSettled(Array.from(selectedUnsettled))
+      setSelectedUnsettled(new Set())
+    } finally {
+      setIsSettling(false)
+    }
+  }
+
+  const toggleUnsettledSelection = useCallback((id: number) => {
+    setSelectedUnsettled(prev => {
+      const newSelected = new Set(prev)
+      if (newSelected.has(id)) {
+        newSelected.delete(id)
+      } else {
+        newSelected.add(id)
+      }
+      return newSelected
+    })
+  }, [])
+
+  const toggleAllUnsettled = useCallback(() => {
+    setSelectedUnsettled(prev => {
+      if (prev.size === unsettledEditions.length) {
+        return new Set()
+      } else {
+        return new Set(unsettledEditions.map(e => e.id))
+      }
+    })
+  }, [unsettledEditions])
 
   // Sales over time chart data
   const salesOverTimeData = useMemo(() => {
@@ -297,19 +358,54 @@ export default function ArtworkDetailPage({ params }: PageProps) {
       {unsettledEditions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-amber-600">Unsettled Sales</CardTitle>
-            <CardDescription>
-              {unsettledEditions.length} editions sold but not yet paid
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-amber-600">Unsettled Sales</CardTitle>
+                <CardDescription>
+                  {unsettledEditions.length} editions sold but not yet paid
+                </CardDescription>
+              </div>
+              {selectedUnsettled.size > 0 && (
+                <Button
+                  size="sm"
+                  onClick={handleMarkSettled}
+                  disabled={isSettling}
+                >
+                  {isSettling ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Settling...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Mark {selectedUnsettled.size} as Settled
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
+              {/* Select All Header */}
+              <div className="flex items-center gap-3 pb-2 border-b border-gray-200">
+                <Checkbox
+                  checked={selectedUnsettled.size === unsettledEditions.length && unsettledEditions.length > 0}
+                  onCheckedChange={toggleAllUnsettled}
+                />
+                <span className="text-sm text-muted-foreground">Select all</span>
+              </div>
               {unsettledEditions.map((edition) => (
                 <div
                   key={edition.id}
                   className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
                 >
                   <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={selectedUnsettled.has(edition.id)}
+                      onCheckedChange={() => toggleUnsettledSelection(edition.id)}
+                    />
                     <span className="font-medium">{edition.name}</span>
                     <Badge variant="outline">{edition.location}</Badge>
                     {edition.size && (
@@ -379,13 +475,32 @@ export default function ArtworkDetailPage({ params }: PageProps) {
       {/* Charts Section */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Sales by Gallery Chart */}
-        {salesByGalleryData.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Sales by Gallery</CardTitle>
-              <CardDescription>Top performing locations for this artwork</CardDescription>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Sales by Gallery</CardTitle>
+                <CardDescription>
+                  {salesTimeFilter === 'all' ? 'All time' : `Past ${salesTimeFilter.replace('m', ' months')}`}
+                </CardDescription>
+              </div>
+              <div className="flex gap-1">
+                {(['12m', '24m', '36m', 'all'] as SalesTimeFilter[]).map((filter) => (
+                  <Button
+                    key={filter}
+                    size="sm"
+                    variant={salesTimeFilter === filter ? 'default' : 'outline'}
+                    onClick={() => setSalesTimeFilter(filter)}
+                    className="text-xs px-2 py-1 h-7"
+                  >
+                    {filter === 'all' ? 'All' : filter.replace('m', 'M')}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {salesByGalleryData.length > 0 ? (
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -432,9 +547,13 @@ export default function ArtworkDetailPage({ params }: PageProps) {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            ) : (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                No sales in this time period
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Sales Over Time Chart */}
         {salesOverTimeData.length > 0 && (

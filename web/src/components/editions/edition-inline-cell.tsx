@@ -11,10 +11,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 import { feedbackStyles } from '@/lib/utils/badge-styles'
 
-type CellType = 'text' | 'number' | 'select' | 'checkbox'
+type CellType = 'text' | 'number' | 'select' | 'checkbox' | 'date'
 
 type BaseProps = {
   editionId: number
@@ -50,7 +50,13 @@ type CheckboxCellProps = BaseProps & {
   onSave: (id: number, field: string, value: boolean) => Promise<boolean>
 }
 
-type InlineCellProps = TextCellProps | NumberCellProps | SelectCellProps | CheckboxCellProps
+type DateCellProps = BaseProps & {
+  type: 'date'
+  value: string | null
+  onSave: (id: number, field: string, value: string | null) => Promise<boolean>
+}
+
+type InlineCellProps = TextCellProps | NumberCellProps | SelectCellProps | CheckboxCellProps | DateCellProps
 
 export function EditionInlineCell(props: InlineCellProps) {
   const { type, editionId, field, disabled, className } = props
@@ -64,6 +70,8 @@ export function EditionInlineCell(props: InlineCellProps) {
       return <SelectCell {...props} />
     case 'checkbox':
       return <CheckboxCell {...props} />
+    case 'date':
+      return <DateCell {...props} />
   }
 }
 
@@ -337,5 +345,84 @@ function CheckboxCell({ editionId, field, value, onSave, disabled, className }: 
         <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
       )}
     </div>
+  )
+}
+
+function DateCell({ editionId, field, value, onSave, disabled, className }: DateCellProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(value || '')
+  const [isSaving, setIsSaving] = useState(false)
+  const [justSaved, setJustSaved] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [isEditing])
+
+  const handleSave = useCallback(async () => {
+    if (editValue === (value || '')) {
+      setIsEditing(false)
+      return
+    }
+    setIsSaving(true)
+    const success = await onSave(editionId, field, editValue || null)
+    setIsSaving(false)
+    if (success) {
+      setIsEditing(false)
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 600)
+    }
+  }, [editValue, value, onSave, editionId, field])
+
+  const handleCancel = useCallback(() => {
+    setEditValue(value || '')
+    setIsEditing(false)
+  }, [value])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave()
+    } else if (e.key === 'Escape') {
+      handleCancel()
+    }
+  }, [handleSave, handleCancel])
+
+  if (disabled) {
+    return <span className={className}>{formatDate(value)}</span>
+  }
+
+  if (isEditing) {
+    return (
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          type="date"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          disabled={isSaving}
+          className={cn('h-7 text-sm', className)}
+        />
+        {isSaving && (
+          <Loader2 className="absolute right-2 top-1.5 h-4 w-4 animate-spin text-gray-400" />
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <span
+      onClick={() => setIsEditing(true)}
+      className={cn(
+        'cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded -mx-1 transition-colors duration-300',
+        justSaved && feedbackStyles.saved,
+        className
+      )}
+    >
+      {formatDate(value)}
+    </span>
   )
 }

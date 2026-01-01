@@ -278,119 +278,116 @@ export function SaleStatusSelect({
   const statusLabel = displayStatus === 'unsold' ? 'Unsold' : displayStatus === 'sold' ? 'Sold' : 'Settled'
 
   return (
-    <Popover open={showSoldPopover} onOpenChange={setShowSoldPopover}>
-      <div className={cn(
-        'relative rounded transition-colors duration-300',
-        justSaved && feedbackStyles.saved
-      )}>
-        <PopoverTrigger asChild>
-          <div>
-            <Select
-              value={displayStatus}
-              onValueChange={handleChange}
-              disabled={disabled || isSaving}
-            >
-              <SelectTrigger
-                className={cn(
-                  'h-auto py-0.5 px-0 w-auto min-w-[70px]',
-                  'border-transparent bg-transparent shadow-none',
-                  'hover:bg-secondary/50',
-                  'focus:ring-0 focus:ring-offset-0',
-                  'data-[state=open]:bg-secondary/50',
-                  '[&>svg]:opacity-0 hover:[&>svg]:opacity-50 data-[state=open]:[&>svg]:opacity-100',
-                  '[&>svg]:ml-1 [&>svg]:h-3 [&>svg]:w-3',
-                  'transition-all duration-200'
-                )}
-                onClick={(e) => e.stopPropagation()}
+    <div className={cn(
+      'relative rounded transition-colors duration-300',
+      justSaved && feedbackStyles.saved
+    )}>
+      <Select
+        value={displayStatus}
+        onValueChange={handleChange}
+        disabled={disabled || isSaving}
+      >
+        <SelectTrigger
+          className={cn(
+            'h-auto py-0.5 px-0 w-auto min-w-[70px]',
+            'border-transparent bg-transparent shadow-none',
+            'hover:bg-secondary/50',
+            'focus:ring-0 focus:ring-offset-0',
+            'data-[state=open]:bg-secondary/50',
+            '[&>svg]:opacity-0 hover:[&>svg]:opacity-50 data-[state=open]:[&>svg]:opacity-100',
+            '[&>svg]:ml-1 [&>svg]:h-3 [&>svg]:w-3',
+            'transition-all duration-200'
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Badge className={cn(badgeStyle.badge, 'text-xs font-medium whitespace-nowrap')}>
+            {statusLabel}
+          </Badge>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="unsold">
+            <Badge className={cn(saleStatusStyles.unsold.badge, 'text-xs')}>Unsold</Badge>
+          </SelectItem>
+          <SelectItem value="sold">
+            <Badge className={cn(saleStatusStyles.sold.badge, 'text-xs')}>Sold</Badge>
+          </SelectItem>
+          <SelectItem value="settled">
+            <Badge className={cn(saleStatusStyles.settled.badge, 'text-xs')}>Settled</Badge>
+          </SelectItem>
+          {edition.is_sold && (
+            <>
+              <div className="h-px bg-gray-200 my-1" />
+              <SelectItem value="edit" className="text-muted-foreground">
+                Edit sale...
+              </SelectItem>
+            </>
+          )}
+        </SelectContent>
+      </Select>
+      {isSaving && !showSoldPopover && (
+        <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-gray-400" />
+      )}
+
+      {/* Controlled popover for sale details - no trigger needed as we open via state */}
+      <Popover open={showSoldPopover} onOpenChange={setShowSoldPopover} modal={false}>
+        <PopoverContent className="w-56 p-3" align="start" onClick={(e) => e.stopPropagation()} onOpenAutoFocus={(e) => e.preventDefault()}>
+          <div className="space-y-3">
+            <h4 className="font-medium text-sm">Sale Details</h4>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Sale Price (£)</Label>
+              <Input
+                type="number"
+                value={salePrice}
+                onChange={(e) => setSalePrice(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="0"
+                className="h-8"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Date Sold</Label>
+              <Input
+                type="date"
+                value={saleDate}
+                onChange={(e) => setSaleDate(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="h-8"
+              />
+            </div>
+            {edition.distributors?.commission_percentage != null && (
+              <p className="text-xs text-muted-foreground">
+                Commission: {edition.distributors.commission_percentage}%
+              </p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePopoverClose}
+                className="flex-1 h-7 text-xs"
               >
-                <Badge className={cn(badgeStyle.badge, 'text-xs font-medium whitespace-nowrap')}>
-                  {statusLabel}
-                </Badge>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unsold">
-                  <Badge className={cn(saleStatusStyles.unsold.badge, 'text-xs')}>Unsold</Badge>
-                </SelectItem>
-                <SelectItem value="sold">
-                  <Badge className={cn(saleStatusStyles.sold.badge, 'text-xs')}>Sold</Badge>
-                </SelectItem>
-                <SelectItem value="settled">
-                  <Badge className={cn(saleStatusStyles.settled.badge, 'text-xs')}>Settled</Badge>
-                </SelectItem>
-                {edition.is_sold && (
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSoldSubmit}
+                disabled={isSaving}
+                className="flex-1 h-7 text-xs"
+              >
+                {isSaving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
                   <>
-                    <div className="h-px bg-gray-200 my-1" />
-                    <SelectItem value="edit" className="text-muted-foreground">
-                      Edit sale...
-                    </SelectItem>
+                    <Check className="h-3 w-3 mr-1" />
+                    Save
                   </>
                 )}
-              </SelectContent>
-            </Select>
+              </Button>
+            </div>
           </div>
-        </PopoverTrigger>
-        {isSaving && !showSoldPopover && (
-          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-gray-400" />
-        )}
-      </div>
-
-      <PopoverContent className="w-56 p-3" align="start" onClick={(e) => e.stopPropagation()}>
-        <div className="space-y-3">
-          <h4 className="font-medium text-sm">Sale Details</h4>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Sale Price (£)</Label>
-            <Input
-              type="number"
-              value={salePrice}
-              onChange={(e) => setSalePrice(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="0"
-              className="h-8"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Date Sold</Label>
-            <Input
-              type="date"
-              value={saleDate}
-              onChange={(e) => setSaleDate(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="h-8"
-            />
-          </div>
-          {edition.distributors?.commission_percentage != null && (
-            <p className="text-xs text-muted-foreground">
-              Commission: {edition.distributors.commission_percentage}%
-            </p>
-          )}
-          <div className="flex gap-2 pt-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePopoverClose}
-              className="flex-1 h-7 text-xs"
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSoldSubmit}
-              disabled={isSaving}
-              className="flex-1 h-7 text-xs"
-            >
-              {isSaving ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <>
-                  <Check className="h-3 w-3 mr-1" />
-                  Save
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+    </div>
   )
 }

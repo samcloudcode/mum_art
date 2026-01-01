@@ -2,9 +2,13 @@
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import IntegrityError
 from contextlib import contextmanager
 import os
+import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Optional, Union, List, Dict, Any
 from dotenv import load_dotenv
 
 from .models import Base, Print, Distributor, Edition, SyncLog
@@ -218,3 +222,241 @@ class DatabaseManager:
             ).all()
 
             return duplicates
+
+    def get_or_create_direct_distributor(self, session) -> Distributor:
+        """
+        Get the 'Direct' distributor (artist's home) or create it if missing.
+
+        The Direct distributor represents sales/inventory held by the artist
+        with 0% commission.
+        """
+        direct = session.query(Distributor).filter(
+            Distributor.name == 'Direct'
+        ).first()
+
+        if not direct:
+            direct = Distributor(
+                airtable_id=f"WEB_{uuid.uuid4().hex[:12].upper()}",
+                name='Direct',
+                commission_percentage=Decimal('0.00'),
+                notes='Artist direct sales - 0% commission'
+            )
+            session.add(direct)
+            session.flush()  # Get the ID without committing
+
+        return direct
+
+    def create_artwork(
+        self,
+        name: str,
+        total_editions: int,
+        image_url: Optional[Union[str, List[str]]] = None,
+        description: Optional[str] = None,
+        default_size: str = 'Small',
+        default_frame_type: str = 'Tube only'
+    ) -> Dict[str, Any]:
+        """
+        Create a new artwork (print) with all its edition records.
+
+        This is the primary function for adding new artwork from the frontend.
+        All editions are pre-created as unprinted, assigned to 'Direct' distributor.
+
+        Args:
+            name: The artwork name (must be unique)
+            total_editions: Total number of editions to create (e.g., 350)
+            image_url: Single URL string or list of image URLs
+            description: Optional description of the artwork
+            default_size: Size for all editions ('Small', 'Large', 'Extra Large')
+            default_frame_type: Frame type ('Framed', 'Tube only', 'Mounted')
+
+        Returns:
+            Dict with:
+                - success: bool
+                - print_id: int (if successful)
+                - print_name: str (if successful)
+                - editions_created: int (if successful)
+                - error: str (if failed)
+                - error_code: str (if failed) - 'DUPLICATE_NAME', 'INVALID_DATA', 'DB_ERROR'
+
+        Example:
+            result = db.create_artwork(
+                name="Sunset Over Cowes",
+                total_editions=350,
+                image_url="https://example.com/sunset.jpg"
+            )
+            if result['success']:
+                print(f"Created artwork {result['print_id']}")
+        """
+        # Validate inputs
+        if not name or not name.strip():
+            return {
+                'success': False,
+                'error': 'Artwork name is required',
+                'error_code': 'INVALID_DATA'
+            }
+
+        name = name.strip()
+
+        if not isinstance(total_editions, int) or total_editions < 1:
+            return {
+                'success': False,
+                'error': 'Total editions must be a positive integer',
+                'error_code': 'INVALID_DATA'
+            }
+
+        if total_editions > 10000:
+            return {
+                'success': False,
+                'error': 'Total editions cannot exceed 10,000',
+                'error_code': 'INVALID_DATA'
+            }
+
+        # Validate size and frame_type
+        valid_sizes = ['Small', 'Large', 'Extra Large']
+        valid_frame_types = ['Framed', 'Tube only', 'Mounted']
+
+        if default_size not in valid_sizes:
+            return {
+                'success': False,
+                'error': f"Invalid size. Must be one of: {', '.join(valid_sizes)}",
+                'error_code': 'INVALID_DATA'
+            }
+
+        if default_frame_type not in valid_frame_types:
+            return {
+                'success': False,
+                'error': f"Invalid frame type. Must be one of: {', '.join(valid_frame_types)}",
+                'error_code': 'INVALID_DATA'
+            }
+
+        # Normalize image_url to list
+        image_urls = None
+        if image_url:
+            if isinstance(image_url, str):
+                image_urls = [image_url]
+            elif isinstance(image_url, list):
+                image_urls = [url for url in image_url if url and url.strip()]
+
+        try:
+            with self.get_session() as session:
+                # Check for duplicate name first (better error message)
+                existing = session.query(Print).filter(Print.name == name).first()
+                if existing:
+                    return {
+                        'success': False,
+                        'error': f"An artwork named '{name}' already exists",
+                        'error_code': 'DUPLICATE_NAME'
+                    }
+
+                # Get or create Direct distributor
+                direct_distributor = self.get_or_create_direct_distributor(session)
+
+                # Generate unique airtable_id for the print
+                print_airtable_id = f"WEB_{uuid.uuid4().hex[:12].upper()}"
+
+                # Create the print record
+                new_print = Print(
+                    airtable_id=print_airtable_id,
+                    name=name,
+                    description=description,
+                    total_editions=total_editions,
+                    image_urls=image_urls,
+                    is_active=True
+                )
+                session.add(new_print)
+                session.flush()  # Get the print ID
+
+                # Create all edition records
+                editions_to_add = []
+                for edition_num in range(1, total_editions + 1):
+                    edition_airtable_id = f"WEB_{new_print.id}_{edition_num}_{uuid.uuid4().hex[:6].upper()}"
+
+                    edition = Edition(
+                        airtable_id=edition_airtable_id,
+                        print_id=new_print.id,
+                        distributor_id=direct_distributor.id,
+                        edition_number=edition_num,
+                        edition_display_name=f"{name} - {edition_num}",
+                        size=default_size,
+                        frame_type=default_frame_type,
+                        is_printed=False,
+                        is_sold=False,
+                        is_settled=False,
+                        is_stock_checked=False,
+                        status_confidence='verified',
+                        is_active=True
+                    )
+                    editions_to_add.append(edition)
+
+                session.bulk_save_objects(editions_to_add)
+
+                return {
+                    'success': True,
+                    'print_id': new_print.id,
+                    'print_name': new_print.name,
+                    'editions_created': total_editions,
+                    'distributor': 'Direct'
+                }
+
+        except IntegrityError as e:
+            # Handle race condition where name was inserted between check and insert
+            if 'unique' in str(e).lower() and 'name' in str(e).lower():
+                return {
+                    'success': False,
+                    'error': f"An artwork named '{name}' already exists",
+                    'error_code': 'DUPLICATE_NAME'
+                }
+            return {
+                'success': False,
+                'error': 'Database integrity error occurred',
+                'error_code': 'DB_ERROR'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Failed to create artwork: {str(e)}',
+                'error_code': 'DB_ERROR'
+            }
+
+    def get_artwork(self, print_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get artwork details by ID.
+
+        Args:
+            print_id: The print ID
+
+        Returns:
+            Dict with artwork details or None if not found
+        """
+        try:
+            with self.get_session() as session:
+                print_obj = session.query(Print).filter(Print.id == print_id).first()
+                if not print_obj:
+                    return None
+
+                # Count editions by status
+                editions_printed = session.query(Edition).filter(
+                    Edition.print_id == print_id,
+                    Edition.is_printed == True
+                ).count()
+
+                editions_sold = session.query(Edition).filter(
+                    Edition.print_id == print_id,
+                    Edition.is_sold == True
+                ).count()
+
+                return {
+                    'id': print_obj.id,
+                    'name': print_obj.name,
+                    'description': print_obj.description,
+                    'total_editions': print_obj.total_editions,
+                    'image_urls': print_obj.image_urls,
+                    'web_link': print_obj.web_link,
+                    'editions_printed': editions_printed,
+                    'editions_sold': editions_sold,
+                    'editions_available': print_obj.total_editions - editions_sold if print_obj.total_editions else 0,
+                    'created_at': print_obj.created_at,
+                    'is_active': print_obj.is_active
+                }
+        except Exception:
+            return None

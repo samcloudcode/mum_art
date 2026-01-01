@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { ChevronDownIcon, ChevronRightIcon } from '@/components/ui/icons'
 
 interface GuideDoc {
@@ -43,8 +44,11 @@ export function GuideContent({ docs }: { docs: GuideDoc[] }) {
                   prose-code:text-accent prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-normal prose-code:before:content-none prose-code:after:content-none
                   prose-pre:bg-muted prose-pre:border prose-pre:border-border
                   prose-a:text-accent prose-a:no-underline hover:prose-a:underline
+                  prose-table:border-collapse prose-table:w-full prose-table:text-sm
+                  prose-th:border prose-th:border-border prose-th:bg-muted prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-foreground prose-th:font-medium
+                  prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-2 prose-td:text-muted-foreground
                 ">
-                  <ReactMarkdown>{doc.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{doc.content}</ReactMarkdown>
                 </article>
               </div>
             )}

@@ -15,6 +15,10 @@ interface InventoryStore {
   prints: Print[]
   distributors: Distributor[]
 
+  // Derived data (stable references - computed once on load)
+  sizes: string[]
+  frameTypes: string[]
+
   // Lookup maps (derived, not persisted)
   _printMap: PrintMap
   _distributorMap: DistributorMap
@@ -43,6 +47,8 @@ export const useInventoryStore = create<InventoryStore>()(
         editions: [],
         prints: [],
         distributors: [],
+        sizes: [],
+        frameTypes: [],
         _printMap: new Map(),
         _distributorMap: new Map(),
         _editionIndexMap: new Map(),
@@ -104,6 +110,16 @@ export const useInventoryStore = create<InventoryStore>()(
               ])
             )
 
+            // Derive unique sizes and frame types (stable arrays - won't change on edition updates)
+            const sizesSet = new Set<string>()
+            const frameTypesSet = new Set<string>()
+            for (const e of editions) {
+              if (e.size) sizesSet.add(e.size)
+              if (e.frame_type) frameTypesSet.add(e.frame_type)
+            }
+            const sizes = Array.from(sizesSet).sort()
+            const frameTypes = Array.from(frameTypesSet).sort()
+
             const loadTimeMs = Math.round(performance.now() - start)
             console.log(`Loaded ${editions.length} editions in ${loadTimeMs}ms`)
 
@@ -111,6 +127,8 @@ export const useInventoryStore = create<InventoryStore>()(
               editions,
               prints,
               distributors,
+              sizes,
+              frameTypes,
               _printMap: printMap,
               _distributorMap: distributorMap,
               _editionIndexMap: editionIndexMap,

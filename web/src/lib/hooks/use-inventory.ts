@@ -31,6 +31,8 @@ export function useInventory(filters: EditionFilters = {}) {
     editions: allEditions,
     prints,
     distributors,
+    sizes,
+    frameTypes,
     _searchIndex,
     isLoading,
     isReady,
@@ -48,6 +50,8 @@ export function useInventory(filters: EditionFilters = {}) {
       editions: state.editions,
       prints: state.prints,
       distributors: state.distributors,
+      sizes: state.sizes,
+      frameTypes: state.frameTypes,
       _searchIndex: state._searchIndex,
       isLoading: state.isLoading,
       isReady: state.isReady,
@@ -144,17 +148,6 @@ export function useInventory(filters: EditionFilters = {}) {
     filters.isSettled,
     filters.isUnsettled,
   ])
-
-  // Derive unique sizes and frame types from data
-  const sizes = useMemo(() => {
-    const unique = new Set(allEditions.map((e) => e.size).filter(Boolean) as string[])
-    return Array.from(unique).sort()
-  }, [allEditions])
-
-  const frameTypes = useMemo(() => {
-    const unique = new Set(allEditions.map((e) => e.frame_type).filter(Boolean) as string[])
-    return Array.from(unique).sort()
-  }, [allEditions])
 
   // Memoize all callback functions to maintain stable references
   // This is critical for preventing unnecessary re-renders of memoized child components

@@ -227,7 +227,6 @@ export default function GalleryDetailPage({ params }: PageProps) {
             <EditionsTableWithFilters
               {...galleryUnsettledPreset(distributorId)}
               showCard={false}
-              distributor={distributor}
             />
           </CardContent>
         </Card>

@@ -109,15 +109,16 @@ export function galleryStockPreset(distributorId: number): EditionsTablePreset {
 
 /**
  * Gallery unsettled sales - sold but unpaid editions at a specific gallery
+ * Uses standard editions table for flexible editing
  */
 export function galleryUnsettledPreset(distributorId: number): EditionsTablePreset {
   return {
     preFilter: { distributorId, unsettled: true },
-    columns: ['edition', 'dateSold', 'price', 'netDue', 'actions'],
+    columns: ['edition', 'artwork', 'price', 'sale', 'actions'],
     showSelection: true,
     showPagination: false,
-    showExpandableRows: false,
-    enableInlineEdit: false,
+    showExpandableRows: true,
+    enableInlineEdit: true,
   }
 }
 

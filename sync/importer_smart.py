@@ -70,11 +70,6 @@ class SmartImporter:
             "assumption": "Editions with 'Direct Old' distributor are marked as status_confidence='legacy_unknown'",
             "reason": "Direct Old indicates historical records with uncertain final status/location"
         },
-        {
-            "category": "Price Validation",
-            "assumption": "Prices outside 10-1000 range are flagged but still imported",
-            "reason": "Edge cases may exist, validation warnings are informational only"
-        },
     ]
 
     def __init__(self, db_manager, cleaner):
@@ -113,9 +108,9 @@ class SmartImporter:
         with self.db.get_session() as session:
             # Find sold editions older than 6 months that aren't settled
             updated = session.query(Edition).filter(
-                Edition.is_sold == True,
-                Edition.is_settled == False,
-                Edition.date_sold != None,
+                Edition.is_sold.is_(True),
+                Edition.is_settled.is_(False),
+                Edition.date_sold.isnot(None),
                 Edition.date_sold < six_months_ago
             ).update({Edition.is_settled: True}, synchronize_session=False)
 
@@ -149,7 +144,9 @@ class SmartImporter:
 
     def _generate_assumptions_file(self) -> str:
         """Generate import_assumptions.md documenting all import assumptions."""
-        output_path = Path('import_assumptions.md')
+        docs_dir = Path('docs')
+        docs_dir.mkdir(exist_ok=True)
+        output_path = docs_dir / 'import_assumptions.md'
 
         content = [
             "# Import Assumptions",

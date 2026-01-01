@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { flushSync } from 'react-dom'
-import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { EditionsDataTable } from './editions-data-table'
 import {
@@ -10,11 +9,10 @@ import {
   type ColumnKey,
   type FilterKey,
   type SortOption,
-  type PreFilter,
   applyPreFilter,
   sortEditions,
 } from '@/lib/editions-presets'
-import { formatPrice, calculateNetAmount, cn } from '@/lib/utils'
+import { formatPrice, cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,18 +29,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Checkbox } from '@/components/ui/checkbox'
-import { EditionRowActions } from '@/components/edition-row-actions'
 import { Search, X, Loader2 } from 'lucide-react'
-import type { EditionWithRelations, Distributor } from '@/lib/types'
 
 type ToggleOption = {
   value: string
@@ -135,8 +122,6 @@ type Props = EditionsTablePreset & {
   showResultsSummary?: boolean
   /** Callback when stock value changes (for displaying in parent) */
   onStockValueChange?: (value: number) => void
-  /** Get distributor for computing net amounts (for unsettled view) */
-  distributor?: Distributor
 }
 
 export function EditionsTableWithFilters({
@@ -160,7 +145,6 @@ export function EditionsTableWithFilters({
   maxHeight,
   showResultsSummary = false,
   onStockValueChange,
-  distributor,
 }: Props) {
   const {
     allEditions,
@@ -316,19 +300,6 @@ export function EditionsTableWithFilters({
   }, [])
 
   if (!isReady) return null
-
-  // Check if we're using the special unsettled columns (dateSold, netDue)
-  const isUnsettledView = columns.includes('dateSold') || columns.includes('netDue')
-
-  // Map columns to standard EditionsDataTable columns (filtering out special ones)
-  // Memoized to prevent re-renders when filter state changes
-  const tableColumns = useMemo(
-    () => columns.filter(
-      (c): c is Exclude<ColumnKey, 'dateSold' | 'netDue'> =>
-        STANDARD_COLUMNS.includes(c)
-    ),
-    [columns]
-  )
 
   // Render filters
   const renderFilters = () => {
@@ -502,114 +473,8 @@ export function EditionsTableWithFilters({
     )
   }
 
-  // For unsettled view, use a custom table with special columns
-  const renderUnsettledTable = () => {
-    const formatDate = (date: string | null) => {
-      if (!date) return '-'
-      return new Date(date).toLocaleDateString('en-GB')
-    }
-
-    return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {showSelection && <TableHead className="w-12" />}
-            <TableHead>Edition</TableHead>
-            {columns.includes('artwork') && <TableHead>Artwork</TableHead>}
-            {columns.includes('dateSold') && <TableHead>Date Sold</TableHead>}
-            {columns.includes('price') && <TableHead className="text-right">Sale Price</TableHead>}
-            {columns.includes('netDue') && <TableHead className="text-right">Net Due</TableHead>}
-            {columns.includes('actions') && <TableHead className="w-10" />}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {finalEditions.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={
-                  (showSelection ? 1 : 0) +
-                  2 +
-                  (columns.includes('artwork') ? 1 : 0) +
-                  (columns.includes('dateSold') ? 1 : 0) +
-                  (columns.includes('netDue') ? 1 : 0) +
-                  (columns.includes('actions') ? 1 : 0)
-                }
-                className="text-center py-8 text-gray-500"
-              >
-                No unsettled sales
-              </TableCell>
-            </TableRow>
-          ) : (
-            finalEditions.map((edition) => {
-              const commission =
-                edition.commission_percentage ?? distributor?.commission_percentage
-              const netDue = calculateNetAmount(edition.retail_price, commission)
-
-              return (
-                <TableRow key={edition.id} className="group">
-                  {showSelection && (
-                    <TableCell>
-                      <Checkbox />
-                    </TableCell>
-                  )}
-                  <TableCell>
-                    <Link
-                      href={`/editions/${edition.id}`}
-                      className="font-medium text-blue-600 hover:underline"
-                    >
-                      {edition.edition_display_name}
-                    </Link>
-                  </TableCell>
-                  {columns.includes('artwork') && (
-                    <TableCell>
-                      {edition.prints?.name || '-'}
-                    </TableCell>
-                  )}
-                  {columns.includes('dateSold') && (
-                    <TableCell>{formatDate(edition.date_sold)}</TableCell>
-                  )}
-                  {columns.includes('price') && (
-                    <TableCell className="text-right">
-                      {formatPrice(edition.retail_price)}
-                    </TableCell>
-                  )}
-                  {columns.includes('netDue') && (
-                    <TableCell className="text-right font-medium text-green-600">
-                      {formatPrice(netDue)}
-                    </TableCell>
-                  )}
-                  {columns.includes('actions') && (
-                    <TableCell>
-                      <EditionRowActions
-                        edition={edition}
-                        distributors={distributors}
-                        sizes={sizes}
-                        onMarkSold={markSold}
-                        onMarkSettled={markSettled}
-                        onChangeSize={updateSize}
-                        onMoveToGallery={moveToGallery}
-                        onMarkPrinted={markPrinted}
-                        isSaving={isSaving}
-                      />
-                    </TableCell>
-                  )}
-                </TableRow>
-              )
-            })
-          )}
-        </TableBody>
-      </Table>
-    )
-  }
-
   // Render the main table
   const renderTable = () => {
-    // Use custom table for unsettled view
-    if (isUnsettledView) {
-      return renderUnsettledTable()
-    }
-
-    // Use standard EditionsDataTable
     if (finalEditions.length === 0) {
       return (
         <div className="text-center py-12">
@@ -635,7 +500,7 @@ export function EditionsTableWithFilters({
         showExpandableRows={showExpandableRows}
         enableInlineEdit={enableInlineEdit}
         pageSize={pageSize}
-        columns={tableColumns}
+        columns={columns}
         onUpdate={update}
         onBulkUpdate={updateMany}
         onMarkSold={markSold}

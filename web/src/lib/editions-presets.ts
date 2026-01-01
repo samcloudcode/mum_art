@@ -17,7 +17,6 @@ export type ColumnKey =
   | 'actions'
   | 'dateSold'
   | 'dateInGallery'
-  | 'netDue'
 
 export type FilterKey =
   | 'search'

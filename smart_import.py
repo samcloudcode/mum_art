@@ -82,6 +82,12 @@ def main():
         print(f"   Distributors: {results['distributors']}")
         print(f"   Editions: {results['editions']}")
 
+        if 'post_processing' in results:
+            pp = results['post_processing']
+            print(f"\n🔧 Post-Processing:")
+            print(f"   Old sales auto-settled: {pp.get('old_sales_settled', 0)}")
+            print(f"   Direct Old marked legacy: {pp.get('direct_old_marked', 0)}")
+
         # Get final stats
         stats = db.get_detailed_stats()
         print(f"\n📈 Final Database Stats:")

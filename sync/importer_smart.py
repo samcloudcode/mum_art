@@ -2,9 +2,9 @@
 
 import pandas as pd
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from uuid import uuid4
-from typing import Dict, Set
+from typing import Dict, Set, List
 from sqlalchemy.dialects.postgresql import insert
 
 from db.models import Print, Distributor, Edition, SyncLog
@@ -13,12 +13,77 @@ from db.models import Print, Distributor, Edition, SyncLog
 class SmartImporter:
     """Optimized importer with intelligent duplicate handling."""
 
+    # Assumptions made during import - documented in import_assumptions.md
+    IMPORT_ASSUMPTIONS: List[Dict] = [
+        {
+            "category": "Data Quality",
+            "assumption": "All imported data defaults to 'verified' status_confidence",
+            "reason": "CSV data is considered the current best source of truth"
+        },
+        {
+            "category": "Missing Data",
+            "assumption": "If print name not found in database, edition record is skipped",
+            "reason": "Editions require a valid print foreign key reference"
+        },
+        {
+            "category": "Missing Data",
+            "assumption": "If distributor name not found, distributor_id is set to NULL",
+            "reason": "Distributor is optional - editions can exist without a distributor"
+        },
+        {
+            "category": "Defaults",
+            "assumption": "Unknown or missing sizes default to 'Small'",
+            "reason": "Small is the most common edition size"
+        },
+        {
+            "category": "Defaults",
+            "assumption": "Unknown or missing frame types default to 'Framed'",
+            "reason": "Most editions are framed when sold"
+        },
+        {
+            "category": "Date Handling",
+            "assumption": "Dates with year 1920 are corrected to 2020",
+            "reason": "Common typo in manual data entry"
+        },
+        {
+            "category": "Date Handling",
+            "assumption": "Multiple date formats are tried (MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD, etc.)",
+            "reason": "Historical data may have inconsistent date formatting"
+        },
+        {
+            "category": "Commission",
+            "assumption": "Commission percentage is a snapshot at sale time, not synced with current distributor rates",
+            "reason": "Historical sales should reflect the commission at time of sale"
+        },
+        {
+            "category": "Duplicates",
+            "assumption": "Duplicate airtable_ids are rejected via ON CONFLICT DO NOTHING",
+            "reason": "Each edition should have a unique source record"
+        },
+        {
+            "category": "Settlement",
+            "assumption": "Sales over 6 months old with sold=true are auto-marked as settled=true",
+            "reason": "Old sales are unlikely to still be awaiting payment - conservative assumption for historical data"
+        },
+        {
+            "category": "Legacy Data",
+            "assumption": "Editions with 'Direct Old' distributor are marked as status_confidence='legacy_unknown'",
+            "reason": "Direct Old indicates historical records with uncertain final status/location"
+        },
+        {
+            "category": "Price Validation",
+            "assumption": "Prices outside 10-1000 range are flagged but still imported",
+            "reason": "Edge cases may exist, validation warnings are informational only"
+        },
+    ]
+
     def __init__(self, db_manager, cleaner):
         """Initialize importer."""
         self.db = db_manager
         self.cleaner = cleaner
         self.sync_id = str(uuid4())
         self.skip_indices = self._load_skip_indices()
+        self.post_processing_stats = {}
 
     def _load_skip_indices(self) -> Set[int]:
         """Load indices to skip from duplicate handling decisions."""
@@ -35,6 +100,103 @@ class SmartImporter:
         except Exception as e:
             print(f"   ⚠️ Could not load duplicate handling: {e}", flush=True)
             return set()
+
+    def _mark_old_sales_as_settled(self) -> int:
+        """Mark sales over 6 months old as settled.
+
+        Business logic: Old sales that are marked as sold but not settled
+        are unlikely to still be awaiting payment. This is a conservative
+        assumption for cleaning up historical data.
+        """
+        six_months_ago = datetime.now().date() - timedelta(days=180)
+
+        with self.db.get_session() as session:
+            # Find sold editions older than 6 months that aren't settled
+            updated = session.query(Edition).filter(
+                Edition.is_sold == True,
+                Edition.is_settled == False,
+                Edition.date_sold != None,
+                Edition.date_sold < six_months_ago
+            ).update({Edition.is_settled: True}, synchronize_session=False)
+
+            session.commit()
+            return updated
+
+    def _mark_direct_old_as_legacy_unknown(self) -> int:
+        """Mark editions with 'Direct Old' distributor as legacy_unknown.
+
+        The 'Direct Old' distributor indicates historical records where
+        the final status/location is uncertain. These should be excluded
+        from active inventory and stats by default.
+        """
+        with self.db.get_session() as session:
+            # Find the 'Direct Old' distributor
+            direct_old = session.query(Distributor).filter(
+                Distributor.name.ilike('direct old')
+            ).first()
+
+            if not direct_old:
+                print("   ℹ️ No 'Direct Old' distributor found", flush=True)
+                return 0
+
+            # Update all editions with this distributor
+            updated = session.query(Edition).filter(
+                Edition.distributor_id == direct_old.id
+            ).update({Edition.status_confidence: 'legacy_unknown'}, synchronize_session=False)
+
+            session.commit()
+            return updated
+
+    def _generate_assumptions_file(self) -> str:
+        """Generate import_assumptions.md documenting all import assumptions."""
+        output_path = Path('import_assumptions.md')
+
+        content = [
+            "# Import Assumptions",
+            "",
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Sync ID: {self.sync_id}",
+            "",
+            "This document lists all assumptions made during the data import process.",
+            "Understanding these assumptions is important for data integrity and troubleshooting.",
+            "",
+        ]
+
+        # Group assumptions by category
+        categories = {}
+        for assumption in self.IMPORT_ASSUMPTIONS:
+            cat = assumption['category']
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(assumption)
+
+        for category, assumptions in categories.items():
+            content.append(f"## {category}")
+            content.append("")
+            for a in assumptions:
+                content.append(f"### {a['assumption']}")
+                content.append(f"**Reason:** {a['reason']}")
+                content.append("")
+
+        # Add post-processing stats if available
+        if self.post_processing_stats:
+            content.append("## Post-Processing Results")
+            content.append("")
+            if 'old_sales_settled' in self.post_processing_stats:
+                content.append(f"- **Old sales auto-settled:** {self.post_processing_stats['old_sales_settled']} editions")
+            if 'direct_old_marked' in self.post_processing_stats:
+                content.append(f"- **Direct Old marked legacy_unknown:** {self.post_processing_stats['direct_old_marked']} editions")
+            content.append("")
+
+        content.append("---")
+        content.append("")
+        content.append("To review editions marked as legacy_unknown, use the frontend toggle or query:")
+        content.append("```sql")
+        content.append("SELECT * FROM editions WHERE status_confidence = 'legacy_unknown';")
+        content.append("```")
+
+        output_path.write_text('\n'.join(content))
+        return str(output_path)
 
     def sync_all(self, prints_csv: str, dist_csv: str, editions_csv: str) -> Dict:
         """Run full sync with duplicate handling."""
@@ -54,6 +216,25 @@ class SmartImporter:
             'distributors': self._sync_distributors_smart(dist_csv),
             'editions': self._sync_editions_smart(editions_csv)
         }
+
+        # Post-processing: Apply business rules
+        print(f"\n🔧 Running post-processing...", flush=True)
+
+        # Mark old sold items as settled
+        old_sales_settled = self._mark_old_sales_as_settled()
+        self.post_processing_stats['old_sales_settled'] = old_sales_settled
+        print(f"   ✅ Marked {old_sales_settled} old sales (>6 months) as settled", flush=True)
+
+        # Mark Direct Old distributor items as legacy_unknown
+        direct_old_marked = self._mark_direct_old_as_legacy_unknown()
+        self.post_processing_stats['direct_old_marked'] = direct_old_marked
+        print(f"   ✅ Marked {direct_old_marked} 'Direct Old' editions as legacy_unknown", flush=True)
+
+        # Generate assumptions documentation
+        assumptions_file = self._generate_assumptions_file()
+        print(f"   ✅ Generated {assumptions_file}", flush=True)
+
+        results['post_processing'] = self.post_processing_stats
 
         print(f"\n✅ Smart sync completed!", flush=True)
         return results

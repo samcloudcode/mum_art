@@ -180,23 +180,23 @@ export default function GalleryDetailPage({ params }: PageProps) {
       </div>
 
       {/* Current Stock Table */}
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Current Stock</CardTitle>
-              <CardDescription>{inStock.length} editions available</CardDescription>
+              <CardDescription>{inStock.length} editions available · Value: {formatPrice(stockValue)}</CardDescription>
             </div>
             <Button asChild>
               <Link href={`/galleries/${id}/stock`}>View Full Stock</Link>
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4">
           {inStock.length === 0 ? (
             <p className="text-center py-8 text-gray-500">No stock at this location</p>
           ) : (
-            <div className="max-h-[400px] overflow-auto">
+            <div className="overflow-x-auto -mx-4 px-4">
               <EditionsTableWithFilters
                 {...galleryPreviewPreset(distributorId)}
                 showCard={false}
@@ -208,13 +208,13 @@ export default function GalleryDetailPage({ params }: PageProps) {
 
       {/* Unsettled Sales */}
       {unsettled.length > 0 && (
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Unsettled Sales</CardTitle>
+                <CardTitle className="text-amber-600">Unsettled Sales</CardTitle>
                 <CardDescription>
-                  {unsettled.length} sales pending payment ({formatPrice(unsettledAmount)})
+                  {unsettled.length} sales pending payment · {formatPrice(unsettledAmount)} due
                 </CardDescription>
                 {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
               </div>
@@ -223,11 +223,13 @@ export default function GalleryDetailPage({ params }: PageProps) {
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            <EditionsTableWithFilters
-              {...galleryUnsettledPreset(distributorId)}
-              showCard={false}
-            />
+          <CardContent className="px-4">
+            <div className="overflow-x-auto -mx-4 px-4">
+              <EditionsTableWithFilters
+                {...galleryUnsettledPreset(distributorId)}
+                showCard={false}
+              />
+            </div>
           </CardContent>
         </Card>
       )}

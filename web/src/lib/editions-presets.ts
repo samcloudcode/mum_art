@@ -113,7 +113,7 @@ export function galleryStockPreset(distributorId: number): EditionsTablePreset {
 export function galleryUnsettledPreset(distributorId: number): EditionsTablePreset {
   return {
     preFilter: { distributorId, unsettled: true },
-    columns: ['edition', 'artwork', 'price', 'sale', 'actions'],
+    columns: ['edition', 'artwork', 'price', 'dateSold', 'sale', 'actions'],
     showSelection: true,
     showPagination: false,
     showExpandableRows: true,
@@ -127,11 +127,12 @@ export function galleryUnsettledPreset(distributorId: number): EditionsTablePres
 export function galleryPreviewPreset(distributorId: number): EditionsTablePreset {
   return {
     preFilter: { distributorId, inStock: true },
-    columns: ['edition', 'artwork', 'size', 'frame', 'price', 'printed', 'sale'],
+    columns: ['edition', 'artwork', 'size', 'frame', 'price', 'dateInGallery', 'printed', 'sale', 'actions'],
     showSelection: false,
-    showPagination: false,
+    showPagination: true,
     showExpandableRows: true,
     enableInlineEdit: true,
+    pageSize: 15,
   }
 }
 
@@ -141,7 +142,7 @@ export function galleryPreviewPreset(distributorId: number): EditionsTablePreset
 export function artworkEditionsPreset(printId: number): EditionsTablePreset {
   return {
     preFilter: { printId },
-    columns: ['edition', 'size', 'frame', 'location', 'price', 'printed', 'sale', 'actions'],
+    columns: ['edition', 'size', 'frame', 'location', 'price', 'dateInGallery', 'dateSold', 'printed', 'sale', 'actions'],
     showFilters: ['location', 'size', 'printed', 'sold'],
     showSelection: true,
     showPagination: true,

@@ -8,6 +8,7 @@ import { ChevronRightIcon } from '@/components/ui/icons'
 import {
   generateInventoryAlerts,
   calculateYearOverYear,
+  calculateRollingMetrics,
   calculateArtworkStats,
   getTrendIndicator,
   formatPercentChange,
@@ -124,9 +125,15 @@ export default function DashboardPage() {
     [allEditions, prints, distributors]
   )
 
-  // Year-over-year comparison for trend indicators
+  // Year-over-year comparison for trend indicators (calendar year)
   const yoyComparison = useMemo(
     () => calculateYearOverYear(allEditions),
+    [allEditions]
+  )
+
+  // Rolling 12-month metrics for more accurate YoY
+  const rollingMetrics = useMemo(
+    () => calculateRollingMetrics(allEditions),
     [allEditions]
   )
 
@@ -195,9 +202,9 @@ export default function DashboardPage() {
         <div className="gallery-plaque">
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
             Sold
-            {yoyComparison.yoyChangePercent !== 0 && (
-              <span className={`ml-2 text-xs ${yoyComparison.yoyChangePercent > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                {getTrendIndicator(yoyComparison.yoyChangePercent)} {formatPercentChange(yoyComparison.yoyChangePercent)} YoY
+            {rollingMetrics.yoyChangePercent !== 0 && (
+              <span className={`ml-2 text-xs ${rollingMetrics.yoyChangePercent > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                {getTrendIndicator(rollingMetrics.yoyChangePercent)} {formatPercentChange(rollingMetrics.yoyChangePercent)} YoY
               </span>
             )}
           </p>
@@ -210,10 +217,11 @@ export default function DashboardPage() {
         <div className="gallery-plaque">
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
             Net Revenue
+            <span className="font-normal text-muted-foreground/70 ml-1">(past 12m)</span>
           </p>
-          <p className="stat-value text-foreground">{formatPrice(stats.netRevenue)}</p>
+          <p className="stat-value text-foreground">{formatPrice(rollingMetrics.rolling12MonthNetRevenue)}</p>
           <p className="text-sm text-muted-foreground mt-2">
-            {formatPrice(yoyComparison.currentYearRevenue)} this year
+            {formatPrice(stats.netRevenue)} all time
           </p>
         </div>
 
@@ -227,50 +235,6 @@ export default function DashboardPage() {
           </p>
         </Link>
       </section>
-
-      {/* Needs Attention */}
-      {alerts.length > 0 && (
-        <section>
-          <div className="flex items-end justify-between mb-4">
-            <h2 className="text-foreground">Needs Attention</h2>
-            <Link
-              href="/analytics"
-              className="text-sm text-muted-foreground hover:text-accent gallery-link transition-colors"
-            >
-              View all insights
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {alerts.map((alert, i) => (
-              <div
-                key={i}
-                className={`p-4 rounded-sm border-l-4 ${
-                  alert.severity === 'critical'
-                    ? 'bg-red-50 border-red-500 dark:bg-red-950/30'
-                    : alert.severity === 'warning'
-                    ? 'bg-amber-50 border-amber-500 dark:bg-amber-950/30'
-                    : 'bg-blue-50 border-blue-500 dark:bg-blue-950/30'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">{alert.title}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{alert.description}</p>
-                  </div>
-                  {(alert.artworkId || alert.galleryId) && (
-                    <Link
-                      href={alert.artworkId ? `/artworks/${alert.artworkId}` : `/galleries/${alert.galleryId}`}
-                      className="text-sm text-muted-foreground hover:text-accent shrink-0 ml-4"
-                    >
-                      View →
-                    </Link>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Performance Stats */}
       <section>
@@ -470,6 +434,50 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+
+      {/* Needs Attention */}
+      {alerts.length > 0 && (
+        <section>
+          <div className="flex items-end justify-between mb-4">
+            <h2 className="text-foreground">Needs Attention</h2>
+            <Link
+              href="/analytics"
+              className="text-sm text-muted-foreground hover:text-accent gallery-link transition-colors"
+            >
+              View all insights
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {alerts.map((alert, i) => (
+              <div
+                key={i}
+                className={`p-4 rounded-sm border-l-4 ${
+                  alert.severity === 'critical'
+                    ? 'bg-red-50 border-red-500 dark:bg-red-950/30'
+                    : alert.severity === 'warning'
+                    ? 'bg-amber-50 border-amber-500 dark:bg-amber-950/30'
+                    : 'bg-blue-50 border-blue-500 dark:bg-blue-950/30'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-medium text-foreground">{alert.title}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{alert.description}</p>
+                  </div>
+                  {(alert.artworkId || alert.galleryId) && (
+                    <Link
+                      href={alert.artworkId ? `/artworks/${alert.artworkId}` : `/galleries/${alert.galleryId}`}
+                      className="text-sm text-muted-foreground hover:text-accent shrink-0 ml-4"
+                    >
+                      View →
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

@@ -5,8 +5,22 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { getThumbnailUrl } from '@/lib/supabase/storage'
+import { createClient } from '@/lib/supabase/client'
 import { ImagePlaceholderIcon, SearchIcon, ExternalLinkIcon } from '@/components/ui/icons'
+import { Plus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Loader2 } from 'lucide-react'
 import { Print } from '@/lib/types'
 
 type LocationStock = {
@@ -26,6 +40,91 @@ type PrintStats = {
 export default function ArtworksPage() {
   const { prints, allEditions, isReady } = useInventory()
   const [searchQuery, setSearchQuery] = useState('')
+  const [showAddDialog, setShowAddDialog] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [newArtwork, setNewArtwork] = useState({
+    name: '',
+    description: '',
+    totalEditions: '',
+    webLink: '',
+  })
+
+  const handleCreateArtwork = async () => {
+    if (!newArtwork.name.trim()) {
+      setCreateError('Name is required')
+      return
+    }
+
+    const totalEditions = parseInt(newArtwork.totalEditions) || 0
+    if (totalEditions <= 0 || totalEditions > 1000) {
+      setCreateError('Total editions must be between 1 and 1000')
+      return
+    }
+
+    setIsCreating(true)
+    setCreateError(null)
+
+    try {
+      const supabase = createClient()
+
+      // Generate a unique airtable_id for web-created artworks
+      const airtableId = `web_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+
+      // Create the print record
+      const { data: print, error: printError } = await supabase
+        .from('prints')
+        .insert({
+          airtable_id: airtableId,
+          name: newArtwork.name.trim(),
+          description: newArtwork.description.trim() || null,
+          total_editions: totalEditions,
+          web_link: newArtwork.webLink.trim() || null,
+        })
+        .select()
+        .single()
+
+      if (printError) {
+        if (printError.code === '23505') {
+          setCreateError('An artwork with this name already exists')
+        } else {
+          setCreateError(`Failed to create artwork: ${printError.message}`)
+        }
+        setIsCreating(false)
+        return
+      }
+
+      // Create edition records
+      const editions = Array.from({ length: totalEditions }, (_, i) => ({
+        airtable_id: `${airtableId}_${i + 1}`,
+        print_id: print.id,
+        edition_number: i + 1,
+        edition_display_name: `${newArtwork.name.trim()} ${i + 1}/${totalEditions}`,
+        is_printed: false,
+        is_sold: false,
+        is_settled: false,
+      }))
+
+      const { error: editionsError } = await supabase
+        .from('editions')
+        .insert(editions)
+
+      if (editionsError) {
+        setCreateError(`Failed to create editions: ${editionsError.message}`)
+        setIsCreating(false)
+        return
+      }
+
+      // Success - reload the page to refresh data
+      setShowAddDialog(false)
+      setNewArtwork({ name: '', description: '', totalEditions: '', webLink: '' })
+      window.location.reload()
+    } catch (err) {
+      setCreateError('An unexpected error occurred')
+    } finally {
+      setIsCreating(false)
+    }
+  }
 
   // Calculate stats per print including location breakdown
   const statsMap = useMemo(() => {
@@ -95,16 +194,98 @@ export default function ArtworksPage() {
             </p>
           </div>
 
-          {/* Search input */}
-          <div className="relative w-full sm:w-80">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search artworks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-card"
-            />
+          <div className="flex items-center gap-3">
+            {/* Search input */}
+            <div className="relative w-full sm:w-64">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search artworks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-card"
+              />
+            </div>
+
+            {/* Add Artwork Button */}
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Artwork
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Artwork</DialogTitle>
+                  <DialogDescription>
+                    Create a new artwork design with its editions. All editions will be created as unprinted.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  {createError && (
+                    <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                      <p className="text-sm text-red-700">{createError}</p>
+                    </div>
+                  )}
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Name *</Label>
+                    <Input
+                      id="name"
+                      value={newArtwork.name}
+                      onChange={(e) => setNewArtwork({ ...newArtwork, name: e.target.value })}
+                      placeholder="Artwork name"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Input
+                      id="description"
+                      value={newArtwork.description}
+                      onChange={(e) => setNewArtwork({ ...newArtwork, description: e.target.value })}
+                      placeholder="Optional description"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="totalEditions">Total Editions *</Label>
+                    <Input
+                      id="totalEditions"
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={newArtwork.totalEditions}
+                      onChange={(e) => setNewArtwork({ ...newArtwork, totalEditions: e.target.value })}
+                      placeholder="e.g., 350"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="webLink">Web Link</Label>
+                    <Input
+                      id="webLink"
+                      type="url"
+                      value={newArtwork.webLink}
+                      onChange={(e) => setNewArtwork({ ...newArtwork, webLink: e.target.value })}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isCreating}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreateArtwork} disabled={isCreating}>
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Artwork'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </header>

@@ -2,9 +2,10 @@
 
 import { useMemo } from 'react'
 import Link from 'next/link'
-import { Star } from 'lucide-react'
+import { Star, ClipboardCheck } from 'lucide-react'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { formatPrice, calculateNetAmount } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 export default function GalleriesPage() {
   const { distributors, allEditions, isReady, toggleDistributorFavorite } = useInventory()
@@ -171,6 +172,22 @@ export default function GalleriesPage() {
                   </p>
                 )}
               </Link>
+
+              {/* Quick Stock Check button - prominent on mobile */}
+              {stats.inStock > 0 && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full h-11 text-sm font-medium"
+                  >
+                    <Link href={`/galleries/${dist.id}/stock-check`}>
+                      <ClipboardCheck className="w-4 h-4 mr-2" />
+                      Start Stock Check ({stats.inStock})
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </div>
           )
         })}

@@ -106,6 +106,8 @@ export default function GalleryStockPage({ params }: PageProps) {
         {...galleryStockPreset(distributorId)}
         showResultsSummary
         onStockValueChange={setStockValue}
+        enableMobileView
+        hideLocationInCards
       />
 
       {/* Back button */}

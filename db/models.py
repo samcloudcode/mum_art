@@ -101,6 +101,10 @@ class Edition(Base):
     is_stock_checked = Column(Boolean, default=False)
     to_check_in_detail = Column(Boolean, default=False)
 
+    # Data Quality - tracks confidence in status data
+    # 'verified' = confirmed status, 'unverified' = needs review, 'legacy_unknown' = historical data with unknown status
+    status_confidence = Column(String(20), default='verified')
+
     # Sales Information
     retail_price = Column(DECIMAL(10, 2))
     date_sold = Column(Date)

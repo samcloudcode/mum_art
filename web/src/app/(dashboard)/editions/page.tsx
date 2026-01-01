@@ -16,6 +16,7 @@ export default function EditionsPage() {
     prints,
     distributors,
     sizes,
+    legacyCount,
     isReady,
     isSaving,
     savingIds,
@@ -54,6 +55,7 @@ export default function EditionsPage() {
           : filters.isSold === false
             ? 'false'
             : '',
+      includeLegacy: filters.includeLegacy ? 'true' : 'false',
     }),
     [filters]
   )
@@ -95,6 +97,9 @@ export default function EditionsPage() {
               next.isUnsettled = undefined
               next.isSold = value === 'true' ? true : value === 'false' ? false : undefined
             }
+            break
+          case 'includeLegacy':
+            next.includeLegacy = value === 'true'
             break
         }
 
@@ -139,6 +144,7 @@ export default function EditionsPage() {
         currentFilters={currentFilters}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
+        legacyCount={legacyCount}
       />
 
       <div className={cn('transition-opacity duration-150', isPending && 'opacity-60')}>

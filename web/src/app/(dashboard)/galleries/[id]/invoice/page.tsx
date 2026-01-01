@@ -1,11 +1,12 @@
 'use client'
 
-import { use, useMemo } from 'react'
+import { use, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { formatPrice, calculateNetAmount, formatDate, cn, getMonthName, getMonthDateRange } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Download } from 'lucide-react'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -87,8 +88,37 @@ export default function InvoicePage({ params }: PageProps) {
     )
   }, [invoiceItems])
 
+  const [isExporting, setIsExporting] = useState(false)
+
   const handlePrint = () => {
     window.print()
+  }
+
+  const handleDownloadPDF = async () => {
+    setIsExporting(true)
+    try {
+      // Dynamically import html2pdf (browser-only library)
+      const html2pdf = (await import('html2pdf.js')).default
+
+      const element = document.getElementById('invoice-container')
+      if (!element) return
+
+      const filename = `Invoice-${distributor?.name?.replace(/\s+/g, '-')}-${getMonthName(month)}-${year}.pdf`
+
+      const opt = {
+        margin: 10,
+        filename,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const },
+      }
+
+      await html2pdf().set(opt).from(element).save()
+    } catch (error) {
+      console.error('Failed to generate PDF:', error)
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   if (!isReady) return null
@@ -161,7 +191,11 @@ export default function InvoicePage({ params }: PageProps) {
             <Button variant="outline" asChild>
               <Link href={`/galleries/${id}`}>Back to Gallery</Link>
             </Button>
-            <Button onClick={handlePrint}>Print Invoice</Button>
+            <Button variant="outline" onClick={handlePrint}>Print Invoice</Button>
+            <Button onClick={handleDownloadPDF} disabled={isExporting}>
+              <Download className="w-4 h-4 mr-2" />
+              {isExporting ? 'Exporting...' : 'Download PDF'}
+            </Button>
           </div>
         </div>
       </div>

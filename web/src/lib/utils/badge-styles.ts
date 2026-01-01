@@ -64,6 +64,25 @@ export const paymentStatusStyles = {
 } as const
 
 // =============================================================================
+// Sale Status Styles - Coastal Palette
+// =============================================================================
+
+export const saleStatusStyles = {
+  unsold: {
+    badge: 'bg-muted text-muted-foreground border border-border',
+    dot: 'bg-muted-foreground/50',
+  },
+  sold: {
+    badge: 'bg-gold/15 text-gold border border-gold/30',
+    dot: 'bg-gold',
+  },
+  settled: {
+    badge: 'bg-seafoam/15 text-seafoam border border-seafoam/30',
+    dot: 'bg-seafoam',
+  },
+} as const
+
+// =============================================================================
 // Save Feedback Styles
 // =============================================================================
 

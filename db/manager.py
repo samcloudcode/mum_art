@@ -253,7 +253,7 @@ class DatabaseManager:
         image_url: Optional[Union[str, List[str]]] = None,
         description: Optional[str] = None,
         default_size: str = 'Small',
-        default_frame_type: str = 'Tube only'
+        default_frame_type: str = 'Framed'
     ) -> Dict[str, Any]:
         """
         Create a new artwork (print) with all its edition records.

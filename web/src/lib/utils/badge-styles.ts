@@ -2,25 +2,26 @@
  * Centralized badge and status styling
  *
  * This file provides consistent colors for all status indicators across the app.
- * Use these styles instead of hardcoding colors in components.
+ * Uses the coastal palette (--seafoam, --coral, --gold, --accent) for a
+ * gallery catalog aesthetic.
  */
 
 // =============================================================================
-// Edition Status Styles
+// Edition Status Styles - Coastal Palette
 // =============================================================================
 
 export const editionStatusStyles = {
   sold: {
-    badge: 'bg-green-100 text-green-800 hover:bg-green-100',
-    dot: 'bg-green-500',
+    badge: 'bg-seafoam/15 text-seafoam border border-seafoam/30',
+    dot: 'bg-seafoam',
   },
   printed: {
-    badge: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
-    dot: 'bg-blue-500',
+    badge: 'bg-accent/10 text-accent border border-accent/20',
+    dot: 'bg-accent',
   },
   not_printed: {
-    badge: 'bg-gray-100 text-gray-600 hover:bg-gray-100',
-    dot: 'bg-gray-400',
+    badge: 'bg-muted text-muted-foreground border border-border',
+    dot: 'bg-muted-foreground/50',
   },
   unknown: {
     badge: 'bg-amber-100 text-amber-800 hover:bg-amber-100',
@@ -48,17 +49,17 @@ export const statusConfidenceStyles = {
 } as const
 
 // =============================================================================
-// Payment Status Styles
+// Payment Status Styles - Coastal Palette
 // =============================================================================
 
 export const paymentStatusStyles = {
   paid: {
-    badge: 'bg-green-100 text-green-800 hover:bg-green-100',
-    dot: 'bg-green-500',
+    badge: 'bg-seafoam/15 text-seafoam border border-seafoam/30',
+    dot: 'bg-seafoam',
   },
   unpaid: {
-    badge: 'bg-amber-100 text-amber-800 hover:bg-amber-100',
-    dot: 'bg-amber-500',
+    badge: 'bg-coral/15 text-coral border border-coral/30',
+    dot: 'bg-coral',
   },
 } as const
 
@@ -67,8 +68,8 @@ export const paymentStatusStyles = {
 // =============================================================================
 
 export const feedbackStyles = {
-  saved: 'bg-green-100',
-  error: 'bg-red-100',
+  saved: 'bg-seafoam/10',
+  error: 'bg-coral/10',
 } as const
 
 // =============================================================================

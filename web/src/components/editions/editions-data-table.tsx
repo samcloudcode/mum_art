@@ -212,7 +212,7 @@ const EditionTableRow = memo(function EditionTableRow({
   )
 
   return (
-    <TableRow className="group">
+    <TableRow className="group border-l-2 border-l-transparent hover:border-l-accent hover:bg-secondary/30 transition-all duration-200">
       {showExpandableRows && (
         <TableCell className="w-10">
           <Button
@@ -241,7 +241,7 @@ const EditionTableRow = memo(function EditionTableRow({
         <TableCell>
           <Link
             href={`/editions/${edition.id}`}
-            className="font-medium text-blue-600 hover:underline"
+            className="font-serif text-primary hover:text-accent transition-colors"
           >
             {edition.edition_display_name}
           </Link>
@@ -336,7 +336,7 @@ const EditionTableRow = memo(function EditionTableRow({
               className="text-right"
             />
           ) : (
-            <span className="font-medium">{formatPrice(edition.retail_price)}</span>
+            <span className="font-serif tabular-nums">{formatPrice(edition.retail_price)}</span>
           )}
         </TableCell>
       )}
@@ -585,8 +585,8 @@ export function EditionsDataTable({
 
       {/* Selection actions */}
       {showSelection && selectedIds.size > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
-          <span className="text-sm text-blue-700">
+        <div className="sticky top-0 z-10 bg-card/95 backdrop-blur border border-accent/20 rounded-lg p-3 shadow-sm flex items-center justify-between">
+          <span className="text-sm font-medium text-accent">
             {selectedIds.size} edition{selectedIds.size > 1 ? 's' : ''} selected
           </span>
           <div className="flex gap-2 flex-wrap">
@@ -740,9 +740,9 @@ export function EditionsDataTable({
       </Dialog>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div className="gallery-plaque overflow-hidden">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-secondary/50 border-b border-border">
             <TableRow>
               {showExpandableRows && <TableHead className="w-10" />}
               {showSelection && (
@@ -767,8 +767,9 @@ export function EditionsDataTable({
           <TableBody>
             {paginatedEditions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={colCount} className="text-center py-8 text-gray-500">
-                  No editions found
+                <TableCell colSpan={colCount} className="text-center py-16">
+                  <p className="font-serif text-lg text-muted-foreground">No editions found</p>
+                  <p className="text-sm text-muted-foreground/70 mt-1">Try adjusting your filters</p>
                 </TableCell>
               </TableRow>
             ) : (
@@ -813,9 +814,10 @@ export function EditionsDataTable({
 
       {/* Pagination */}
       {showPagination && editions.length > 0 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-600">
-            Showing {startItem} to {endItem} of {editions.length.toLocaleString()} editions
+        <div className="flex items-center justify-between pt-4 border-t border-border/50">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-serif">{startItem}</span>–<span className="font-serif">{endItem}</span> of{' '}
+            <span className="font-serif">{editions.length.toLocaleString()}</span> editions
           </p>
           <div className="flex gap-2">
             <Button
@@ -844,7 +846,7 @@ export function EditionsDataTable({
                     variant={pageNum === page ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => goToPage(pageNum)}
-                    className="w-10"
+                    className="w-10 font-serif"
                   >
                     {pageNum}
                   </Button>

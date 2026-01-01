@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { EditionsTableWithFilters } from '@/components/editions/editions-table-with-filters'
+import { AddEditionsToGalleryDialog } from '@/components/add-editions-to-gallery-dialog'
 import { galleryPreviewPreset, galleryUnsettledPreset } from '@/lib/editions-presets'
 
 type PageProps = {
@@ -160,6 +161,10 @@ export default function GalleryDetailPage({ params }: PageProps) {
               </a>
             </Button>
           )}
+          <AddEditionsToGalleryDialog
+            distributorId={distributorId}
+            distributorName={distributor.name}
+          />
           <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">Generate Invoice</Button>

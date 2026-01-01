@@ -11,7 +11,7 @@ Usage:
 Required CSV files (in airtable_export/):
     - Prints-Grid view.csv
     - Distributors-Grid view clean.csv
-    - Editions-All Records clean.csv
+    - Editions-1 Jan 2026 export.csv
 
 Optional:
     - duplicate_handling_decisions.csv: Pre-defined rules for handling
@@ -40,7 +40,7 @@ def main():
     csv_dir = Path('airtable_export')
     prints_csv = csv_dir / 'Prints-Grid view.csv'  # No clean version for prints
     dist_csv = csv_dir / 'Distributors-Grid view clean.csv'  # Use clean version
-    editions_csv = csv_dir / 'Editions-All Records clean.csv'  # Use clean version
+    editions_csv = csv_dir / 'Editions-1 Jan 2026 export.csv'
 
     for csv_file in [prints_csv, dist_csv, editions_csv]:
         if not csv_file.exists():

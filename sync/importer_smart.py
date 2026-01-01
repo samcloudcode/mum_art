@@ -83,11 +83,11 @@ class SmartImporter:
         self.import_report = ImportReport()
         # Attach report to cleaner so it can record transformations
         self.cleaner.report = self.import_report
-        # Load skip indices (uses import_report, so must come after)
-        self.skip_indices = self._load_skip_indices()
+        # Load skip record_ids (uses import_report, so must come after)
+        self.skip_record_ids = self._load_skip_record_ids()
 
-    def _load_skip_indices(self) -> Set[int]:
-        """Load indices to skip from duplicate handling decisions."""
+    def _load_skip_record_ids(self) -> Set[str]:
+        """Load record_ids to skip from duplicate handling decisions."""
         skip_file = Path('duplicate_handling_decisions.csv')
         if not skip_file.exists():
             print("   ⚠️ No duplicate handling file found, will handle duplicates dynamically", flush=True)
@@ -96,7 +96,7 @@ class SmartImporter:
         try:
             df = pd.read_csv(skip_file)
             skip_df = df[df['action'] == 'SKIP']
-            skip_rows = skip_df['index'].tolist()
+            skip_ids = skip_df['record_id'].tolist()
 
             # Record each duplicate skip in the import report
             for _, row in skip_df.iterrows():
@@ -104,8 +104,8 @@ class SmartImporter:
                 reason = row.get('decision', 'Duplicate')
                 self.import_report.record_duplicate_skipped(edition_name, reason)
 
-            print(f"   📋 Loaded {len(skip_rows)} rows to skip from duplicate handling", flush=True)
-            return set(skip_rows)
+            print(f"   📋 Loaded {len(skip_ids)} record_ids to skip from duplicate handling", flush=True)
+            return set(skip_ids)
         except Exception as e:
             print(f"   ⚠️ Could not load duplicate handling: {e}", flush=True)
             return set()
@@ -336,10 +336,10 @@ class SmartImporter:
         valid_df = df[(df['Print - Edition'] != ' - ') & (df['Print - Edition'].notna())]
         print(f"   Found {len(valid_df)} valid editions", flush=True)
 
-        # Filter out duplicates based on our decisions
-        if self.skip_indices:
+        # Filter out duplicates based on our decisions (by record_id)
+        if self.skip_record_ids:
             before_count = len(valid_df)
-            valid_df = valid_df[~valid_df.index.isin(self.skip_indices)]
+            valid_df = valid_df[~valid_df['record_id'].isin(self.skip_record_ids)]
             print(f"   Skipping {before_count - len(valid_df)} duplicate editions", flush=True)
 
         print(f"   Processing {len(valid_df)} editions after duplicate removal", flush=True)
@@ -444,10 +444,13 @@ class SmartImporter:
         columns = list(mappings[0].keys())
 
         # Create the SQL statement with ON CONFLICT
+        # Use DO NOTHING without column spec to handle all unique constraints:
+        # - editions_airtable_id_key (airtable_id)
+        # - unique_print_edition (print_id, edition_number)
         sql = f"""
             INSERT INTO editions ({', '.join(columns)})
             VALUES %s
-            ON CONFLICT (airtable_id) DO NOTHING
+            ON CONFLICT DO NOTHING
             RETURNING id
         """
 

@@ -95,6 +95,18 @@ def main():
         print(f"   Editions Sold: {stats['editions_sold']}")
         print(f"   Total Revenue: £{stats.get('total_revenue', 0):,.2f}")
 
+        # Show import report summary
+        report_summary = importer.import_report.get_summary()
+        print(f"\n📋 Import Actions Summary:")
+        print(f"   Print names standardized: {report_summary['print_names_standardized']}")
+        print(f"   Distributor names standardized: {report_summary['distributor_names_standardized']}")
+        print(f"   Sizes normalized: {report_summary['sizes_normalized']}")
+        print(f"   Frame types normalized: {report_summary['frame_types_normalized']}")
+        print(f"   Duplicate editions skipped: {report_summary['duplicates_skipped']}")
+        if report_summary['editions_missing_print'] > 0:
+            print(f"   Editions skipped (missing print): {report_summary['editions_missing_print']}")
+
+        print(f"\n📄 Full report saved to: docs/import_assumptions.md")
         print(f"\n✅ SUCCESS! Database fully populated with {stats['editions']} editions")
 
         return 0

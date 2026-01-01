@@ -9,12 +9,14 @@ import {
   calculateArtworkStats,
   calculateGalleryStats,
   calculateYearOverYear,
+  calculateRollingMetrics,
   generateInventoryAlerts,
   buildGalleryArtworkMatrix,
   formatPercentChange,
   getTrendIndicator,
   type ArtworkStats,
   type GalleryStats,
+  type RollingMetrics,
 } from '@/lib/utils/analytics'
 import {
   Table,
@@ -23,6 +25,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  SortableTableHead,
+  type SortDirection,
 } from '@/components/ui/table'
 
 type TabId = 'overview' | 'artworks' | 'galleries' | 'matrix'
@@ -48,6 +52,11 @@ export default function AnalyticsPage() {
 
   const yoyComparison = useMemo(
     () => calculateYearOverYear(allEditions),
+    [allEditions]
+  )
+
+  const rollingMetrics = useMemo(
+    () => calculateRollingMetrics(allEditions),
     [allEditions]
   )
 
@@ -107,6 +116,7 @@ export default function AnalyticsPage() {
         <OverviewTab
           portfolioHealth={portfolioHealth}
           yoyComparison={yoyComparison}
+          rollingMetrics={rollingMetrics}
           alerts={alerts}
           artworkStats={artworkStats}
           galleryStats={galleryStats}
@@ -140,12 +150,14 @@ export default function AnalyticsPage() {
 function OverviewTab({
   portfolioHealth,
   yoyComparison,
+  rollingMetrics,
   alerts,
   artworkStats,
   galleryStats,
 }: {
   portfolioHealth: ReturnType<typeof calculatePortfolioHealth>
   yoyComparison: ReturnType<typeof calculateYearOverYear>
+  rollingMetrics: RollingMetrics
   alerts: ReturnType<typeof generateInventoryAlerts>
   artworkStats: ArtworkStats[]
   galleryStats: GalleryStats[]
@@ -206,27 +218,27 @@ function OverviewTab({
         </div>
       </section>
 
-      {/* Year over Year Comparison */}
+      {/* Rolling 12-Month Performance */}
       <section>
-        <h2 className="text-foreground mb-6">Year-over-Year Performance</h2>
+        <h2 className="text-foreground mb-6">Rolling 12-Month Performance</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="gallery-plaque">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-              {yoyComparison.currentYear} Sales
+              Last 12 Months
             </p>
-            <p className="stat-value text-foreground">{yoyComparison.currentYearSales}</p>
+            <p className="stat-value text-foreground">{rollingMetrics.rolling12MonthSales}</p>
             <p className="text-sm text-muted-foreground mt-2">
-              {formatPrice(yoyComparison.currentYearRevenue)} revenue
+              {formatPrice(rollingMetrics.rolling12MonthNetRevenue)} net revenue
             </p>
           </div>
 
           <div className="gallery-plaque">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-              {yoyComparison.previousYear} Sales
+              Previous 12 Months
             </p>
-            <p className="stat-value text-foreground">{yoyComparison.previousYearSales}</p>
+            <p className="stat-value text-foreground">{rollingMetrics.previousRolling12MonthSales}</p>
             <p className="text-sm text-muted-foreground mt-2">
-              {formatPrice(yoyComparison.previousYearRevenue)} revenue
+              {formatPrice(rollingMetrics.previousRolling12MonthNetRevenue)} net revenue
             </p>
           </div>
 
@@ -234,11 +246,11 @@ function OverviewTab({
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
               YoY Change
             </p>
-            <p className={`stat-value ${yoyComparison.yoyChangePercent >= 0 ? 'status-sold' : 'text-red-600'}`}>
-              {getTrendIndicator(yoyComparison.yoyChangePercent)} {formatPercentChange(yoyComparison.yoyChangePercent)}
+            <p className={`stat-value ${rollingMetrics.yoyChangePercent >= 0 ? 'status-sold' : 'text-red-600'}`}>
+              {getTrendIndicator(rollingMetrics.yoyChangePercent)} {formatPercentChange(rollingMetrics.yoyChangePercent)}
             </p>
             <p className="text-sm text-muted-foreground mt-2">
-              vs previous year
+              {getTrendIndicator(rollingMetrics.yoyRevenueChangePercent)} {formatPercentChange(rollingMetrics.yoyRevenueChangePercent)} revenue
             </p>
           </div>
 
@@ -246,11 +258,11 @@ function OverviewTab({
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
               vs 3-Year Avg
             </p>
-            <p className={`stat-value ${yoyComparison.vsThreeYearAvgPercent >= 0 ? 'status-sold' : 'text-red-600'}`}>
-              {getTrendIndicator(yoyComparison.vsThreeYearAvgPercent)} {formatPercentChange(yoyComparison.vsThreeYearAvgPercent)}
+            <p className={`stat-value ${rollingMetrics.vsThreeYearAvgPercent >= 0 ? 'status-sold' : 'text-red-600'}`}>
+              {getTrendIndicator(rollingMetrics.vsThreeYearAvgPercent)} {formatPercentChange(rollingMetrics.vsThreeYearAvgPercent)}
             </p>
             <p className="text-sm text-muted-foreground mt-2">
-              avg: {yoyComparison.threeYearAvgSales.toFixed(1)} sales/year
+              avg: {rollingMetrics.rolling3YearAvgSales.toFixed(1)} sales/year
             </p>
           </div>
         </div>
@@ -280,81 +292,247 @@ function OverviewTab({
         </section>
       )}
 
-      {/* Quick Stats Tables */}
+      {/* Top 20 Tables */}
       <div className="grid lg:grid-cols-2 gap-10">
-        {/* Top Performing Artworks */}
-        <section>
-          <h2 className="text-foreground mb-6">Top Artworks by Sell-Through</h2>
-          <div className="border border-border rounded-sm overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Artwork</TableHead>
-                  <TableHead className="text-right">Sell-Through</TableHead>
-                  <TableHead className="text-right">Remaining</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {artworkStats.slice(0, 5).map(artwork => (
-                  <TableRow key={artwork.printId}>
-                    <TableCell>
-                      <Link
-                        href={`/artworks/${artwork.printId}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {artwork.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {artwork.sellThroughRate.toFixed(1)}%
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {artwork.remaining}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
+        {/* Top 20 Artworks */}
+        <TopArtworksTable artworkStats={artworkStats} />
 
-        {/* Top Galleries by Conversion */}
-        <section>
-          <h2 className="text-foreground mb-6">Top Galleries by Conversion</h2>
-          <div className="border border-border rounded-sm overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Gallery</TableHead>
-                  <TableHead className="text-right">Conversion</TableHead>
-                  <TableHead className="text-right">Sold</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {galleryStats.slice(0, 5).map(gallery => (
-                  <TableRow key={gallery.distributorId}>
-                    <TableCell>
-                      <Link
-                        href={`/galleries/${gallery.distributorId}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {gallery.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {gallery.conversionRate.toFixed(1)}%
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {gallery.totalSold}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
+        {/* Top 20 Galleries */}
+        <TopGalleriesTable galleryStats={galleryStats} />
       </div>
     </div>
+  )
+}
+
+// Helper component for sortable Top 20 Artworks table
+function TopArtworksTable({ artworkStats }: { artworkStats: ArtworkStats[] }) {
+  const [sortKey, setSortKey] = useState<string>('sellThrough')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
+  const sortedStats = useMemo(() => {
+    const sorted = [...artworkStats]
+    const dir = sortDirection === 'asc' ? 1 : -1
+
+    sorted.sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'sellThrough':
+          cmp = a.sellThroughRate - b.sellThroughRate
+          // Secondary sort by sold count for equal rates
+          if (Math.abs(cmp) < 0.01) cmp = a.sold - b.sold
+          break
+        case 'sold':
+          cmp = a.sold - b.sold
+          break
+        case 'remaining':
+          cmp = a.remaining - b.remaining
+          break
+        default:
+          cmp = a.sellThroughRate - b.sellThroughRate
+      }
+      return cmp * dir
+    })
+    return sorted.slice(0, 20)
+  }, [artworkStats, sortKey, sortDirection])
+
+  return (
+    <section>
+      <h2 className="text-foreground mb-6">Top 20 Artworks by Sell-Through</h2>
+      <div className="border border-border rounded-sm overflow-hidden max-h-[600px] overflow-y-auto">
+        <Table>
+          <TableHeader className="sticky top-0 bg-background">
+            <TableRow>
+              <SortableTableHead
+                sortKey="name"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Artwork
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="sellThrough"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Sell-Through
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="sold"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Sold
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="remaining"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Remaining
+              </SortableTableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedStats.map(artwork => (
+              <TableRow key={artwork.printId}>
+                <TableCell>
+                  <Link
+                    href={`/artworks/${artwork.printId}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {artwork.name}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {artwork.sellThroughRate.toFixed(1)}%
+                </TableCell>
+                <TableCell className="text-right">
+                  {artwork.sold}
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  {artwork.remaining}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </section>
+  )
+}
+
+// Helper component for sortable Top 20 Galleries table
+function TopGalleriesTable({ galleryStats }: { galleryStats: GalleryStats[] }) {
+  const [sortKey, setSortKey] = useState<string>('conversion')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
+  const sortedStats = useMemo(() => {
+    const sorted = [...galleryStats]
+    const dir = sortDirection === 'asc' ? 1 : -1
+
+    sorted.sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'conversion':
+          cmp = a.conversionRate - b.conversionRate
+          // Secondary sort by sold count for equal rates
+          if (Math.abs(cmp) < 0.01) cmp = a.totalSold - b.totalSold
+          break
+        case 'sold':
+          cmp = a.totalSold - b.totalSold
+          break
+        case 'allocated':
+          cmp = a.totalAllocated - b.totalAllocated
+          break
+        default:
+          cmp = a.conversionRate - b.conversionRate
+      }
+      return cmp * dir
+    })
+    return sorted.slice(0, 20)
+  }, [galleryStats, sortKey, sortDirection])
+
+  return (
+    <section>
+      <h2 className="text-foreground mb-6">Top 20 Galleries by Conversion</h2>
+      <div className="border border-border rounded-sm overflow-hidden max-h-[600px] overflow-y-auto">
+        <Table>
+          <TableHeader className="sticky top-0 bg-background">
+            <TableRow>
+              <SortableTableHead
+                sortKey="name"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Gallery
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="conversion"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Conversion
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="sold"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Sold
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="allocated"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Allocated
+              </SortableTableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedStats.map(gallery => (
+              <TableRow key={gallery.distributorId}>
+                <TableCell>
+                  <Link
+                    href={`/galleries/${gallery.distributorId}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {gallery.name}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {gallery.conversionRate.toFixed(1)}%
+                </TableCell>
+                <TableCell className="text-right">
+                  {gallery.totalSold}
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  {gallery.totalAllocated}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </section>
   )
 }
 
@@ -363,63 +541,144 @@ function OverviewTab({
 // ============================================================================
 
 function ArtworksTab({ artworkStats }: { artworkStats: ArtworkStats[] }) {
-  const [sortBy, setSortBy] = useState<'sellThrough' | 'velocity' | 'remaining' | 'revenue'>('sellThrough')
+  const [sortKey, setSortKey] = useState<string>('sellThrough')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      // Default to desc for most columns, asc for name/remaining
+      setSortDirection(key === 'name' ? 'asc' : 'desc')
+    }
+  }
 
   const sortedStats = useMemo(() => {
     const sorted = [...artworkStats]
-    switch (sortBy) {
-      case 'sellThrough':
-        return sorted.sort((a, b) => b.sellThroughRate - a.sellThroughRate)
-      case 'velocity':
-        return sorted.sort((a, b) => b.velocityPercentage - a.velocityPercentage)
-      case 'remaining':
-        return sorted.sort((a, b) => a.remaining - b.remaining)
-      case 'revenue':
-        return sorted.sort((a, b) => b.totalRevenue - a.totalRevenue)
-      default:
-        return sorted
-    }
-  }, [artworkStats, sortBy])
+    const dir = sortDirection === 'asc' ? 1 : -1
+
+    sorted.sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'editionSize':
+          cmp = a.totalEditions - b.totalEditions
+          break
+        case 'sold':
+          cmp = a.sold - b.sold
+          break
+        case 'remaining':
+          cmp = a.remaining - b.remaining
+          break
+        case 'sellThrough':
+          cmp = a.sellThroughRate - b.sellThroughRate
+          if (Math.abs(cmp) < 0.01) cmp = a.sold - b.sold
+          break
+        case 'velocity':
+          cmp = a.velocityLast12Months - b.velocityLast12Months
+          break
+        case 'sellout':
+          const aVal = a.estimatedMonthsToSellout ?? Infinity
+          const bVal = b.estimatedMonthsToSellout ?? Infinity
+          cmp = aVal - bVal
+          break
+        case 'revenue':
+          cmp = a.totalRevenue - b.totalRevenue
+          break
+        default:
+          cmp = a.sellThroughRate - b.sellThroughRate
+      }
+      return cmp * dir
+    })
+    return sorted
+  }, [artworkStats, sortKey, sortDirection])
 
   return (
     <div className="space-y-6">
-      {/* Sort controls */}
-      <div className="flex gap-2">
-        <span className="text-sm text-muted-foreground py-2">Sort by:</span>
-        {[
-          { id: 'sellThrough' as const, label: 'Sell-Through' },
-          { id: 'velocity' as const, label: 'Velocity' },
-          { id: 'remaining' as const, label: 'Scarcity' },
-          { id: 'revenue' as const, label: 'Revenue' },
-        ].map(option => (
-          <button
-            key={option.id}
-            onClick={() => setSortBy(option.id)}
-            className={`px-3 py-1.5 text-sm rounded-sm transition-colors ${
-              sortBy === option.id
-                ? 'bg-accent text-accent-foreground'
-                : 'bg-muted text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Click column headers to sort. All {artworkStats.length} artworks shown.
+      </p>
 
       {/* Artworks table */}
       <div className="border border-border rounded-sm overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Artwork</TableHead>
-              <TableHead className="text-right">Edition Size</TableHead>
-              <TableHead className="text-right">Sold</TableHead>
-              <TableHead className="text-right">Remaining</TableHead>
-              <TableHead className="text-right">Sell-Through</TableHead>
-              <TableHead className="text-right">12mo Velocity</TableHead>
-              <TableHead className="text-right">Est. Sellout</TableHead>
+              <SortableTableHead
+                sortKey="name"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Artwork
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="editionSize"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Edition Size
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="sold"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Sold
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="remaining"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Remaining
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="sellThrough"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Sell-Through
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="velocity"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                12mo Velocity
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="sellout"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Est. Sellout
+              </SortableTableHead>
               <TableHead>Top Gallery</TableHead>
-              <TableHead className="text-right">Revenue</TableHead>
+              <SortableTableHead
+                sortKey="revenue"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Revenue
+              </SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -499,84 +758,231 @@ function GalleriesTab({
   galleryStats: GalleryStats[]
   allEditions: ReturnType<typeof useInventory>['allEditions']
 }) {
+  const [sortKey, setSortKey] = useState<string>('conversion')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection(key === 'name' ? 'asc' : 'desc')
+    }
+  }
+
+  // Pre-compute rolling metrics for each gallery
+  const galleriesWithMetrics = useMemo(() => {
+    return galleryStats.map(gallery => ({
+      ...gallery,
+      rollingMetrics: calculateRollingMetrics(allEditions, gallery.distributorId)
+    }))
+  }, [galleryStats, allEditions])
+
+  const sortedStats = useMemo(() => {
+    const sorted = [...galleriesWithMetrics]
+    const dir = sortDirection === 'asc' ? 1 : -1
+
+    sorted.sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'commission':
+          cmp = a.commission - b.commission
+          break
+        case 'allocated':
+          cmp = a.totalAllocated - b.totalAllocated
+          break
+        case 'sold':
+          cmp = a.totalSold - b.totalSold
+          break
+        case 'conversion':
+          cmp = a.conversionRate - b.conversionRate
+          if (Math.abs(cmp) < 0.01) cmp = a.totalSold - b.totalSold
+          break
+        case 'inStock':
+          cmp = a.inStock - b.inStock
+          break
+        case 'daysToSell':
+          const aVal = a.avgDaysToSell ?? Infinity
+          const bVal = b.avgDaysToSell ?? Infinity
+          cmp = aVal - bVal
+          break
+        case 'sales12mo':
+          cmp = a.salesLast12Months - b.salesLast12Months
+          break
+        case 'revenue':
+          cmp = a.netRevenue - b.netRevenue
+          break
+        case 'unsettled':
+          cmp = a.unsettledAmount - b.unsettledAmount
+          break
+        default:
+          cmp = a.conversionRate - b.conversionRate
+      }
+      return cmp * dir
+    })
+    return sorted
+  }, [galleriesWithMetrics, sortKey, sortDirection])
+
   return (
     <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Click column headers to sort. All {galleryStats.length} galleries shown. YoY uses rolling 12-month periods.
+      </p>
+
       {/* Galleries table */}
       <div className="border border-border rounded-sm overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Gallery</TableHead>
-              <TableHead className="text-right">Commission</TableHead>
-              <TableHead className="text-right">Allocated</TableHead>
-              <TableHead className="text-right">Sold</TableHead>
-              <TableHead className="text-right">Conversion</TableHead>
-              <TableHead className="text-right">In Stock</TableHead>
-              <TableHead className="text-right">Avg Days to Sell</TableHead>
-              <TableHead className="text-right">30d / 12mo</TableHead>
-              <TableHead className="text-right">Net Revenue</TableHead>
-              <TableHead className="text-right">Unsettled</TableHead>
+              <SortableTableHead
+                sortKey="name"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Gallery
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="commission"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Commission
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="allocated"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Allocated
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="sold"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Sold
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="conversion"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Conversion
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="inStock"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                In Stock
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="daysToSell"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Avg Days to Sell
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="sales12mo"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                30d / 12mo
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="revenue"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Net Revenue
+              </SortableTableHead>
+              <SortableTableHead
+                sortKey="unsettled"
+                currentSortKey={sortKey}
+                currentDirection={sortDirection}
+                onSort={handleSort}
+                className="text-right"
+              >
+                Unsettled
+              </SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {galleryStats.map(gallery => {
-              const yoy = calculateYearOverYear(allEditions, gallery.distributorId)
-
-              return (
-                <TableRow key={gallery.distributorId}>
-                  <TableCell>
-                    <div>
-                      <Link
-                        href={`/galleries/${gallery.distributorId}`}
-                        className="font-medium text-blue-600 hover:underline"
-                      >
-                        {gallery.name}
-                      </Link>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        YoY: {formatPercentChange(yoy.yoyChangePercent)} {getTrendIndicator(yoy.yoyChangePercent)}
-                      </div>
+            {sortedStats.map(gallery => (
+              <TableRow key={gallery.distributorId}>
+                <TableCell>
+                  <div>
+                    <Link
+                      href={`/galleries/${gallery.distributorId}`}
+                      className="font-medium text-blue-600 hover:underline"
+                    >
+                      {gallery.name}
+                    </Link>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      YoY: {formatPercentChange(gallery.rollingMetrics.yoyChangePercent)} {getTrendIndicator(gallery.rollingMetrics.yoyChangePercent)}
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {gallery.commission}%
-                  </TableCell>
-                  <TableCell className="text-right">{gallery.totalAllocated}</TableCell>
-                  <TableCell className="text-right">{gallery.totalSold}</TableCell>
-                  <TableCell className="text-right">
-                    <span className={`font-medium ${
-                      gallery.conversionRate >= 70 ? 'text-green-600' :
-                      gallery.conversionRate >= 40 ? 'text-foreground' :
-                      'text-amber-600'
-                    }`}>
-                      {gallery.conversionRate.toFixed(1)}%
+                  </div>
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  {gallery.commission}%
+                </TableCell>
+                <TableCell className="text-right">{gallery.totalAllocated}</TableCell>
+                <TableCell className="text-right">{gallery.totalSold}</TableCell>
+                <TableCell className="text-right">
+                  <span className={`font-medium ${
+                    gallery.conversionRate >= 70 ? 'text-green-600' :
+                    gallery.conversionRate >= 40 ? 'text-foreground' :
+                    'text-amber-600'
+                  }`}>
+                    {gallery.conversionRate.toFixed(1)}%
+                  </span>
+                </TableCell>
+                <TableCell className="text-right">
+                  <span className={gallery.inStock <= 3 && gallery.inStock > 0 ? 'text-amber-600' : ''}>
+                    {gallery.inStock}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  {gallery.avgDaysToSell !== null ? `${gallery.avgDaysToSell}d` : '—'}
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  {gallery.salesLast30Days} / {gallery.salesLast12Months}
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {formatPrice(gallery.netRevenue)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {gallery.unsettledCount > 0 ? (
+                    <span className="text-amber-600">
+                      {gallery.unsettledCount} ({formatPrice(gallery.unsettledAmount)})
                     </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={gallery.inStock <= 3 && gallery.inStock > 0 ? 'text-amber-600' : ''}>
-                      {gallery.inStock}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {gallery.avgDaysToSell !== null ? `${gallery.avgDaysToSell}d` : '—'}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {gallery.salesLast30Days} / {gallery.salesLast12Months}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatPrice(gallery.netRevenue)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {gallery.unsettledCount > 0 ? (
-                      <span className="text-amber-600">
-                        {gallery.unsettledCount} ({formatPrice(gallery.unsettledAmount)})
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>

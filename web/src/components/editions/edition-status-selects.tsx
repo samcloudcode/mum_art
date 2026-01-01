@@ -19,7 +19,7 @@ import {
 import { Loader2, Check } from 'lucide-react'
 import type { EditionWithRelations } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { feedbackStyles } from '@/lib/utils/badge-styles'
+import { feedbackStyles, editionStatusStyles, saleStatusStyles } from '@/lib/utils/badge-styles'
 
 // =============================================================================
 // Payment Status Select - Simple "Unpaid" / "Paid" toggle for sales page
@@ -136,13 +136,12 @@ export function PrintStatusSelect({
       >
         <SelectTrigger
           className={cn(
-            'h-auto py-1 px-3 text-xs font-medium rounded-full cursor-pointer',
-            'border shadow-sm focus:ring-0 focus:ring-offset-0',
-            isPrinted
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
-              : 'bg-stone-50 text-stone-500 border-stone-200 hover:bg-stone-100 hover:border-stone-300',
+            'h-auto py-0.5 px-2.5 text-xs font-medium rounded-md cursor-pointer',
+            'focus:ring-0 focus:ring-offset-0',
+            isPrinted ? editionStatusStyles.printed.badge : editionStatusStyles.not_printed.badge,
+            'hover:opacity-80',
             '[&>svg]:hidden',
-            'transition-all duration-150'
+            'transition-opacity duration-150'
           )}
         >
           <SelectValue />
@@ -266,13 +265,6 @@ export function SaleStatusSelect({
 
   const displayStatus = pendingStatus || currentStatus
 
-  // Badge colors based on status
-  const statusStyles = {
-    unsold: 'bg-stone-50 text-stone-500 border-stone-200 hover:bg-stone-100 hover:border-stone-300',
-    sold: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300',
-    settled: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300',
-  }
-
   return (
     <Popover open={showSoldPopover} onOpenChange={setShowSoldPopover}>
       <div className={cn(
@@ -288,11 +280,12 @@ export function SaleStatusSelect({
             >
               <SelectTrigger
                 className={cn(
-                  'h-auto py-1 px-3 text-xs font-medium rounded-full cursor-pointer',
-                  'border shadow-sm focus:ring-0 focus:ring-offset-0',
-                  statusStyles[displayStatus as keyof typeof statusStyles],
+                  'h-auto py-0.5 px-2.5 text-xs font-medium rounded-md cursor-pointer',
+                  'focus:ring-0 focus:ring-offset-0',
+                  saleStatusStyles[displayStatus as keyof typeof saleStatusStyles].badge,
+                  'hover:opacity-80',
                   '[&>svg]:hidden',
-                  'transition-all duration-150'
+                  'transition-opacity duration-150'
                 )}
                 onClick={(e) => e.stopPropagation()}
               >

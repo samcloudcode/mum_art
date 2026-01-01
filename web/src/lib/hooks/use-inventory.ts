@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from 'react'
 import { useInventoryStore } from '@/lib/store/inventory-store'
-import type { EditionFilters } from '@/lib/types'
+import type { EditionFilters, EditionWithRelations } from '@/lib/types'
 import { useShallow } from 'zustand/react/shallow'
 
 /**
@@ -194,6 +194,29 @@ export function useInventory(filters: EditionFilters = {}) {
 
   const refresh = useCallback(() => initialize(), [initialize])
 
+  const markStockChecked = useCallback(
+    (ids: number[], checked: boolean = true) =>
+      updateEditions(ids, { is_stock_checked: checked }),
+    [updateEditions]
+  )
+
+  const markNeedsReview = useCallback(
+    (ids: number[], needsReview: boolean = true) =>
+      updateEditions(ids, { to_check_in_detail: needsReview }),
+    [updateEditions]
+  )
+
+  const resetStockCheckForGallery = useCallback(
+    async (distributorId: number) => {
+      const editionIds = allEditions
+        .filter((e: EditionWithRelations) => e.distributor_id === distributorId && e.is_printed && !e.is_sold)
+        .map((e: EditionWithRelations) => e.id)
+      if (editionIds.length === 0) return true
+      return updateEditions(editionIds, { is_stock_checked: false, to_check_in_detail: false })
+    },
+    [allEditions, updateEditions]
+  )
+
   return {
     // Data
     editions: filtered,
@@ -228,17 +251,9 @@ export function useInventory(filters: EditionFilters = {}) {
     updateSize,
 
     // Stock check actions
-    markStockChecked: (ids: number[], checked: boolean = true) =>
-      store.updateEditions(ids, { is_stock_checked: checked }),
-    markNeedsReview: (ids: number[], needsReview: boolean = true) =>
-      store.updateEditions(ids, { to_check_in_detail: needsReview }),
-    resetStockCheckForGallery: async (distributorId: number) => {
-      const editionIds = store.editions
-        .filter((e) => e.distributor_id === distributorId && e.is_printed && !e.is_sold)
-        .map((e) => e.id)
-      if (editionIds.length === 0) return true
-      return store.updateEditions(editionIds, { is_stock_checked: false, to_check_in_detail: false })
-    },
+    markStockChecked,
+    markNeedsReview,
+    resetStockCheckForGallery,
 
     // Distributor actions
     toggleDistributorFavorite,

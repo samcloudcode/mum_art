@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { EditionsDataTable } from './editions-data-table'
@@ -168,31 +168,47 @@ export function EditionsTableWithFilters({
     markSettled,
     markPrinted,
     moveToGallery,
-    updateSize,
   } = useInventory()
 
   // View mode state (auto-detect mobile on mount)
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [isMobile, setIsMobile] = useState(false)
   const [filtersExpanded, setFiltersExpanded] = useState(false)
+  const hasAutoSwitched = useRef(false)
 
-  // Detect mobile on mount and when window resizes
+  // Detect mobile on mount and when window resizes (with debounce)
   useEffect(() => {
     if (!enableMobileView) return
+
+    let timeoutId: ReturnType<typeof setTimeout>
 
     const checkMobile = () => {
       const mobile = window.innerWidth < 768
       setIsMobile(mobile)
-      // Auto-switch to cards on mobile, but respect user choice
-      if (mobile && viewMode === 'table') {
+      // Auto-switch to cards on mobile only once on initial load
+      if (mobile && !hasAutoSwitched.current) {
+        hasAutoSwitched.current = true
         setViewMode('cards')
       }
     }
 
+    const debouncedCheckMobile = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(checkMobile, 150)
+    }
+
+    // Initial check (no debounce needed)
     checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [enableMobileView]) // Only run on mount, don't include viewMode to respect user choice
+
+    window.addEventListener('resize', debouncedCheckMobile)
+    return () => {
+      clearTimeout(timeoutId)
+      window.removeEventListener('resize', debouncedCheckMobile)
+    }
+  }, [enableMobileView])
+
+  // Pagination state for mobile cards
+  const [page, setPage] = useState(1)
 
   // Filter state
   const [searchTerm, setSearchTerm] = useState('')
@@ -217,6 +233,11 @@ export function EditionsTableWithFilters({
     }, 300)
     return () => clearTimeout(timeoutId)
   }, [searchTerm, debouncedSearch])
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, artworkFilter, locationFilter, sizeFilter, frameFilter, printedFilter, soldFilter])
 
   // Apply pre-filter first
   const preFiltered = useMemo(
@@ -665,14 +686,6 @@ export function EditionsTableWithFilters({
       </div>
     )
   }
-
-  // Pagination state for mobile cards
-  const [page, setPage] = useState(1)
-
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, artworkFilter, locationFilter, sizeFilter, frameFilter, printedFilter, soldFilter])
 
   // Render the main table
   const renderTable = () => {

@@ -81,14 +81,14 @@ export const MobileEditionCard = memo(function MobileEditionCard({
             className={cn(
               'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
               isPrinted
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-gray-100 text-gray-500'
+                ? 'bg-accent/10 text-accent'
+                : 'bg-muted text-muted-foreground'
             )}
           >
             <span
               className={cn(
                 'w-1.5 h-1.5 rounded-full',
-                isPrinted ? 'bg-blue-500' : 'bg-gray-400'
+                isPrinted ? 'bg-accent' : 'bg-muted-foreground/50'
               )}
             />
             {isPrinted ? 'Printed' : 'Not Printed'}
@@ -100,14 +100,14 @@ export const MobileEditionCard = memo(function MobileEditionCard({
               className={cn(
                 'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
                 isSettled
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-amber-100 text-amber-700'
+                  ? 'bg-seafoam/10 text-seafoam'
+                  : 'bg-coral/10 text-coral'
               )}
             >
               <span
                 className={cn(
                   'w-1.5 h-1.5 rounded-full',
-                  isSettled ? 'bg-green-500' : 'bg-amber-500'
+                  isSettled ? 'bg-seafoam' : 'bg-coral'
                 )}
               />
               {isSettled ? 'Sold & Settled' : 'Sold (Unpaid)'}
@@ -126,53 +126,3 @@ export const MobileEditionCard = memo(function MobileEditionCard({
   )
 })
 
-// Compact variant for lists with many items
-export const MobileEditionCardCompact = memo(function MobileEditionCardCompact({
-  edition,
-  showPrice = true,
-  className,
-}: {
-  edition: EditionWithRelations
-  showPrice?: boolean
-  className?: string
-}) {
-  return (
-    <Link
-      href={`/editions/${edition.id}`}
-      className={cn(
-        'flex items-center justify-between p-3 bg-card border border-border rounded-lg',
-        'active:bg-secondary/50 transition-colors',
-        'touch-manipulation',
-        className
-      )}
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        {/* Edition number - prominent */}
-        <span className="font-mono text-sm font-medium text-foreground whitespace-nowrap">
-          {edition.edition_number}/{edition.prints?.total_editions || '?'}
-        </span>
-
-        {/* Artwork name */}
-        <span className="text-sm text-muted-foreground truncate">
-          {edition.prints?.name}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-2 ml-2">
-        {/* Size badge */}
-        {edition.size && (
-          <Badge variant="outline" className="text-xs hidden sm:inline-flex">
-            {edition.size}
-          </Badge>
-        )}
-
-        {/* Price */}
-        {showPrice && edition.retail_price && (
-          <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
-            {formatPrice(edition.retail_price)}
-          </span>
-        )}
-      </div>
-    </Link>
-  )
-})

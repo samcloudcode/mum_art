@@ -6,10 +6,8 @@ import { createClient } from '@/lib/supabase/server'
 
 export type LoginResult = {
   error?: string
-  success?: boolean
 }
 
-// Map Supabase error codes to user-friendly messages
 function getErrorMessage(error: { message: string; code?: string }): string {
   const message = error.message.toLowerCase()
 
@@ -37,7 +35,6 @@ function getErrorMessage(error: { message: string; code?: string }): string {
     return 'Please enter a valid email address.'
   }
 
-  // Return original message for unhandled cases
   return error.message
 }
 
@@ -47,7 +44,6 @@ export async function login(formData: FormData): Promise<LoginResult> {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
-  // Basic validation
   if (!email || !email.trim()) {
     return { error: 'Please enter your email address.' }
   }

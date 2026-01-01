@@ -19,8 +19,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
-  LineChart,
-  Line,
   CartesianGrid,
 } from 'recharts'
 
@@ -164,16 +162,13 @@ export default function ArtworkDetailPage({ params }: PageProps) {
       .sort((a, b) => a.period.localeCompare(b.period))
   }, [editions, timeGrouping])
 
-  // Colors for charts
-  const chartColors = [
-    'hsl(var(--accent))',
-    'hsl(var(--seafoam))',
-    'hsl(var(--gold))',
-    '#6366f1',
-    '#8b5cf6',
-    '#ec4899',
-    '#14b8a6',
-    '#f97316',
+  // Use theme chart colors (defined in globals.css)
+  const galleryChartColors = [
+    'oklch(var(--chart-1))', // Ocean blue
+    'oklch(var(--chart-2))', // Emerald teal
+    'oklch(var(--chart-3))', // Sunset orange
+    'oklch(var(--chart-4))', // Sandy gold
+    'oklch(var(--chart-5))', // Lavender
   ]
 
   if (!isReady) return null
@@ -393,28 +388,45 @@ export default function ArtworkDetailPage({ params }: PageProps) {
             <CardContent>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={salesByGalleryData} layout="vertical">
-                    <XAxis type="number" allowDecimals={false} />
+                  <BarChart
+                    data={salesByGalleryData}
+                    layout="vertical"
+                    margin={{ left: 10, right: 20 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={true} vertical={false} />
+                    <XAxis
+                      type="number"
+                      allowDecimals={false}
+                      tick={{ fontSize: 12 }}
+                      className="fill-muted-foreground [&_.recharts-cartesian-axis-line]:stroke-border"
+                      tickLine={false}
+                    />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      width={100}
+                      width={120}
                       tick={{ fontSize: 12 }}
+                      className="fill-foreground [&_.recharts-cartesian-axis-line]:stroke-transparent"
                       tickFormatter={(value) =>
-                        value.length > 15 ? `${value.substring(0, 15)}...` : value
+                        value.length > 18 ? `${value.substring(0, 18)}...` : value
                       }
+                      tickLine={false}
                     />
                     <Tooltip
                       formatter={(value) => [`${value} sold`, 'Sales']}
                       contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
+                        backgroundColor: 'oklch(var(--card))',
+                        border: '1px solid oklch(var(--border))',
                         borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        padding: '8px 12px',
                       }}
+                      labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+                      cursor={{ fill: 'oklch(var(--accent) / 0.1)' }}
                     />
-                    <Bar dataKey="sales" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="sales" radius={[0, 4, 4, 0]} maxBarSize={32}>
                       {salesByGalleryData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                        <Cell key={`cell-${index}`} fill={galleryChartColors[index % galleryChartColors.length]} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -451,33 +463,42 @@ export default function ArtworkDetailPage({ params }: PageProps) {
             <CardContent>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={salesOverTimeData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <BarChart data={salesOverTimeData} margin={{ bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                     <XAxis
                       dataKey="period"
                       tick={{ fontSize: 11 }}
+                      className="fill-muted-foreground [&_.recharts-cartesian-axis-line]:stroke-border"
                       angle={-45}
                       textAnchor="end"
                       height={60}
+                      tickLine={false}
                     />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={{ fontSize: 12 }}
+                      className="fill-muted-foreground [&_.recharts-cartesian-axis-line]:stroke-transparent"
+                      tickLine={false}
+                    />
                     <Tooltip
                       formatter={(value) => [`${value} sold`, 'Sales']}
                       contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
+                        backgroundColor: 'oklch(var(--card))',
+                        border: '1px solid oklch(var(--border))',
                         borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        padding: '8px 12px',
                       }}
+                      labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+                      cursor={{ fill: 'oklch(var(--accent) / 0.1)' }}
                     />
-                    <Line
-                      type="monotone"
+                    <Bar
                       dataKey="count"
-                      stroke="hsl(var(--accent))"
-                      strokeWidth={2}
-                      dot={{ fill: 'hsl(var(--accent))', strokeWidth: 2, r: 4 }}
-                      activeDot={{ r: 6 }}
+                      fill="oklch(var(--chart-1))"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={48}
                     />
-                  </LineChart>
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
@@ -489,13 +510,13 @@ export default function ArtworkDetailPage({ params }: PageProps) {
       <EditionsTableWithFilters
         {...artworkEditionsPreset(print.id)}
         title="All Editions"
-        description={`${editions.length} editions`}
+        description={`${editions.length} editions total`}
         headerActions={
           <Button variant="outline" asChild>
             <Link href={`/editions?print=${print.id}`}>View in Editions</Link>
           </Button>
         }
-        maxHeight="500px"
+        showResultsSummary
       />
 
       {/* Back button */}

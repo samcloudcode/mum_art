@@ -141,11 +141,13 @@ export function galleryPreviewPreset(distributorId: number): EditionsTablePreset
 export function artworkEditionsPreset(printId: number): EditionsTablePreset {
   return {
     preFilter: { printId },
-    columns: ['edition', 'size', 'frame', 'location', 'price', 'printed', 'sale'],
-    showSelection: false,
-    showPagination: false,
+    columns: ['edition', 'size', 'frame', 'location', 'price', 'printed', 'sale', 'actions'],
+    showFilters: ['location', 'size', 'printed', 'sold'],
+    showSelection: true,
+    showPagination: true,
     showExpandableRows: true,
     enableInlineEdit: true,
+    pageSize: 25,
   }
 }
 

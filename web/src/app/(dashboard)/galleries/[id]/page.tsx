@@ -2,8 +2,9 @@
 
 import { use, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useInventory } from '@/lib/hooks/use-inventory'
-import { formatPrice, calculateNetAmount } from '@/lib/utils'
+import { formatPrice, calculateNetAmount, MONTHS } from '@/lib/utils'
 import {
   Card,
   CardContent,
@@ -12,6 +13,22 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { EditionsTableWithFilters } from '@/components/editions/editions-table-with-filters'
 import { galleryPreviewPreset, galleryUnsettledPreset } from '@/lib/editions-presets'
 
@@ -22,6 +39,7 @@ type PageProps = {
 export default function GalleryDetailPage({ params }: PageProps) {
   const { id } = use(params)
   const distributorId = parseInt(id)
+  const router = useRouter()
   const {
     distributors,
     allEditions,
@@ -30,6 +48,11 @@ export default function GalleryDetailPage({ params }: PageProps) {
     markSettled,
   } = useInventory()
   const [error, setError] = useState<string | null>(null)
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false)
+
+  // Invoice month/year selection - default to current month (lazy init)
+  const [invoiceMonth, setInvoiceMonth] = useState(() => String(new Date().getMonth() + 1))
+  const [invoiceYear, setInvoiceYear] = useState(() => String(new Date().getFullYear()))
 
   const distributor = useMemo(
     () => distributors.find((d) => d.id === distributorId),
@@ -71,6 +94,17 @@ export default function GalleryDetailPage({ params }: PageProps) {
       setError('Failed to mark sales as paid. Please try again.')
     }
   }
+
+  const handleGenerateInvoice = () => {
+    setInvoiceDialogOpen(false)
+    router.push(`/galleries/${id}/invoice?year=${invoiceYear}&month=${invoiceMonth}`)
+  }
+
+  // Generate year options (last 3 years + current year)
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear()
+    return [currentYear, currentYear - 1, currentYear - 2, currentYear - 3]
+  }, [])
 
   if (!isReady) return null
 
@@ -126,6 +160,59 @@ export default function GalleryDetailPage({ params }: PageProps) {
               </a>
             </Button>
           )}
+          <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">Generate Invoice</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Generate Invoice</DialogTitle>
+                <DialogDescription>
+                  Select the month and year for the invoice. This will show all sales at {distributor.name} for that period.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Month</label>
+                  <Select value={invoiceMonth} onValueChange={setInvoiceMonth}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((month, index) => (
+                        <SelectItem key={index + 1} value={String(index + 1)}>
+                          {month}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Year</label>
+                  <Select value={invoiceYear} onValueChange={setInvoiceYear}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {yearOptions.map((year) => (
+                        <SelectItem key={year} value={String(year)}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setInvoiceDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleGenerateInvoice}>
+                  View Invoice
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Button asChild>
             <Link href={`/galleries/${id}/stock-check`}>Start Stock Check</Link>
           </Button>

@@ -37,3 +37,31 @@ export function formatDate(dateString: string | null | undefined): string {
     year: 'numeric',
   })
 }
+
+/**
+ * Month names for display
+ */
+export const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+] as const
+
+/**
+ * Get month name from 1-indexed month number
+ */
+export function getMonthName(month: number): string {
+  return MONTHS[month - 1] || ''
+}
+
+/**
+ * Get start and end dates for a given month/year
+ * Uses UTC to avoid timezone edge cases
+ */
+export function getMonthDateRange(year: number, month: number): { start: string; end: string } {
+  const startDate = new Date(Date.UTC(year, month - 1, 1))
+  const endDate = new Date(Date.UTC(year, month, 0))
+  return {
+    start: startDate.toISOString().split('T')[0],
+    end: endDate.toISOString().split('T')[0],
+  }
+}

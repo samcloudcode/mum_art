@@ -772,8 +772,8 @@ export function EditionsDataTable({
       </Dialog>
 
       {/* Table */}
-      <div className="gallery-plaque overflow-x-auto">
-        <Table className="min-w-[1400px]">
+      <div className="bg-card border border-border rounded-sm shadow-sm overflow-x-auto">
+        <Table>
           <TableHeader className="bg-secondary/50 border-b border-border">
             <TableRow>
               {showExpandableRows && <TableHead className="w-10" />}
@@ -791,8 +791,8 @@ export function EditionsDataTable({
               {columns.includes('frame') && <TableHead>Frame</TableHead>}
               {columns.includes('location') && <TableHead>Location</TableHead>}
               {columns.includes('price') && <TableHead className="text-right">Price</TableHead>}
-              {columns.includes('printed') && <TableHead>Printed</TableHead>}
-              {columns.includes('sale') && <TableHead>Sale</TableHead>}
+              {columns.includes('printed') && <TableHead className="min-w-[110px]">Printed</TableHead>}
+              {columns.includes('sale') && <TableHead className="min-w-[85px]">Sale</TableHead>}
               {columns.includes('dateSold') && <TableHead className="whitespace-nowrap">Date Sold</TableHead>}
               {columns.includes('dateInGallery') && <TableHead className="whitespace-nowrap">In Gallery</TableHead>}
               {columns.includes('actions') && <TableHead className="w-10"></TableHead>}

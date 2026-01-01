@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -20,7 +19,7 @@ import {
 import { Loader2, Check } from 'lucide-react'
 import type { EditionWithRelations } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { feedbackStyles, editionStatusStyles, saleStatusStyles } from '@/lib/utils/badge-styles'
+import { feedbackStyles } from '@/lib/utils/badge-styles'
 
 // =============================================================================
 // Payment Status Select - Simple "Unpaid" / "Paid" toggle for sales page
@@ -124,7 +123,6 @@ export function PrintStatusSelect({
   }
 
   const isPrinted = edition.is_printed
-  const badgeStyle = isPrinted ? editionStatusStyles.printed : editionStatusStyles.not_printed
 
   return (
     <div className={cn(
@@ -138,27 +136,20 @@ export function PrintStatusSelect({
       >
         <SelectTrigger
           className={cn(
-            'h-auto py-0.5 px-0 w-auto min-w-[90px]',
-            'border-transparent bg-transparent shadow-none',
-            'hover:bg-secondary/50',
-            'focus:ring-0 focus:ring-offset-0',
-            'data-[state=open]:bg-secondary/50',
-            '[&>svg]:opacity-0 hover:[&>svg]:opacity-50 data-[state=open]:[&>svg]:opacity-100',
-            '[&>svg]:ml-1 [&>svg]:h-3 [&>svg]:w-3',
-            'transition-all duration-200'
+            'h-auto py-1 px-3 text-xs font-medium rounded-full cursor-pointer',
+            'border shadow-sm focus:ring-0 focus:ring-offset-0',
+            isPrinted
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
+              : 'bg-stone-50 text-stone-500 border-stone-200 hover:bg-stone-100 hover:border-stone-300',
+            '[&>svg]:hidden',
+            'transition-all duration-150'
           )}
         >
-          <Badge className={cn(badgeStyle.badge, 'text-xs font-medium whitespace-nowrap')}>
-            {isPrinted ? 'Printed' : 'Not Printed'}
-          </Badge>
+          <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="not_printed">
-            <Badge className={cn(editionStatusStyles.not_printed.badge, 'text-xs')}>Not Printed</Badge>
-          </SelectItem>
-          <SelectItem value="printed">
-            <Badge className={cn(editionStatusStyles.printed.badge, 'text-xs')}>Printed</Badge>
-          </SelectItem>
+          <SelectItem value="not_printed">Not Printed</SelectItem>
+          <SelectItem value="printed">Printed</SelectItem>
         </SelectContent>
       </Select>
       {isSaving && (
@@ -274,63 +265,60 @@ export function SaleStatusSelect({
   }
 
   const displayStatus = pendingStatus || currentStatus
-  const badgeStyle = saleStatusStyles[displayStatus as keyof typeof saleStatusStyles]
-  const statusLabel = displayStatus === 'unsold' ? 'Unsold' : displayStatus === 'sold' ? 'Sold' : 'Settled'
+
+  // Badge colors based on status
+  const statusStyles = {
+    unsold: 'bg-stone-50 text-stone-500 border-stone-200 hover:bg-stone-100 hover:border-stone-300',
+    sold: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300',
+    settled: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300',
+  }
 
   return (
-    <div className={cn(
-      'relative rounded transition-colors duration-300',
-      justSaved && feedbackStyles.saved
-    )}>
-      <Select
-        value={displayStatus}
-        onValueChange={handleChange}
-        disabled={disabled || isSaving}
-      >
-        <SelectTrigger
-          className={cn(
-            'h-auto py-0.5 px-0 w-auto min-w-[70px]',
-            'border-transparent bg-transparent shadow-none',
-            'hover:bg-secondary/50',
-            'focus:ring-0 focus:ring-offset-0',
-            'data-[state=open]:bg-secondary/50',
-            '[&>svg]:opacity-0 hover:[&>svg]:opacity-50 data-[state=open]:[&>svg]:opacity-100',
-            '[&>svg]:ml-1 [&>svg]:h-3 [&>svg]:w-3',
-            'transition-all duration-200'
-          )}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Badge className={cn(badgeStyle.badge, 'text-xs font-medium whitespace-nowrap')}>
-            {statusLabel}
-          </Badge>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="unsold">
-            <Badge className={cn(saleStatusStyles.unsold.badge, 'text-xs')}>Unsold</Badge>
-          </SelectItem>
-          <SelectItem value="sold">
-            <Badge className={cn(saleStatusStyles.sold.badge, 'text-xs')}>Sold</Badge>
-          </SelectItem>
-          <SelectItem value="settled">
-            <Badge className={cn(saleStatusStyles.settled.badge, 'text-xs')}>Settled</Badge>
-          </SelectItem>
-          {edition.is_sold && (
-            <>
-              <div className="h-px bg-gray-200 my-1" />
-              <SelectItem value="edit" className="text-muted-foreground">
-                Edit sale...
-              </SelectItem>
-            </>
-          )}
-        </SelectContent>
-      </Select>
-      {isSaving && !showSoldPopover && (
-        <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-gray-400" />
-      )}
-
-      {/* Controlled popover for sale details - no trigger needed as we open via state */}
-      <Popover open={showSoldPopover} onOpenChange={setShowSoldPopover} modal={false}>
-        <PopoverContent className="w-56 p-3" align="start" onClick={(e) => e.stopPropagation()} onOpenAutoFocus={(e) => e.preventDefault()}>
+    <Popover open={showSoldPopover} onOpenChange={setShowSoldPopover}>
+      <div className={cn(
+        'relative rounded transition-colors duration-300',
+        justSaved && feedbackStyles.saved
+      )}>
+        <PopoverTrigger asChild>
+          <div>
+            <Select
+              value={displayStatus}
+              onValueChange={handleChange}
+              disabled={disabled || isSaving}
+            >
+              <SelectTrigger
+                className={cn(
+                  'h-auto py-1 px-3 text-xs font-medium rounded-full cursor-pointer',
+                  'border shadow-sm focus:ring-0 focus:ring-offset-0',
+                  statusStyles[displayStatus as keyof typeof statusStyles],
+                  '[&>svg]:hidden',
+                  'transition-all duration-150'
+                )}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unsold">Unsold</SelectItem>
+                <SelectItem value="sold">Sold</SelectItem>
+                <SelectItem value="settled">Settled</SelectItem>
+                {edition.is_sold && (
+                  <>
+                    <div className="h-px bg-gray-200 my-1" />
+                    <SelectItem value="edit" className="text-muted-foreground">
+                      Edit sale...
+                    </SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </PopoverTrigger>
+        {isSaving && !showSoldPopover && (
+          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-gray-400" />
+        )}
+      </div>
+      <PopoverContent className="w-56 p-3" align="start" onClick={(e) => e.stopPropagation()} onOpenAutoFocus={(e) => e.preventDefault()}>
           <div className="space-y-3">
             <h4 className="font-medium text-sm">Sale Details</h4>
             <div className="space-y-1.5">
@@ -387,7 +375,6 @@ export function SaleStatusSelect({
             </div>
           </div>
         </PopoverContent>
-      </Popover>
-    </div>
+    </Popover>
   )
 }

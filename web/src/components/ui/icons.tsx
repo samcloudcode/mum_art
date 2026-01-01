@@ -18,6 +18,20 @@ export function ChevronRightIcon({ className }: IconProps) {
   )
 }
 
+export function ChevronDownIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={cn('w-5 h-5', className)}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+    </svg>
+  )
+}
+
 export function ImagePlaceholderIcon({ className }: IconProps) {
   return (
     <svg

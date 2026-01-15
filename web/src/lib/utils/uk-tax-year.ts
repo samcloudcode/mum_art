@@ -87,6 +87,33 @@ export type TaxYearReport = {
   }
 }
 
+export type YearEndStockItem = {
+  id: number
+  editionDisplayName: string
+  artworkName: string
+  dateInGallery: string | null
+  retailPrice: number
+  frameType: string | null
+}
+
+export type GalleryYearEndStock = {
+  distributorId: number
+  distributorName: string
+  commissionPercentage: number
+  editionCount: number
+  totalRetailValue: number
+  framedCount: number
+  editions: YearEndStockItem[]
+}
+
+export type YearEndGalleryStockReport = {
+  taxYear: TaxYear
+  asOfDate: string  // The year-end date (April 5)
+  totalEditions: number
+  totalRetailValue: number
+  byGallery: GalleryYearEndStock[]
+}
+
 /**
  * Get the current UK tax year
  */
@@ -473,4 +500,96 @@ export function generateTaxYearCSV(report: TaxYearReport): string {
   })
 
   return lines.join('\n')
+}
+
+/**
+ * Calculate year-end gallery stock for a tax year
+ * An edition was at a gallery on the year-end date if:
+ * - It was assigned to a gallery (not Direct/null distributor)
+ * - date_in_gallery <= year_end_date
+ * - Either: not sold, OR date_sold > year_end_date
+ */
+export function calculateYearEndGalleryStock(
+  editions: EditionWithRelations[],
+  distributors: Distributor[],
+  taxYear: TaxYear
+): YearEndGalleryStockReport {
+  const yearEndDateStr = `${taxYear.endYear}-04-05` // April 5th of end year
+  const distributorMap = new Map(distributors.map(d => [d.id, d]))
+
+  // Filter editions that were at galleries on the year-end date
+  const stockEditions = editions.filter(e => {
+    // Must have a distributor (not Direct sales)
+    if (!e.distributor_id) return false
+
+    // Must have been at the gallery by year-end
+    if (!e.date_in_gallery) return false
+    const dateInGallery = e.date_in_gallery.split('T')[0]
+    if (dateInGallery > yearEndDateStr) return false
+
+    // Must not have been sold before or on year-end
+    if (e.is_sold && e.date_sold) {
+      const dateSold = e.date_sold.split('T')[0]
+      if (dateSold <= yearEndDateStr) return false
+    }
+
+    return true
+  })
+
+  // Group by gallery
+  const galleryMap = new Map<number, GalleryYearEndStock>()
+
+  stockEditions.forEach(e => {
+    const distributorId = e.distributor_id!
+    const distributor = distributorMap.get(distributorId)
+
+    let gallery = galleryMap.get(distributorId)
+    if (!gallery) {
+      gallery = {
+        distributorId,
+        distributorName: distributor?.name || 'Unknown Gallery',
+        commissionPercentage: distributor?.commission_percentage || 0,
+        editionCount: 0,
+        totalRetailValue: 0,
+        framedCount: 0,
+        editions: [],
+      }
+      galleryMap.set(distributorId, gallery)
+    }
+
+    const item: YearEndStockItem = {
+      id: e.id,
+      editionDisplayName: e.edition_display_name,
+      artworkName: e.prints?.name || 'Unknown',
+      dateInGallery: e.date_in_gallery,
+      retailPrice: e.retail_price || 0,
+      frameType: e.frame_type,
+    }
+
+    gallery.editionCount++
+    gallery.totalRetailValue += item.retailPrice
+    if (item.frameType) gallery.framedCount++
+    gallery.editions.push(item)
+  })
+
+  // Sort galleries by value descending
+  const byGallery = Array.from(galleryMap.values())
+    .sort((a, b) => b.totalRetailValue - a.totalRetailValue)
+
+  // Sort editions within each gallery by artwork name, then edition name
+  byGallery.forEach(gallery => {
+    gallery.editions.sort((a, b) => {
+      const artworkCompare = a.artworkName.localeCompare(b.artworkName)
+      if (artworkCompare !== 0) return artworkCompare
+      return a.editionDisplayName.localeCompare(b.editionDisplayName)
+    })
+  })
+
+  return {
+    taxYear,
+    asOfDate: yearEndDateStr,
+    totalEditions: stockEditions.length,
+    totalRetailValue: byGallery.reduce((sum, g) => sum + g.totalRetailValue, 0),
+    byGallery,
+  }
 }

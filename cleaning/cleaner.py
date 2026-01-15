@@ -20,29 +20,28 @@ class AirtableDataCleaner:
     # Canonical print names: maps raw input variations to (short_name, full_name)
     # short_name: abbreviated for handwritten notes (max ~10 chars)
     # full_name: complete display name
+    # These should match the source Prints-Grid view.csv with tidied names
     PRINT_NAMES = {
         # === Isle of Wight Locations ===
-        'bembridge': ('Bemb', 'Bembridge'),
-        'bemlbsl': ('Bemb LS', 'Bembridge Lifeboat Station'),
-        'lifeboatstation': ('Bemb LS', 'Bembridge Lifeboat Station'),
+        'bembridge': ('Bembridge', 'Bembridge'),
+        'bemlbsl': ('Bemb LB LS', 'Bembridge Lifeboat Station Landscape'),
+        'lifeboatstation': ('Bemb LB', 'Bembridge Lifeboat Station'),
         'eastcowes': ('E Cowes', 'East Cowes'),
         'westcowes': ('W Cowes', 'West Cowes'),
         'cowesraceday': ('Cowes RD', 'Cowes Race Day'),
         'hurst': ('Hurst', 'Hurst'),
-        'needles': ('Needles', 'Needles'),
-        'needleslighthouse': ('Needles LH', 'Needles Lighthouse'),
-        'nomanfort': ("NMF", "No Man's Fort"),
-        'nomansfort': ("NMF", "No Man's Fort"),
+        'needles': ('Needles', 'The Needles'),
+        'needleslighthouse': ('Needles LH', 'The Needles Lighthouse'),
+        'nomansfort': ('NMF', "No Man's Fort"),
         'osborne': ('Osborne', 'Osborne'),
         'priory': ('Priory', 'Priory'),
-        'quarr': ('Quarr', 'Quarr'),
         'quayrocks': ('Quay Rks', 'Quay Rocks'),
-        'quayrockslandscape': ('Quay Rks L', 'Quay Rocks Landscape'),
+        'quayrockslandscape': ('Quay Rks LS', 'Quay Rocks Landscape'),
         'roundtheisland': ('RTI', 'Round the Island'),
-        'stcatherines': ("St Cath", "St Catherine's"),
+        'stcatherines': ('St Cath', "St Catherine's"),
         'seagrove': ('Seagrove', 'Seagrove'),
         'seaview': ('Seaview', 'Seaview'),
-        'seagv2l': ('Seaview V2L', 'Seaview V2 Large'),
+        'seagv2l': ('Seagrove LS', 'Seagrove Landscape'),
         'yarmouth': ('Yarm', 'Yarmouth'),
         'yarmouthpier': ('Yarm Pier', 'Yarmouth Pier'),
         'lymington': ('Lym', 'Lymington'),
@@ -50,15 +49,13 @@ class AirtableDataCleaner:
 
         # === Sailing & Boats ===
         'royalyachtsquadron': ('RYS', 'Royal Yacht Squadron'),
-        'rys': ('RYS', 'Royal Yacht Squadron'),
         'etchells': ('Etchells', 'Etchells'),
         'contessa32': ('C32', 'Contessa 32'),
         'scooter': ('Scooter', 'Scooter'),
         'sb20': ('SB20', 'SB20'),
         'scows': ('Scows', 'Scows'),
-        'regatta': ('Regatta', 'Regatta'),
+        'regatta': ('Regatta', 'Seaview Regatta'),
         'classics': ('Classics', 'Classics'),
-        'classracinglym': ('Class Lym', 'Class Racing Lymington'),
         'ducie': ('Ducie', 'Ducie'),
         'corby': ('Corby', 'Corby'),
         'galatea': ('Galatea', 'Galatea'),
@@ -66,18 +63,14 @@ class AirtableDataCleaner:
         'otto': ('Otto', 'Otto'),
         'brambles': ('Brambles', 'Brambles'),
 
-        # === Mermaids variations ===
-        'amermaids': ('Mermaids', 'Mermaids'),
-        'a.mermaids': ('Mermaids', 'Mermaids'),
-        'mermaids': ('Mermaids', 'Mermaids'),
-        'svycmermaids': ('SVYC Merm', 'SVYC Mermaids'),
-        'bsvycm': ('B SVYCM', 'B SVYC Mermaids'),
+        # === Mermaids ===
+        'amermaids': ('A Mermaids', 'A Seaview Mermaids'),
+        'bsvycm': ('B Mermaids', 'B Seaview Yacht Club Mermaids'),
 
         # === Wildlife ===
         'puffin': ('Puffin', 'Puffin'),
 
         # === Special/Other ===
-        'wrongflagraceday': ('Wrong Flag', 'Wrong Flag Race Day'),
         'miscellaneous': ('Misc', 'Miscellaneous'),
     }
 
@@ -408,13 +401,31 @@ class AirtableDataCleaner:
         if self.report and original_distributor and standardized_distributor:
             self.report.record_distributor_name_transform(str(original_distributor), standardized_distributor)
 
+        # Handle comma-separated print_record_id (from accidental Airtable merge)
+        # Take the first ID and first print name when multiple prints are linked
+        raw_print_id = row.get('print_record_id')
+        edition_display_name = row.get('Print - Edition')
+        if raw_print_id and ',' in str(raw_print_id):
+            print_airtable_id = str(raw_print_id).split(',')[0].strip()
+            # Fix the print_name: "Priory Seagv2l" -> "Priory" (take first part)
+            if print_name and ',' in row.get('Print', ''):
+                first_print = str(row.get('Print')).split(',')[0].strip()
+                print_name = AirtableDataCleaner.standardize_print_name(first_print)
+            # Also fix the edition_display_name: "PRIORY, SEAGV2L - 5" -> "Priory - 5"
+            if edition_display_name and ',' in str(edition_display_name):
+                parts = str(edition_display_name).split(' - ')
+                if len(parts) == 2:
+                    edition_display_name = f"{print_name} - {parts[1]}"
+        else:
+            print_airtable_id = raw_print_id
+
         return {
             'airtable_id': row.get('record_id'),
-            'print_airtable_id': row.get('print_record_id'),
+            'print_airtable_id': print_airtable_id,
             'distributor_airtable_id': row.get('distributor_record_id'),
 
             # Core identity
-            'edition_display_name': row.get('Print - Edition'),
+            'edition_display_name': edition_display_name,
             'print_name': print_name,
             'edition_number': edition_number or AirtableDataCleaner.clean_integer(
                 row.get('Print Edition')

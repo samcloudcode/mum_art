@@ -264,6 +264,14 @@ class SmartImporter:
         print(f"\n✅ Smart sync completed!", flush=True)
         return results
 
+    # Orphan/malformed print airtable_ids to skip during import
+    SKIP_PRINT_AIRTABLE_IDS = {
+        'recNa8nicBjSfoUdi',  # "wrong flag race day" - malformed row with newline, 0 editions
+        'recyvYfifHGFEGzIT',  # "SVYCMERMAIDS" - orphan print with 0 editions
+        'recHke2VgvtTACpYE',  # "Regatta" duplicate - orphan with 0 editions
+        'recmT2iPIxwO3DEiu',  # "CLASS RACING LYM" - orphan with 0 editions, should be C32 variation
+    }
+
     def _sync_prints_smart(self, csv_path: str) -> Dict:
         """Sync prints with duplicate name handling."""
         print(f"\n📚 Syncing Prints...", flush=True)
@@ -278,7 +286,15 @@ class SmartImporter:
             for idx, row in df.iterrows():
                 try:
                     cleaned = self.cleaner.clean_print_data(row.to_dict())
-                    if cleaned.get('airtable_id') and cleaned.get('name'):
+                    airtable_id = cleaned.get('airtable_id')
+
+                    # Skip known orphan/malformed prints
+                    if airtable_id in self.SKIP_PRINT_AIRTABLE_IDS:
+                        stats['skipped'] += 1
+                        print(f"   ⚠️ Skipping orphan print: {cleaned.get('name')} ({airtable_id})", flush=True)
+                        continue
+
+                    if airtable_id and cleaned.get('name'):
                         # Skip duplicate names
                         if cleaned['name'] in seen_names:
                             stats['skipped'] += 1
@@ -346,12 +362,12 @@ class SmartImporter:
 
         stats = {'created': 0, 'skipped': 0, 'failed': 0, 'duplicates_ignored': 0}
 
-        # Build lookups first
+        # Build lookups first - use airtable_id for prints to avoid name matching issues
         with self.db.get_session() as session:
-            prints = {p.name: p.id for p in session.query(Print).all()}
+            prints_by_airtable_id = {p.airtable_id: p.id for p in session.query(Print).all()}
             distributors = {d.name: d.id for d in session.query(Distributor).all()}
 
-        print(f"   Lookups: {len(prints)} prints, {len(distributors)} distributors", flush=True)
+        print(f"   Lookups: {len(prints_by_airtable_id)} prints, {len(distributors)} distributors", flush=True)
 
         # Process in larger batches for better performance
         batch_size = 5000  # Increased for optimal PostgreSQL performance
@@ -365,14 +381,15 @@ class SmartImporter:
                         stats['skipped'] += 1
                         continue
 
-                    # Resolve foreign keys
-                    if cleaned.get('print_name'):
-                        cleaned['print_id'] = prints.get(cleaned['print_name'])
+                    # Resolve foreign keys using airtable_id (not name matching)
+                    print_airtable_id = cleaned.get('print_airtable_id')
+                    if print_airtable_id:
+                        cleaned['print_id'] = prints_by_airtable_id.get(print_airtable_id)
                         if not cleaned['print_id']:
                             # Record edition skipped due to missing print
                             self.import_report.record_missing_print(
                                 cleaned.get('edition_display_name', 'Unknown'),
-                                cleaned.get('print_name', 'Unknown')
+                                f"airtable_id: {print_airtable_id}"
                             )
                             stats['failed'] += 1
                             continue

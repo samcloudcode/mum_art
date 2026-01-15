@@ -1,7 +1,7 @@
 # Import Report
 
-Generated: 2026-01-01 13:53:30
-Sync ID: 99d5d0c6-3c42-4020-b2dd-c9955896d1b4
+Generated: 2026-01-01 17:30:05
+Sync ID: e9ff67ae-d3db-4fae-939a-b4f826cc8ba0
 
 # Actions Taken During This Import
 
@@ -14,23 +14,25 @@ The following print names were standardized during import:
 
 | Original | Standardized |
 |----------|--------------|
-| `A. MERMAIDS` | Mermaids |
-| `B. SVYCM` | B SVYC Mermaids |
-| `BEMLBSL` | Bembridge Lifeboat Station |
-| `CLASS RACING LYM` | Class Racing Lymington |
+| `A. MERMAIDS` | A Seaview Mermaids |
+| `B. SVYCM` | B Seaview Yacht Club Mermaids |
+| `BEMLBSL` | Bembridge Lifeboat Station Landscape |
+| `CLASS RACING LYM` | Class Racing Lym |
 | `COWES RACE DAY` | Cowes Race Day |
 | `Contessa32` | Contessa 32 |
 | `Lifeboat Station` | Bembridge Lifeboat Station |
-| `NEEDLES LIGHTHOUSE` | Needles Lighthouse |
+| `NEEDLES LIGHTHOUSE` | The Needles Lighthouse |
 | `NERTHEK` | Nerthek |
+| `Needles` | The Needles |
 | `NoMansFort` | No Man's Fort |
 | `OTTO` | Otto |
 | `PUFFIN` | Puffin |
 | `QUAYROCKS LANDSCAPE` | Quay Rocks Landscape |
+| `Regatta` | Seaview Regatta |
 | `SCOWS` | Scows |
 | `SEAGROVE` | Seagrove |
-| `SEAGV2L` | Seaview V2 Large |
-| `SVYCMERMAIDS` | SVYC Mermaids |
+| `SEAGV2L` | Seagrove Landscape |
+| `SVYCMERMAIDS` | Svycmermaids |
 | `St Catherines` | St Catherine's |
 | `miscellaneous` | Miscellaneous |
 | `wrong flag race day` | Wrong Flag Race Day |
@@ -65,13 +67,6 @@ Frame types were normalized to standard values:
 | `Unknown Frame` | Framed | 163 |
 | `nan` | Framed | 3944 |
 
-## Duplicate Prints Skipped
-
-**2 duplicate prints were skipped:**
-
-- Regatta
-- Bembridge Lifeboat Station
-
 ## Duplicate Editions Handled
 
 **76 duplicate editions were skipped** based on pre-computed decisions:
@@ -85,14 +80,9 @@ Frame types were normalized to standard values:
 
 ## Editions Skipped (Missing Print)
 
-**342 editions were skipped** because their print was not found:
+**1 editions were skipped** because their print was not found:
 
--  - 49 (print: `- 49`)
-- PRIORY, SEAGV2L - 5 (print: `Priory Seagv2l`)
-- PRIORY, SEAGV2L - 6 (print: `Priory Seagv2l`)
-- PRIORY, SEAGV2L - 7 (print: `Priory Seagv2l`)
-- PRIORY, SEAGV2L - 8 (print: `Priory Seagv2l`)
-- ... and 337 more
+-  - 49 (print: `airtable_id: nan`)
 
 ## Default Values Applied
 
@@ -105,18 +95,18 @@ Default values were applied for missing data:
 
 ## Summary
 
-- **Print names standardized:** 20
+- **Print names standardized:** 22
 - **Distributor names standardized:** 3
 - **Sizes normalized:** 8251
 - **Frame types normalized:** 8251
 - **Dates corrected:** 0
 - **Duplicate editions skipped:** 76
-- **Editions missing print (skipped):** 342
-- **Duplicate prints skipped:** 2
+- **Editions missing print (skipped):** 1
+- **Duplicate prints skipped:** 0
 
 ## Post-Processing Actions
 
-- **Old sales auto-settled:** 91 editions (sales >6 months old)
+- **Old sales auto-settled:** 109 editions (sales >6 months old)
 - **Direct Old marked legacy_unknown:** 52 editions
 
 ---

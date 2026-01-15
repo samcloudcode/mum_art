@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { formatPrice } from '@/lib/utils'
@@ -8,9 +8,11 @@ import {
   getCurrentTaxYear,
   getAvailableTaxYears,
   calculateTaxYearReport,
+  calculateYearEndGalleryStock,
   generateTaxYearCSV,
   type TaxYear,
   type TaxYearReport,
+  type YearEndGalleryStockReport,
 } from '@/lib/utils/uk-tax-year'
 import {
   Table,
@@ -25,6 +27,8 @@ export default function UKTaxYearReportPage() {
   const { allEditions, distributors, isReady } = useInventory()
   const [selectedTaxYear, setSelectedTaxYear] = useState<TaxYear | null>(null)
   const [showSalesRegister, setShowSalesRegister] = useState(false)
+  const [showGalleryStock, setShowGalleryStock] = useState(false)
+  const [expandedGalleries, setExpandedGalleries] = useState<Set<number>>(new Set())
 
   // Get available tax years
   const availableTaxYears = useMemo(
@@ -41,6 +45,25 @@ export default function UKTaxYearReportPage() {
     () => calculateTaxYearReport(allEditions, distributors, activeTaxYear),
     [allEditions, distributors, activeTaxYear]
   )
+
+  // Calculate year-end gallery stock
+  const galleryStock = useMemo(
+    () => calculateYearEndGalleryStock(allEditions, distributors, activeTaxYear),
+    [allEditions, distributors, activeTaxYear]
+  )
+
+  // Toggle gallery expansion
+  const toggleGallery = (galleryId: number) => {
+    setExpandedGalleries(prev => {
+      const next = new Set(prev)
+      if (next.has(galleryId)) {
+        next.delete(galleryId)
+      } else {
+        next.add(galleryId)
+      }
+      return next
+    })
+  }
 
   // Handle CSV export
   const handleExportCSV = () => {
@@ -285,6 +308,173 @@ export default function UKTaxYearReportPage() {
           </div>
         ) : (
           <p className="text-muted-foreground">No sales in this tax year.</p>
+        )}
+      </section>
+
+      {/* Year-End Gallery Stock */}
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-foreground">Year-End Gallery Stock</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Stock held at galleries as of 5 April {activeTaxYear.endYear}
+            </p>
+          </div>
+          {galleryStock.byGallery.length > 0 && (
+            <button
+              onClick={() => setShowGalleryStock(!showGalleryStock)}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              {showGalleryStock ? 'Hide Details' : 'Show Details'}
+            </button>
+          )}
+        </div>
+
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+          <div className="gallery-plaque">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Total Editions
+            </p>
+            <p className="stat-value text-foreground">
+              {galleryStock.totalEditions}
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Across {galleryStock.byGallery.length} galleries
+            </p>
+          </div>
+
+          <div className="gallery-plaque">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Total Retail Value
+            </p>
+            <p className="stat-value text-foreground">
+              {formatPrice(galleryStock.totalRetailValue)}
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              At retail prices
+            </p>
+          </div>
+
+          <div className="gallery-plaque">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Galleries Holding Stock
+            </p>
+            <p className="stat-value text-foreground">
+              {galleryStock.byGallery.length}
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Active locations
+            </p>
+          </div>
+        </div>
+
+        {/* Gallery breakdown table */}
+        {galleryStock.byGallery.length > 0 ? (
+          <div className="border border-border rounded-sm overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Gallery</TableHead>
+                  <TableHead className="text-right">Commission</TableHead>
+                  <TableHead className="text-right">Editions</TableHead>
+                  <TableHead className="text-right">Framed</TableHead>
+                  <TableHead className="text-right">Retail Value</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {galleryStock.byGallery.map(gallery => (
+                  <Fragment key={gallery.distributorId}>
+                    <TableRow
+                      className={showGalleryStock ? 'cursor-pointer hover:bg-muted/50' : ''}
+                      onClick={() => showGalleryStock && toggleGallery(gallery.distributorId)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {showGalleryStock && (
+                            <span className="text-muted-foreground text-xs">
+                              {expandedGalleries.has(gallery.distributorId) ? '▼' : '▶'}
+                            </span>
+                          )}
+                          <Link
+                            href={`/galleries/${gallery.distributorId}`}
+                            className="text-blue-600 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {gallery.distributorName}
+                          </Link>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {gallery.commissionPercentage}%
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {gallery.editionCount}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {gallery.framedCount}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatPrice(gallery.totalRetailValue)}
+                      </TableCell>
+                    </TableRow>
+                    {/* Expanded edition list */}
+                    {showGalleryStock && expandedGalleries.has(gallery.distributorId) && (
+                      <TableRow key={`${gallery.distributorId}-details`}>
+                        <TableCell colSpan={5} className="bg-muted/20 p-0">
+                          <div className="p-4">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Edition</TableHead>
+                                  <TableHead>Artwork</TableHead>
+                                  <TableHead className="text-right">Price</TableHead>
+                                  <TableHead className="text-center">Framed</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {gallery.editions.map(edition => (
+                                  <TableRow key={edition.id}>
+                                    <TableCell>
+                                      <Link
+                                        href={`/editions/${edition.id}`}
+                                        className="text-blue-600 hover:underline"
+                                      >
+                                        {edition.editionDisplayName}
+                                      </Link>
+                                    </TableCell>
+                                    <TableCell>{edition.artworkName}</TableCell>
+                                    <TableCell className="text-right">
+                                      {formatPrice(edition.retailPrice)}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {edition.frameType || '-'}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                ))}
+                {/* Totals row */}
+                <TableRow className="bg-muted/30 font-medium">
+                  <TableCell>Total</TableCell>
+                  <TableCell className="text-right">-</TableCell>
+                  <TableCell className="text-right">{galleryStock.totalEditions}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {galleryStock.byGallery.reduce((sum, g) => sum + g.framedCount, 0)}
+                  </TableCell>
+                  <TableCell className="text-right">{formatPrice(galleryStock.totalRetailValue)}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <p className="text-muted-foreground">No stock held at galleries at year end.</p>
         )}
       </section>
 

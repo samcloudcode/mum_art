@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, Fragment, memo } from 'react'
+import { useState, useCallback, useMemo, useEffect, Fragment, memo } from 'react'
 import Link from 'next/link'
 import {
   Table,
@@ -485,13 +485,20 @@ export function EditionsDataTable({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [showMoveDialog, setShowMoveDialog] = useState(false)
-  const [showSizeDialog, setShowSizeDialog] = useState(false)
+  const [showBulkEditDialog, setShowBulkEditDialog] = useState(false)
   const [moveToDistributorId, setMoveToDistributorId] = useState('')
   const [moveDate, setMoveDate] = useState(new Date().toISOString().split('T')[0])
   const [bulkSize, setBulkSize] = useState('')
+  const [bulkFrameType, setBulkFrameType] = useState('')
+  const [bulkRetailPrice, setBulkRetailPrice] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
-  const [activeAction, setActiveAction] = useState<'printed' | 'settled' | 'move' | 'size' | null>(null)
+  const [activeAction, setActiveAction] = useState<'printed' | 'settled' | 'move' | 'bulkEdit' | null>(null)
   const [page, setPage] = useState(1)
+
+  // Reset to page 1 when the editions list changes (e.g. search/filter applied)
+  useEffect(() => {
+    setPage(1)
+  }, [editions])
 
   // Client-side pagination - memoized to prevent unnecessary recalculations
   const totalPages = Math.ceil(editions.length / pageSize)
@@ -588,20 +595,30 @@ export function EditionsDataTable({
     }
   }, [onMarkSettled, selectedIds])
 
-  const handleChangeSize = useCallback(async () => {
-    if (!bulkSize || !onBulkUpdate) return
+  const handleBulkEdit = useCallback(async () => {
+    if (!onBulkUpdate) return
+    const updates: EditionUpdate = {}
+    if (bulkSize) updates.size = bulkSize
+    if (bulkFrameType) updates.frame_type = bulkFrameType
+    if (bulkRetailPrice !== '') {
+      const parsed = parseFloat(bulkRetailPrice)
+      if (!isNaN(parsed)) updates.retail_price = parsed
+    }
+    if (Object.keys(updates).length === 0) return
     setActionError(null)
-    setActiveAction('size')
-    const success = await onBulkUpdate(Array.from(selectedIds), { size: bulkSize })
+    setActiveAction('bulkEdit')
+    const success = await onBulkUpdate(Array.from(selectedIds), updates)
     setActiveAction(null)
     if (success) {
       setSelectedIds(new Set())
-      setShowSizeDialog(false)
+      setShowBulkEditDialog(false)
       setBulkSize('')
+      setBulkFrameType('')
+      setBulkRetailPrice('')
     } else {
-      setActionError('Failed to change size')
+      setActionError('Failed to update editions')
     }
-  }, [onBulkUpdate, selectedIds, bulkSize])
+  }, [onBulkUpdate, selectedIds, bulkSize, bulkFrameType, bulkRetailPrice])
 
   const goToPage = useCallback((newPage: number) => {
     setPage(newPage)
@@ -684,10 +701,10 @@ export function EditionsDataTable({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setShowSizeDialog(true)}
+                onClick={() => setShowBulkEditDialog(true)}
                 disabled={activeAction !== null}
               >
-                Change Size
+                Bulk Edit
               </Button>
             )}
             <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())} disabled={activeAction !== null}>
@@ -750,13 +767,21 @@ export function EditionsDataTable({
         </DialogContent>
       </Dialog>
 
-      {/* Change Size Dialog */}
-      <Dialog open={showSizeDialog} onOpenChange={setShowSizeDialog}>
+      {/* Bulk Edit Dialog */}
+      <Dialog open={showBulkEditDialog} onOpenChange={(open) => {
+        setShowBulkEditDialog(open)
+        if (!open) {
+          setBulkSize('')
+          setBulkFrameType('')
+          setBulkRetailPrice('')
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change Size</DialogTitle>
+            <DialogTitle>Bulk Edit</DialogTitle>
             <DialogDescription>
-              Update size for {selectedIds.size} edition{selectedIds.size > 1 ? 's' : ''}
+              Update fields for {selectedIds.size} edition{selectedIds.size > 1 ? 's' : ''}.
+              Only fields you set will be changed — blank fields are left as-is.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -764,7 +789,7 @@ export function EditionsDataTable({
               <Label>Size</Label>
               <Select value={bulkSize} onValueChange={setBulkSize}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select size" />
+                  <SelectValue placeholder="Leave unchanged" />
                 </SelectTrigger>
                 <SelectContent>
                   {sizes.map((size) => (
@@ -775,16 +800,49 @@ export function EditionsDataTable({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Frame Type</Label>
+              <Select value={bulkFrameType} onValueChange={setBulkFrameType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Leave unchanged" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FRAME_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Retail Price</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">£</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Leave unchanged"
+                  value={bulkRetailPrice}
+                  onChange={(e) => setBulkRetailPrice(e.target.value)}
+                  className="pl-7"
+                />
+              </div>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSizeDialog(false)} disabled={activeAction === 'size'}>
+            <Button variant="outline" onClick={() => setShowBulkEditDialog(false)} disabled={activeAction === 'bulkEdit'}>
               Cancel
             </Button>
-            <Button onClick={handleChangeSize} disabled={!bulkSize || activeAction !== null}>
-              {activeAction === 'size' ? (
+            <Button
+              onClick={handleBulkEdit}
+              disabled={(!bulkSize && !bulkFrameType && bulkRetailPrice === '') || activeAction !== null}
+            >
+              {activeAction === 'bulkEdit' ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Updating...</>
               ) : (
-                'Update Size'
+                'Apply Changes'
               )}
             </Button>
           </DialogFooter>

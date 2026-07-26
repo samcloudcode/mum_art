@@ -131,8 +131,8 @@ These are the configured behaviors, not necessarily what happened in this run.
 
 ## Defaults
 
-### Unknown or missing sizes default to 'Small'
-**Reason:** Small is the most common edition size
+### Unknown or missing sizes are left blank
+**Reason:** An unmeasured edition has no size; guessing 'Small' hid that
 
 ### Unknown or missing frame types default to 'Framed'
 **Reason:** Most editions are framed when sold

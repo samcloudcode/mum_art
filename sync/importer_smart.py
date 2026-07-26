@@ -33,8 +33,8 @@ class SmartImporter:
         },
         {
             "category": "Defaults",
-            "assumption": "Unknown or missing sizes default to 'Small'",
-            "reason": "Small is the most common edition size"
+            "assumption": "Unknown or missing sizes are left blank",
+            "reason": "An unmeasured edition has no size; guessing 'Small' hid that"
         },
         {
             "category": "Defaults",

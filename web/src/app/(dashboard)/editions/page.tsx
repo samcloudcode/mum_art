@@ -80,6 +80,10 @@ export default function EditionsPage() {
     [filters]
   )
 
+  // Drives the table's return-to-page-1 behaviour: filter changes should reset
+  // the page, edits to a row should not.
+  const filterSignature = useMemo(() => JSON.stringify(currentFilters), [currentFilters])
+
   const handleFilterChange = (key: string, value: string) => {
     // Use startTransition to mark filter updates as non-urgent
     // This keeps the UI responsive while the table re-renders
@@ -209,6 +213,7 @@ export default function EditionsPage() {
             editions={editions}
             distributors={distributors}
             sizes={sizes}
+            resetKey={filterSignature}
             showSelection={true}
             showPagination={true}
             showExpandableRows={true}

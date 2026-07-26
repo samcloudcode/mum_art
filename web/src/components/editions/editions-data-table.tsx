@@ -38,7 +38,7 @@ import { EditionExpandableRow } from './edition-expandable-row'
 import type { EditionWithRelations, Distributor, EditionUpdate } from '@/lib/types'
 import { formatPrice, formatDate } from '@/lib/utils'
 
-type ColumnKey = 'edition' | 'artwork' | 'variation' | 'size' | 'frame' | 'location' | 'price' | 'printed' | 'sale' | 'dateSold' | 'dateInGallery' | 'actions'
+type ColumnKey = 'editionNumber' | 'edition' | 'artwork' | 'variation' | 'size' | 'frame' | 'location' | 'price' | 'printed' | 'sale' | 'dateSold' | 'dateInGallery' | 'actions'
 
 type Props = {
   editions: EditionWithRelations[]
@@ -51,6 +51,12 @@ type Props = {
   showExpandableRows?: boolean
   enableInlineEdit?: boolean
   pageSize?: number
+
+  // Changing this returns the table to page 1. Pass a signature of whatever
+  // filters/sort the caller owns. Do NOT derive it from the editions array:
+  // editing a row changes that array's identity without changing which
+  // editions are listed, which is what used to bounce the user to page 1.
+  resetKey?: string | number
 
   // Column visibility
   columns?: ColumnKey[]
@@ -70,8 +76,8 @@ type Props = {
   savingIds?: Set<number> // Optional: per-row saving state
 }
 
-const DEFAULT_COLUMNS: ColumnKey[] = ['edition', 'artwork', 'variation', 'size', 'frame', 'location', 'price', 'printed', 'sale', 'dateSold', 'dateInGallery', 'actions']
-const DEFAULT_PAGE_SIZE = 50
+const DEFAULT_COLUMNS: ColumnKey[] = ['editionNumber', 'edition', 'artwork', 'variation', 'size', 'frame', 'location', 'price', 'printed', 'sale', 'dateSold', 'dateInGallery', 'actions']
+export const DEFAULT_PAGE_SIZE = 250
 
 // Static options - defined outside component to avoid recreation
 const FRAME_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
@@ -237,11 +243,16 @@ const EditionTableRow = memo(function EditionTableRow({
           />
         </TableCell>
       )}
+      {columns.includes('editionNumber') && (
+        <TableCell className="font-serif text-base tabular-nums text-foreground">
+          {edition.edition_number ?? '-'}
+        </TableCell>
+      )}
       {columns.includes('edition') && (
         <TableCell>
           <Link
             href={`/editions/${edition.id}`}
-            className="font-serif text-primary hover:text-accent transition-colors"
+            className="font-serif text-sm text-primary hover:text-accent transition-colors"
           >
             {edition.edition_display_name}
           </Link>
@@ -472,6 +483,7 @@ export function EditionsDataTable({
   showExpandableRows = true,
   enableInlineEdit = true,
   pageSize = DEFAULT_PAGE_SIZE,
+  resetKey,
   columns = DEFAULT_COLUMNS,
   onUpdate,
   onBulkUpdate,
@@ -493,15 +505,23 @@ export function EditionsDataTable({
   const [bulkRetailPrice, setBulkRetailPrice] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
   const [activeAction, setActiveAction] = useState<'printed' | 'settled' | 'move' | 'bulkEdit' | null>(null)
-  const [page, setPage] = useState(1)
+  const [rawPage, setPage] = useState(1)
 
-  // Reset to page 1 when the editions list changes (e.g. search/filter applied)
+  // Return to page 1 only when the caller's filters/sort change. This used to
+  // key off the `editions` array, but every inline edit replaces that array
+  // (the store clones it for React), so any edit made on page 4 threw the user
+  // back to page 1.
   useEffect(() => {
     setPage(1)
-  }, [editions])
+  }, [resetKey])
 
   // Client-side pagination - memoized to prevent unnecessary recalculations
-  const totalPages = Math.ceil(editions.length / pageSize)
+  const totalPages = Math.max(1, Math.ceil(editions.length / pageSize))
+
+  // Clamp during render rather than correcting via an effect, so a list that
+  // shrinks under us (an edit drops a row out of the active filter) can never
+  // strand the user on an out-of-range page.
+  const page = Math.min(rawPage, totalPages)
   const startIndex = (page - 1) * pageSize
   const paginatedEditions = useMemo(
     () => showPagination ? editions.slice(startIndex, startIndex + pageSize) : editions,
@@ -863,6 +883,7 @@ export function EditionsDataTable({
                   />
                 </TableHead>
               )}
+              {columns.includes('editionNumber') && <TableHead className="w-16">No.</TableHead>}
               {columns.includes('edition') && <TableHead>Edition</TableHead>}
               {columns.includes('artwork') && <TableHead>Artwork</TableHead>}
               {columns.includes('variation') && <TableHead>Variation</TableHead>}

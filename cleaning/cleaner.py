@@ -268,18 +268,26 @@ class AirtableDataCleaner:
         return urls
 
     @staticmethod
-    def normalize_size(value: Any) -> str:
-        """Normalize size to match database constraints."""
+    def normalize_size(value: Any) -> Optional[str]:
+        """Normalize size to match database constraints.
+
+        Returns None when the size is missing or unrecognized. It previously
+        defaulted to 'Small', which silently asserted a size for editions that
+        had never been measured — including ones not yet printed. Blank is
+        honest about not knowing; the column is nullable.
+        """
         if not value or str(value).lower() in ['nan', 'none', '', 'unknown']:
-            return 'Small'  # Default to Small for unknown sizes
+            return None
 
         size_str = str(value).strip().lower()
         if 'extra' in size_str and 'large' in size_str:
             return 'Extra Large'
         elif 'large' in size_str:
             return 'Large'
+        elif 'small' in size_str:
+            return 'Small'
         else:
-            return 'Small'  # Default for unrecognized sizes
+            return None  # Unrecognized - leave blank rather than guess
 
     @staticmethod
     def normalize_frame_type(frame_type: Any) -> Optional[str]:
@@ -382,8 +390,9 @@ class AirtableDataCleaner:
         normalized_size = AirtableDataCleaner.normalize_size(original_size)
         if self.report:
             self.report.record_size_normalization(original_size, normalized_size)
-            # Track if default was applied
-            if not original_size or str(original_size).lower() in ['nan', 'none', '', 'unknown']:
+            # Track rows left blank because the source size was missing or
+            # unrecognized (these used to be forced to 'Small')
+            if normalized_size is None:
                 self.report.record_default_applied('size')
 
         # Track frame type normalization

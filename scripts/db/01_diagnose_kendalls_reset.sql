@@ -31,6 +31,18 @@
 --     whose log insert failed cannot be recovered.
 --   * If query 3 shows fewer editions than you remember checking, stop and use
 --     Supabase PITR / daily backups instead — that is the only complete source.
+--   * The reset does not necessarily cover the whole gallery.
+--     resetStockCheckForGallery() filters the client's in-memory `allEditions`
+--     (use-inventory.ts:210), so any edition the browser had not loaded escaped
+--     it. On 2026-07-26 it logged 51 rows against 58 editions in stock, and
+--     three editions ticked on 16 Jun were never cleared. Do not read
+--     "editions_affected" in query 1 as the size of the gallery.
+--   * `recoverable_checked` in query 3 is the last intent per edition across ALL
+--     time, not one stock-check session. It can legitimately span several
+--     sessions and look far larger than the check you just did. Before trusting
+--     it, confirm no bulk reset landed between an edition's last tick and the
+--     accident — otherwise that tick was already undone and restoring it
+--     invents state. Verified clean for the 2026-07-26 reset.
 -- ============================================================================
 
 

@@ -1,12 +1,16 @@
 -- ============================================================================
--- Find editions with an out-of-range date_sold / date_in_gallery
+-- Find editions with an out-of-range date_sold / date_in_gallery (READ ONLY)
 -- ============================================================================
+--
+--   uv run python scripts/db/run_sql.py scripts/db/03_find_bad_sale_dates.sql
 --
 -- The dashboard "Last Sale" stat showed "-6657898 days ago", which is roughly
 -- 18,200 years in the future — the signature of a mistyped year (e.g. 20256
 -- entered instead of 2025). Postgres DATE accepts it happily, and the old
 -- dashboard code had no lower bound on its "days ago" ladder, so the single bad
 -- row won the sort and hijacked the stat.
+--
+-- Run with: uv run python scripts/db/run_sql.py scripts/db/03_find_bad_sale_dates.sql
 --
 -- The display side is fixed in web/src/app/(dashboard)/page.tsx (future and
 -- unparseable dates are now discarded before picking the most recent sale), but

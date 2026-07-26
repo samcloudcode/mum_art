@@ -333,6 +333,8 @@ export function SaleStatusSelect({
                 value={saleDate}
                 onChange={(e) => setSaleDate(e.target.value)}
                 onKeyDown={handleKeyDown}
+                min="1970-01-01"
+                max={new Date().toISOString().split('T')[0]}
                 className="h-8"
               />
             </div>

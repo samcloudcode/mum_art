@@ -404,6 +404,8 @@ function DateCell({ editionId, field, value, onSave, disabled, className }: Date
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
           disabled={isSaving}
+          min="1970-01-01"
+          max={new Date().toISOString().split('T')[0]}
           className={cn('h-7 text-sm', className)}
         />
         {isSaving && (

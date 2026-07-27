@@ -55,7 +55,10 @@ CREATE INDEX IF NOT EXISTS idx_editions_edition_type
 
 
 -- ============================================================================
--- NOT DONE AUTOMATICALLY — the five edition-zero rows
+-- The edition-zero rows — HANDLED IN 006, not here
+-- ============================================================================
+-- 006_reclassify_edition_zero_proofs.sql converts the printed ones to proofs
+-- and leaves the unprinted Osborne placeholder alone. Kept below for context.
 -- ============================================================================
 -- These predate the negative convention and are left as numbered edition 0,
 -- exactly as they are today. Converting them is a judgement call about what

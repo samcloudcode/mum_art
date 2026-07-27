@@ -16,6 +16,13 @@
 --   activity_log rows with field_name / old_value / new_value all NULL. The
 --   reset therefore did not record what it overwrote.
 --
+--   FIXED afterwards: describeChanges() now returns per-field detail and both
+--   call sites write one activity_log row per changed field, so a multi-field
+--   update records every before/after. The null-field problem this script works
+--   around applies only to rows logged BEFORE that change — anything from
+--   2026-07-26 onward is directly readable. Kept because the historical rows
+--   are still in the table and this is how to read them.
+--
 -- WHY RECOVERY IS STILL POSSIBLE
 --   Individual ticks go through markStockChecked() / markNeedsReview(), which
 --   update exactly ONE field, so those rows DO carry field_name, old_value,

@@ -37,24 +37,78 @@ async function logActivity(params: {
   })
 }
 
-// Generate human-readable description of changes
+// A single field's before/after, destined for one activity_log row.
+type FieldChange = { fieldName: string; oldValue: string; newValue: string }
+
+// Every field this update actually alters, one entry each.
+//
+// activity_log has flat field_name/old_value/new_value columns, so a row can
+// only ever describe ONE field. Callers therefore write one row per entry here
+// rather than one row per update — see the comment at the updateEdition call
+// site for why that matters.
+//
+// Fields whose value is unchanged are skipped, so a row in the log means that
+// field genuinely moved. Comparison is on the stringified value, which is what
+// gets stored, so null/undefined/'' do not produce phantom changes.
+function fieldChanges(
+  previous: EditionWithRelations,
+  updates: Partial<Edition>,
+  distributorMap: Map<number, Distributor>
+): FieldChange[] {
+  const changes: FieldChange[] = []
+
+  for (const key of Object.keys(updates)) {
+    if (key === 'updated_at') continue
+
+    let fieldName = key
+    let oldValue: string
+    let newValue: string
+
+    if (key === 'distributor_id') {
+      // Log moves as a readable location rather than raw ids. Distributor names
+      // are unique, so this stays losslessly recoverable, and it matches how
+      // every move has been logged since 003_add_activity_log.
+      const newDist = updates.distributor_id ? distributorMap.get(updates.distributor_id) : null
+      fieldName = 'location'
+      oldValue = previous.distributors?.name || 'unassigned'
+      newValue = newDist?.name || 'unassigned'
+    } else {
+      oldValue = String(previous[key as keyof typeof previous] ?? '')
+      newValue = String(updates[key as keyof typeof updates] ?? '')
+    }
+
+    if (oldValue === newValue) continue
+    changes.push({ fieldName, oldValue, newValue })
+  }
+
+  return changes
+}
+
+// Generate human-readable description of changes, plus the per-field detail
+// needed to reconstruct them.
 function describeChanges(
   previous: EditionWithRelations,
   updates: Partial<Edition>,
   distributorMap: Map<number, Distributor>
-): { action: string; description: string; fieldName?: string; oldValue?: string; newValue?: string; relatedEntityType?: string; relatedEntityId?: number; relatedEntityName?: string } {
+): { action: string; description: string; changes: FieldChange[]; relatedEntityType?: string; relatedEntityId?: number; relatedEntityName?: string } {
+  // Every branch below carries the same `changes`. The semantic ones used to
+  // return a description alone, which is why "Marked as sold" recorded nothing
+  // about the date_sold it set — and why a mistyped sale date had no old_value
+  // to revert to.
+  const changes = fieldChanges(previous, updates, distributorMap)
+
   // Check for specific meaningful changes
   if (updates.is_sold === true && !previous.is_sold) {
-    return { action: 'sell', description: 'Marked as sold' }
+    return { action: 'sell', description: 'Marked as sold', changes }
   }
   if (updates.is_sold === false && previous.is_sold) {
-    return { action: 'update', description: 'Unmarked as sold' }
+    return { action: 'update', description: 'Unmarked as sold', changes }
   }
   if (updates.is_settled === true && !previous.is_settled) {
-    return { action: 'settle', description: 'Marked as settled' }
+    return { action: 'settle', description: 'Marked as settled', changes }
   }
   if (updates.is_settled === false && previous.is_settled) {
-    return { action: 'update', description: 'Unmarked as settled' }
+    return { action: 'update', description: 'Unmarked as settled', changes }
   }
   if (updates.distributor_id !== undefined && updates.distributor_id !== previous.distributor_id) {
     const newDist = updates.distributor_id ? distributorMap.get(updates.distributor_id) : null
@@ -62,28 +116,22 @@ function describeChanges(
     return {
       action: 'move',
       description: `Moved from ${oldDist?.name || 'unassigned'} to ${newDist?.name || 'unassigned'}`,
-      fieldName: 'location',
-      oldValue: oldDist?.name || 'unassigned',
-      newValue: newDist?.name || 'unassigned',
+      changes,
       relatedEntityType: 'distributor',
       relatedEntityId: updates.distributor_id || undefined,
       relatedEntityName: newDist?.name,
     }
   }
   if (updates.is_printed === true && !previous.is_printed) {
-    return { action: 'update', description: 'Marked as printed' }
+    return { action: 'update', description: 'Marked as printed', changes }
   }
 
   // Generic field updates
-  const fields = Object.keys(updates).filter(k => k !== 'updated_at')
-  if (fields.length === 1) {
-    const field = fields[0]
-    const oldVal = String(previous[field as keyof typeof previous] ?? '')
-    const newVal = String(updates[field as keyof typeof updates] ?? '')
-    return { action: 'update', description: `Updated ${field}`, fieldName: field, oldValue: oldVal, newValue: newVal }
+  if (changes.length === 1) {
+    return { action: 'update', description: `Updated ${changes[0].fieldName}`, changes }
   }
 
-  return { action: 'update', description: `Updated ${fields.length} fields` }
+  return { action: 'update', description: `Updated ${changes.length} fields`, changes }
 }
 
 type Favoritable = { id: number; name: string; is_favorite?: boolean | null }
@@ -345,21 +393,30 @@ export const useInventoryStore = create<InventoryStore>()(
             return false
           }
 
-          // Log activity (fire and forget - don't block on this)
+          // Log activity (fire and forget - don't block on this).
+          //
+          // One row per changed field. A single row cannot describe a
+          // multi-field update: field_name/old_value/new_value are flat
+          // columns, so such a row records that something changed but not
+          // what. That is what made the 2026-07-26 Kendalls stock-check reset
+          // unrecoverable by inspection — it cleared two fields at once and
+          // logged 51 rows of nulls. See scripts/db/01_diagnose_kendalls_reset.sql.
           const changeInfo = describeChanges(previous, updates, state._distributorMap)
-          logActivity({
-            action: changeInfo.action,
-            entityType: 'edition',
-            entityId: id,
-            entityName: previous.edition_display_name,
-            fieldName: changeInfo.fieldName,
-            oldValue: changeInfo.oldValue,
-            newValue: changeInfo.newValue,
-            description: changeInfo.description,
-            relatedEntityType: changeInfo.relatedEntityType,
-            relatedEntityId: changeInfo.relatedEntityId,
-            relatedEntityName: changeInfo.relatedEntityName,
-          }).catch(console.error)
+          for (const change of changeInfo.changes) {
+            logActivity({
+              action: changeInfo.action,
+              entityType: 'edition',
+              entityId: id,
+              entityName: previous.edition_display_name,
+              fieldName: change.fieldName,
+              oldValue: change.oldValue,
+              newValue: change.newValue,
+              description: changeInfo.description,
+              relatedEntityType: changeInfo.relatedEntityType,
+              relatedEntityId: changeInfo.relatedEntityId,
+              relatedEntityName: changeInfo.relatedEntityName,
+            }).catch(console.error)
+          }
 
           set({ isSaving: stillSaving, savingIds: updatedSavingIds })
           return true
@@ -444,22 +501,28 @@ export const useInventoryStore = create<InventoryStore>()(
             return false
           }
 
-          // Log activity for each edition (fire and forget)
+          // Log activity for each edition, one row per changed field (fire and
+          // forget). `updates` is shared across the batch but `previous` is
+          // not, so each edition logs only the fields that moved for it — a
+          // gallery reset no longer writes rows for editions that were already
+          // clear.
           for (const { previous } of targets) {
             const changeInfo = describeChanges(previous, updates, state._distributorMap)
-            logActivity({
-              action: changeInfo.action,
-              entityType: 'edition',
-              entityId: previous.id,
-              entityName: previous.edition_display_name,
-              fieldName: changeInfo.fieldName,
-              oldValue: changeInfo.oldValue,
-              newValue: changeInfo.newValue,
-              description: `${changeInfo.description} (bulk update of ${targets.length} editions)`,
-              relatedEntityType: changeInfo.relatedEntityType,
-              relatedEntityId: changeInfo.relatedEntityId,
-              relatedEntityName: changeInfo.relatedEntityName,
-            }).catch(console.error)
+            for (const change of changeInfo.changes) {
+              logActivity({
+                action: changeInfo.action,
+                entityType: 'edition',
+                entityId: previous.id,
+                entityName: previous.edition_display_name,
+                fieldName: change.fieldName,
+                oldValue: change.oldValue,
+                newValue: change.newValue,
+                description: `${changeInfo.description} (bulk update of ${targets.length} editions)`,
+                relatedEntityType: changeInfo.relatedEntityType,
+                relatedEntityId: changeInfo.relatedEntityId,
+                relatedEntityName: changeInfo.relatedEntityName,
+              }).catch(console.error)
+            }
           }
 
           set({ isSaving: stillSaving, savingIds: updatedSavingIds })

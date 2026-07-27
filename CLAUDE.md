@@ -18,8 +18,13 @@ Art print inventory management system for tracking fine art editions as they mov
 ### Connection
 ```bash
 # Set in .env (see .env.example)
-DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:6543/postgres
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
 ```
+
+Port 5432 is the direct connection and is what the working setup uses. Port 6543
+on the same host is the transaction pooler; it also works, but keeps no session
+state between statements. An exported `DATABASE_URL` beats `.env`, so a script
+can be pointed at a test database without editing files.
 
 ### Tables
 Row counts are order-of-magnitude only — they drift with every import. Query the
@@ -47,7 +52,7 @@ cleared the guesses. A blank size means nobody has measured that edition.
 
 ```bash
 # Install dependencies
-uv pip install
+uv sync
 
 # Import data from CSV to Supabase
 echo "IMPORT" | uv run python smart_import.py

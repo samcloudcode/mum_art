@@ -36,7 +36,7 @@ import { PrintStatusSelect, SaleStatusSelect } from './edition-status-selects'
 import { EditionInlineCell } from './edition-inline-cell'
 import { EditionExpandableRow } from './edition-expandable-row'
 import type { EditionWithRelations, Distributor, EditionUpdate } from '@/lib/types'
-import { formatPrice, formatDate } from '@/lib/utils'
+import { formatPrice, formatDate, isArtistProof } from '@/lib/utils'
 
 type ColumnKey = 'editionNumber' | 'edition' | 'artwork' | 'variation' | 'size' | 'frame' | 'location' | 'price' | 'printed' | 'sale' | 'dateSold' | 'dateInGallery' | 'actions'
 
@@ -245,7 +245,13 @@ const EditionTableRow = memo(function EditionTableRow({
       )}
       {columns.includes('editionNumber') && (
         <TableCell className="font-serif text-base tabular-nums text-foreground">
-          {edition.edition_number ?? '-'}
+          {edition.edition_number == null
+            ? '-'
+            /* An AP's number is its own sequence, so "1" alone would be
+               indistinguishable from numbered edition 1. */
+            : isArtistProof(edition)
+              ? <span className="whitespace-nowrap">AP {edition.edition_number}</span>
+              : edition.edition_number}
         </TableCell>
       )}
       {columns.includes('edition') && (

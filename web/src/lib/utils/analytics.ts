@@ -1,4 +1,5 @@
 import type { EditionWithRelations, Print, Distributor } from '@/lib/types'
+import { isArtistProof } from '@/lib/utils'
 
 // ============================================================================
 // Types
@@ -152,10 +153,15 @@ function daysBetween(start: string | null, end: string | null): number | null {
 }
 
 /**
- * Check if an edition should be counted in analytics
- * Excludes edition 0 and negative editions (artist proofs, test prints, etc.)
+ * Check if an edition should be counted in analytics.
+ *
+ * Excludes artist's proofs, which sit outside the numbered run. Proofs used to
+ * be identified by a negative edition number; they now carry edition_type='ap'
+ * and a positive number, so the type is what excludes them. The `> 0` test is
+ * still needed for the handful of legacy edition-zero rows.
  */
 function shouldCountEdition(edition: EditionWithRelations): boolean {
+  if (isArtistProof(edition)) return false
   return edition.edition_number != null && edition.edition_number > 0
 }
 

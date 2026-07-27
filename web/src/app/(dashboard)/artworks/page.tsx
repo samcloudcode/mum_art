@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ArtworkImage } from '@/components/artwork-image'
 import { ImagePlaceholderIcon, SearchIcon, ExternalLinkIcon } from '@/components/ui/icons'
 import { Plus, Star } from 'lucide-react'
+import { isArtistProof, editionDisplayName } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,6 +34,7 @@ type PrintStats = {
   sold: number
   inStock: number
   unsettled: number
+  proofs: number
   locationStock: LocationStock[]
 }
 
@@ -98,7 +100,10 @@ export default function ArtworksPage() {
         airtable_id: `${airtableId}_${i + 1}`,
         print_id: print.id,
         edition_number: i + 1,
-        edition_display_name: `${newArtwork.name.trim()} ${i + 1}/${totalEditions}`,
+        // Was `${name} ${n}/${total}` here while the importer wrote `${name} - ${n}`,
+        // so the app disagreed with itself about an edition's name depending on
+        // how it was created. One helper now decides for everyone.
+        edition_display_name: editionDisplayName(newArtwork.name, i + 1),
         is_printed: false,
         is_sold: false,
         is_settled: false,
@@ -135,8 +140,21 @@ export default function ArtworksPage() {
         sold: 0,
         inStock: 0,
         unsettled: 0,
+        proofs: 0,
         locationStock: [],
       }
+
+      // This card describes the numbered run, so proofs are counted on their own
+      // and excluded from everything else. Mixing them in would break the
+      // arithmetic the card renders: "unprinted" is total - printed, and the
+      // progress bar divides by total, so a printed proof would show negative
+      // unprinted and push sell-through past 100%.
+      if (isArtistProof(edition)) {
+        current.proofs++
+        map.set(edition.print_id, current)
+        return
+      }
+
       current.total++
       if (edition.is_printed) current.printed++
       if (edition.is_sold) {
@@ -307,6 +325,7 @@ export default function ArtworksPage() {
                 sold: 0,
                 inStock: 0,
                 unsettled: 0,
+                proofs: 0,
                 locationStock: [],
               }}
               index={index}
@@ -417,6 +436,14 @@ function ArtworkListItem({
               <span className="stat-value-sm text-muted-foreground/60">{stats.total - stats.printed}</span>
               <span className="text-xs uppercase tracking-wider text-muted-foreground">unprinted</span>
             </div>
+            {stats.proofs > 0 && (
+              <div className="flex items-baseline gap-1.5">
+                <span className="stat-value-sm text-muted-foreground/60">{stats.proofs}</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                  AP{stats.proofs === 1 ? '' : 's'}
+                </span>
+              </div>
+            )}
             {stats.unsettled > 0 && (
               <div className="flex items-baseline gap-1.5">
                 <span className="stat-value-sm text-coral">{stats.unsettled}</span>

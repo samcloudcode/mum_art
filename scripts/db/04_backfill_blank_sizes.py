@@ -45,8 +45,13 @@ from pathlib import Path
 
 try:
     import psycopg2
+    from dotenv import load_dotenv
 except ImportError:
     sys.exit("psycopg2 missing. Run via `uv run python`, or `uv pip install psycopg2-binary`.")
+
+# Not override=True, unlike db/manager.py: an exported DATABASE_URL must be able
+# to beat .env, so pointing these writes at a test database actually works.
+load_dotenv()
 
 # The export smart_import.py actually loads (see smart_import.py:43).
 DEFAULT_CSV = Path("airtable_export/Editions-1 Jan 2026 export.csv")

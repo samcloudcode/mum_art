@@ -12,21 +12,28 @@ WHY
     None, but rows imported under the old behaviour still carry the guess.
 
 HOW A GUESS IS IDENTIFIED
-    Only from the source export. An edition is treated as guessed when its
-    Airtable row had Size blank or 'Unknown' AND the database still holds
-    'Small'. A row someone has since corrected to Large or Extra Large is left
-    alone, and a row whose source genuinely said 'Small' is never touched.
+    From the source export, minus anything a human has touched. An edition is
+    treated as guessed when its Airtable row had Size blank or 'Unknown', the
+    database still holds 'Small', AND nobody has ever edited that edition's size
+    in the app. A row whose source genuinely said 'Small' is never touched.
+
+    The activity_log exclusion matters in both directions. The editions table's
+    inline editor can set a size to 'Small' (making a real measurement look
+    identical to the import guess) and can also clear one to blank — the '-'
+    option in web/src/components/editions/edition-inline-cell.tsx. Once a human
+    has expressed intent about a row's size, this script cannot second-guess it
+    from the CSV, so it leaves the row alone. That costs a handful of rows that
+    keep a stale guess; the alternative is silently overwriting measurements.
 
 REVERSIBLE
-    The rule is derived from the CSV, not from run-time state, so --rollback
-    recomputes the same set and restores 'Small' to rows currently NULL. No
-    state file to keep.
+    The rule is derived from the CSV plus the log, not from run-time state, so
+    --rollback recomputes the same set and restores 'Small' to rows currently
+    NULL. No state file to keep.
 
-    Caveat: rollback targets NULL rows in that set, so it cannot tell a row this
-    script blanked from one blanked some other way afterwards. Nothing in the UI
-    can produce that today — the size dropdown offers no blank option — but if
-    you do clear a size by hand, roll back before doing so, or that row comes
-    back as 'Small'.
+    Because human-edited rows are excluded from the set, rollback will not
+    resurrect 'Small' on a size someone deliberately blanked. It still cannot
+    tell a row this script blanked from one blanked by some other script
+    afterwards, so roll back before running anything else that clears sizes.
 """
 from __future__ import annotations
 
@@ -84,18 +91,29 @@ def main() -> int:
           ("COMMIT — changes will be applied" if args.commit else "DRY RUN — changes rolled back at the end"))
     print()
 
+    # Any edition whose size a human has edited in the app. Their intent wins
+    # over anything inferable from the CSV, in both directions.
+    HAND_EDITED = """
+        id NOT IN (
+            SELECT entity_id FROM activity_log
+            WHERE entity_type = 'edition'
+              AND field_name ILIKE '%%size%%'
+              AND entity_id IS NOT NULL
+        )
+    """
+
     if args.rollback:
         # Restore only rows this script would have cleared.
-        sql = """
+        sql = f"""
             UPDATE editions SET size = 'Small'
-            WHERE size IS NULL AND airtable_id = ANY(%s)
+            WHERE size IS NULL AND airtable_id = ANY(%s) AND {HAND_EDITED}
             RETURNING id, edition_display_name
         """
     else:
         # Clear only rows still holding the guess.
-        sql = """
+        sql = f"""
             UPDATE editions SET size = NULL
-            WHERE size = 'Small' AND airtable_id = ANY(%s)
+            WHERE size = 'Small' AND airtable_id = ANY(%s) AND {HAND_EDITED}
             RETURNING id, edition_display_name
         """
 
@@ -111,6 +129,15 @@ def main() -> int:
             print("current state of those editions in the database:")
             for size, count in cur.fetchall():
                 print(f"  {size if size is not None else '(blank)':<12} {count}")
+            print()
+
+            # Say what the exclusion costs, so it never silently drops rows.
+            cur.execute(
+                f"SELECT count(*) FROM editions WHERE airtable_id = ANY(%s) AND NOT ({HAND_EDITED})",
+                (list(ids),),
+            )
+            skipped = cur.fetchone()[0]
+            print(f"skipped — size edited by hand, human intent wins: {skipped}")
             print()
 
             cur.execute(sql, (list(ids),))

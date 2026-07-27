@@ -29,6 +29,7 @@ DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:6543/post
 | editions | 7,879 | Individual physical prints |
 | sync_logs | - | Import audit trail |
 | profiles | - | User profiles (for auth) |
+| activity_log | - | Audit trail of user changes; one row per changed field |
 
 ### Key Relationships
 - One Print -> Many Editions
@@ -46,6 +47,9 @@ echo "IMPORT" | uv run python smart_import.py
 
 # Check database stats
 uv run python main.py db stats
+
+# Run a one-off SQL script (dry run by default; --commit to apply)
+uv run python scripts/db/run_sql.py scripts/db/<script>.sql
 ```
 
 ## Frontend (Next.js)
@@ -63,6 +67,12 @@ vercel link --cwd web
 
 **Important:** The Next.js app lives in `web/`. Always use `--cwd web` when running Vercel CLI commands from the project root.
 
+**Important:** `web/.env.local` points at the production Supabase project
+(`jfgoonjqdspogbkjpgcb`) — the same database `scripts/db/` operates on. `npm run
+dev` therefore reads and **writes live inventory**: a stock-check tick, bulk edit
+or gallery reset against localhost changes real data. There is no staging
+database.
+
 ## Project Structure
 
 ```
@@ -75,6 +85,7 @@ mum_art/
 ├── supabase/           # Database migrations
 │   └── migrations/     # SQL schema files
 ├── planning/           # Project requirements (PRP docs)
+├── scripts/db/         # One-off SQL fixes + dry-run runner (see its README)
 ├── smart_import.py     # Main import script
 └── main.py             # CLI for database operations
 ```

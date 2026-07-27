@@ -56,8 +56,8 @@ output cap.
 | `01_diagnose_kendalls_reset.sql` | no | What the Kendalls stock-check reset destroyed, and how much of it is recoverable from `activity_log`. |
 | `02_restore_kendalls_stock_check.sql` | yes | Restores it, using the last explicit per-edition intent in the log. Additive and idempotent. |
 | `03_find_bad_sale_dates.sql` | no | Finds the out-of-range `date_sold` behind the "-6657898 days ago" dashboard stat. |
-| `04_fix_bad_sale_dates.sql` | yes | Corrects the two mistyped-year dates 03 finds. Guarded on the value still being out of range, so re-running is a no-op. |
 | `04_backfill_blank_sizes.py` | yes | Clears the 'Small' that old imports guessed for unmeasured editions. Own CLI, not run via `run_sql.py`, because it reads the source export to tell a guess from a real measurement. Reversible with `--rollback`. |
+| `05_fix_bad_sale_dates.sql` | yes | Corrects the two mistyped-year dates 03 finds. Guarded on the value still being out of range, so re-running is a no-op. |
 
 ### Gotcha: five-digit years crash the runner
 

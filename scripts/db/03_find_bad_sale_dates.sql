@@ -68,4 +68,4 @@ ORDER BY al.entity_id, al.created_at DESC;
 
 -- 3. Correcting a row is a separate, reviewable script: the intended date is a
 --    human decision the log cannot make for you, so it does not belong in a
---    diagnosis file. See 04_fix_bad_sale_dates.sql.
+--    diagnosis file. See 05_fix_bad_sale_dates.sql.

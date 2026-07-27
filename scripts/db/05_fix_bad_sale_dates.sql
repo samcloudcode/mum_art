@@ -3,10 +3,10 @@
 -- ============================================================================
 --
 -- Dry run first — this prints what it would change and rolls back:
---   uv run python scripts/db/run_sql.py scripts/db/04_fix_bad_sale_dates.sql
+--   uv run python scripts/db/run_sql.py scripts/db/05_fix_bad_sale_dates.sql
 --
 -- Then apply:
---   uv run python scripts/db/run_sql.py scripts/db/04_fix_bad_sale_dates.sql --commit
+--   uv run python scripts/db/run_sql.py scripts/db/05_fix_bad_sale_dates.sql --commit
 --
 -- Run 03_find_bad_sale_dates.sql first to confirm these are still the only two
 -- bad rows.

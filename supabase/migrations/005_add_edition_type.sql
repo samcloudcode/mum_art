@@ -55,29 +55,16 @@ CREATE INDEX IF NOT EXISTS idx_editions_edition_type
 
 
 -- ============================================================================
--- The edition-zero rows — HANDLED IN 006, not here
+-- The unnumbered rows — HANDLED IN 006, not here
 -- ============================================================================
--- 006_reclassify_edition_zero_proofs.sql converts the printed ones to proofs
--- and leaves the unprinted Osborne placeholder alone. Kept below for context.
--- ============================================================================
--- These predate the negative convention and are left as numbered edition 0,
--- exactly as they are today. Converting them is a judgement call about what
--- they represent, so it is yours to make rather than this migration's:
+-- An earlier draft of this note described them as "edition zero" rows and
+-- guessed at what they were. Checked against the database and the source
+-- export, both details were wrong: the importer stores a blank Print Edition
+-- as NULL rather than 0, and the Osborne row that looked like a stray
+-- placeholder is marked `Variation: AP` in the export — an artist's proof
+-- that has not been printed yet.
 --
---   Corby - 0          Notes field literally says "ap". Sold via Kendalls,
---                      £240. Almost certainly an artist's proof that never got
---                      a negative number.
---   Classics - 0  (x2) Both printed and sold at £90, different galleries.
---                      Real sales that were never numbered.
---   Yarmouth Pier - 0  Printed, unsold, £225, DIRECT OLD. A real print.
---   Osborne - 0        Empty: not printed, not sold, no gallery, no price.
---                      Looks like a stray placeholder row.
---
--- To reclassify the Corby row once you have confirmed it, adjusting the number
--- to whatever AP it should be:
---
---   UPDATE editions SET edition_type = 'ap', edition_number = 1
---   WHERE id = (SELECT e.id FROM editions e
---               JOIN prints p ON p.id = e.print_id
---               WHERE p.name = 'Corby' AND e.edition_number = 0);
+-- There are six such proofs, not four, and 006 converts all six. See that file
+-- for the per-row evidence. A further 22 NULL-numbered rows carry no data at
+-- all and are left alone by both migrations.
 -- ============================================================================

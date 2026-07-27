@@ -159,6 +159,26 @@ function shouldCountEdition(edition: EditionWithRelations): boolean {
   return edition.edition_number != null && edition.edition_number > 0
 }
 
+/**
+ * Lowest edition number not yet printed — the next one to produce.
+ *
+ * Skips artist proofs and test prints (edition 0 and below) and rows with no
+ * edition number, none of which are "next" in any useful sense. Treats a null
+ * is_printed as unprinted, matching how the rest of the app counts it.
+ * Returns null when every countable edition has been printed.
+ */
+export function nextUnprintedEditionNumber(
+  editions: EditionWithRelations[]
+): number | null {
+  let next: number | null = null
+  for (const edition of editions) {
+    if (edition.is_printed || !shouldCountEdition(edition)) continue
+    const number = edition.edition_number as number
+    if (next === null || number < next) next = number
+  }
+  return next
+}
+
 // ============================================================================
 // Core Analytics Functions
 // ============================================================================

@@ -170,6 +170,7 @@ export type Database = {
           id: number
           image_urls: string[] | null
           is_active: boolean | null
+          is_favorite: boolean | null
           last_synced_at: string | null
           name: string
           notes: string | null
@@ -186,6 +187,7 @@ export type Database = {
           id?: number
           image_urls?: string[] | null
           is_active?: boolean | null
+          is_favorite?: boolean | null
           last_synced_at?: string | null
           name: string
           notes?: string | null
@@ -202,6 +204,7 @@ export type Database = {
           id?: number
           image_urls?: string[] | null
           is_active?: boolean | null
+          is_favorite?: boolean | null
           last_synced_at?: string | null
           name?: string
           notes?: string | null

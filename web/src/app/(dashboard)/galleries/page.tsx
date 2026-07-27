@@ -10,16 +10,9 @@ import { Button } from '@/components/ui/button'
 export default function GalleriesPage() {
   const { distributors, allEditions, isReady, toggleDistributorFavorite } = useInventory()
 
-  // Sort distributors: favorites first, then alphabetically
-  const sortedDistributors = useMemo(() => {
-    return [...distributors].sort((a, b) => {
-      // Favorites first
-      if (a.is_favorite && !b.is_favorite) return -1
-      if (!a.is_favorite && b.is_favorite) return 1
-      // Then alphabetically by name
-      return a.name.localeCompare(b.name)
-    })
-  }, [distributors])
+  // Already favourites-first then alphabetical — the store sorts on load and on
+  // every toggle, so this page no longer sorts for itself.
+  const sortedDistributors = distributors
 
   // Calculate stats per distributor
   const statsMap = useMemo(() => {

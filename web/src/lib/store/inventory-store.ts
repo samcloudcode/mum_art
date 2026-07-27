@@ -86,6 +86,45 @@ function describeChanges(
   return { action: 'update', description: `Updated ${fields.length} fields` }
 }
 
+type Favoritable = { id: number; name: string; is_favorite?: boolean | null }
+
+/**
+ * Favourites first, then alphabetical.
+ *
+ * Applied where the data enters the store so every consumer inherits the order.
+ * The dropdowns each build their own option list from these arrays and none of
+ * them sort, so ordering here is what puts favourites on top everywhere.
+ */
+function favoritesFirst<T extends Favoritable>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    if (!!a.is_favorite !== !!b.is_favorite) return a.is_favorite ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+}
+
+/**
+ * Optimistic favourite flip, shared by the print and distributor toggles.
+ * Returns the re-sorted list and an updated lookup map, or null if id is absent.
+ */
+function applyFavorite<T extends Favoritable>(
+  items: T[],
+  map: Map<number, T>,
+  id: number,
+  isFavorite: boolean
+): { items: T[]; map: Map<number, T> } | null {
+  const index = items.findIndex((item) => item.id === id)
+  if (index === -1) return null
+
+  const updated = { ...items[index], is_favorite: isFavorite, updated_at: new Date().toISOString() }
+  const nextItems = [...items]
+  nextItems[index] = updated
+
+  const nextMap = new Map(map)
+  nextMap.set(id, updated)
+
+  return { items: favoritesFirst(nextItems), map: nextMap }
+}
+
 // Lookup maps for O(1) access
 type PrintMap = Map<number, Print>
 type DistributorMap = Map<number, Distributor>
@@ -122,6 +161,7 @@ interface InventoryStore {
   updateEdition: (id: number, updates: Partial<Edition>) => Promise<boolean>
   updateEditions: (ids: number[], updates: Partial<Edition>) => Promise<boolean>
   toggleDistributorFavorite: (id: number) => Promise<boolean>
+  togglePrintFavorite: (id: number) => Promise<boolean>
   isEditionSaving: (id: number) => boolean
 }
 
@@ -174,8 +214,11 @@ export const useInventoryStore = create<InventoryStore>()(
             if (printsRes.error) throw printsRes.error
             if (distributorsRes.error) throw distributorsRes.error
 
-            const prints = printsRes.data
-            const distributors = distributorsRes.data
+            // Server orders by name; re-sort so favourites lead. Every dropdown
+            // renders these arrays as-is, so this is the single place that
+            // decides dropdown order.
+            const prints = favoritesFirst(printsRes.data)
+            const distributors = favoritesFirst(distributorsRes.data)
 
             // Build lookup maps first for O(1) joins
             const printMap = new Map(prints.map((p) => [p.id, p]))
@@ -425,31 +468,15 @@ export const useInventoryStore = create<InventoryStore>()(
 
         toggleDistributorFavorite: async (id) => {
           const state = get()
-          const index = state.distributors.findIndex((d) => d.id === id)
-          if (index === -1) return false
+          const previous = state._distributorMap.get(id)
+          if (!previous) return false
 
-          const previous = state.distributors[index]
           const newIsFavorite = !previous.is_favorite
+          const next = applyFavorite(state.distributors, state._distributorMap, id, newIsFavorite)
+          if (!next) return false
 
-          // Optimistic update
-          const newDistributors = [...state.distributors]
-          newDistributors[index] = {
-            ...previous,
-            is_favorite: newIsFavorite,
-            updated_at: new Date().toISOString(),
-          }
+          set({ distributors: next.items, _distributorMap: next.map, isSaving: true })
 
-          // Update the map as well
-          const newDistributorMap = new Map(state._distributorMap)
-          newDistributorMap.set(id, newDistributors[index])
-
-          set({
-            distributors: newDistributors,
-            _distributorMap: newDistributorMap,
-            isSaving: true,
-          })
-
-          // Sync to server
           const supabase = createClient()
           const { error } = await supabase
             .from('distributors')
@@ -457,19 +484,64 @@ export const useInventoryStore = create<InventoryStore>()(
             .eq('id', id)
 
           if (error) {
-            // Rollback
-            const rollback = [...get().distributors]
-            rollback[index] = previous
-            const rollbackMap = new Map(get()._distributorMap)
-            rollbackMap.set(id, previous)
-            set({ distributors: rollback, _distributorMap: rollbackMap, isSaving: false })
+            const rolled = applyFavorite(
+              get().distributors, get()._distributorMap, id, !!previous.is_favorite
+            )
+            set({
+              distributors: rolled ? rolled.items : get().distributors,
+              _distributorMap: rolled ? rolled.map : get()._distributorMap,
+              isSaving: false,
+            })
             return false
           }
 
-          // Log activity
           logActivity({
             action: 'update',
             entityType: 'distributor',
+            entityId: id,
+            entityName: previous.name,
+            fieldName: 'is_favorite',
+            oldValue: String(previous.is_favorite),
+            newValue: String(newIsFavorite),
+            description: newIsFavorite ? 'Added to favorites' : 'Removed from favorites',
+          }).catch(console.error)
+
+          set({ isSaving: false })
+          return true
+        },
+
+        togglePrintFavorite: async (id) => {
+          const state = get()
+          const previous = state._printMap.get(id)
+          if (!previous) return false
+
+          const newIsFavorite = !previous.is_favorite
+          const next = applyFavorite(state.prints, state._printMap, id, newIsFavorite)
+          if (!next) return false
+
+          set({ prints: next.items, _printMap: next.map, isSaving: true })
+
+          const supabase = createClient()
+          const { error } = await supabase
+            .from('prints')
+            .update({ is_favorite: newIsFavorite, updated_at: new Date().toISOString() })
+            .eq('id', id)
+
+          if (error) {
+            const rolled = applyFavorite(
+              get().prints, get()._printMap, id, !!previous.is_favorite
+            )
+            set({
+              prints: rolled ? rolled.items : get().prints,
+              _printMap: rolled ? rolled.map : get()._printMap,
+              isSaving: false,
+            })
+            return false
+          }
+
+          logActivity({
+            action: 'update',
+            entityType: 'print',
             entityId: id,
             entityName: previous.name,
             fieldName: 'is_favorite',

@@ -12,6 +12,7 @@ import { editionStatusStyles } from '@/lib/utils/badge-styles'
 import { EditionsTableWithFilters } from '@/components/editions/editions-table-with-filters'
 import { artworkEditionsPreset } from '@/lib/editions-presets'
 import { ArtworkImageSection } from '@/components/artwork-image-section'
+import { nextUnprintedEditionNumber } from '@/lib/utils/analytics'
 import { Loader2, Check } from 'lucide-react'
 import {
   BarChart,
@@ -57,7 +58,8 @@ export default function ArtworkDetailPage({ params }: PageProps) {
     const settled = editions.filter((e) => e.is_settled).length
     const inStock = editions.filter((e) => e.is_printed && !e.is_sold).length
     const remaining = total - sold // Total unsold editions
-    return { total, printed, sold, settled, inStock, remaining }
+    const nextUnprinted = nextUnprintedEditionNumber(editions)
+    return { total, printed, sold, settled, inStock, remaining, nextUnprinted }
   }, [editions])
 
   // Calculate revenue
@@ -312,6 +314,11 @@ export default function ArtworkDetailPage({ params }: PageProps) {
           <CardContent>
             <p className="text-xs text-gray-500">
               {stats.printed} printed, {stats.total - stats.printed} unprinted
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {stats.nextUnprinted !== null
+                ? <>Next to print: <span className="font-serif text-foreground">#{stats.nextUnprinted}</span></>
+                : 'All editions printed'}
             </p>
           </CardContent>
         </Card>

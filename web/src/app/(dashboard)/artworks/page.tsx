@@ -6,7 +6,7 @@ import { useInventory } from '@/lib/hooks/use-inventory'
 import { createClient } from '@/lib/supabase/client'
 import { ArtworkImage } from '@/components/artwork-image'
 import { ImagePlaceholderIcon, SearchIcon, ExternalLinkIcon } from '@/components/ui/icons'
-import { Plus } from 'lucide-react'
+import { Plus, Star } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,7 +37,7 @@ type PrintStats = {
 }
 
 export default function ArtworksPage() {
-  const { prints, allEditions, isReady, refresh } = useInventory()
+  const { prints, allEditions, isReady, refresh, togglePrintFavorite } = useInventory()
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
@@ -310,6 +310,7 @@ export default function ArtworksPage() {
                 locationStock: [],
               }}
               index={index}
+              onToggleFavorite={togglePrintFavorite}
             />
           ))
         )}
@@ -322,10 +323,12 @@ function ArtworkListItem({
   print,
   stats,
   index,
+  onToggleFavorite,
 }: {
   print: Print
   stats: PrintStats
   index: number
+  onToggleFavorite: (id: number) => void
 }) {
   const sellThrough = stats.total > 0 ? Math.round((stats.sold / stats.total) * 100) : 0
   const staggerClass = `stagger-${(index % 4) + 1}`
@@ -370,12 +373,34 @@ function ArtworkListItem({
               </p>
             </div>
 
-            {/* Web link indicator */}
-            {print.web_link && (
-              <span className="flex-shrink-0 text-muted-foreground/50 group-hover:text-accent/70 transition-colors">
-                <ExternalLinkIcon className="w-4 h-4" />
-              </span>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Web link indicator */}
+              {print.web_link && (
+                <span className="text-muted-foreground/50 group-hover:text-accent/70 transition-colors">
+                  <ExternalLinkIcon className="w-4 h-4" />
+                </span>
+              )}
+
+              {/* Favourite toggle — pins this artwork to the top of dropdowns */}
+              <button
+                onClick={(e) => {
+                  // The whole card is a Link; keep the star from navigating.
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onToggleFavorite(print.id)
+                }}
+                className="p-1.5 rounded-full hover:bg-muted/50 transition-colors"
+                title={print.is_favorite ? 'Remove from favourites' : 'Add to favourites'}
+              >
+                <Star
+                  className={`w-4 h-4 transition-colors ${
+                    print.is_favorite
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-muted-foreground/40 hover:text-muted-foreground'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Stats row */}

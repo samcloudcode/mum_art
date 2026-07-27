@@ -96,7 +96,7 @@ type EditionTableRowProps = {
   enableInlineEdit: boolean
   columns: ColumnKey[]
   sizeOptions: Array<{ value: string; label: string }>
-  distributorOptions: Array<{ value: number; label: string }>
+  distributorOptions: Array<{ value: number; label: string; isFavorite?: boolean }>
   onToggleSelect: (id: number) => void
   onToggleExpand: (id: number) => void
   onInlineSave: (id: number, field: string, value: unknown) => Promise<boolean>
@@ -658,8 +658,9 @@ export function EditionsDataTable({
     [sizes]
   )
 
+  // Order comes from the store (favourites first); isFavorite drives the star.
   const distributorOptions = useMemo(
-    () => distributors.map((d) => ({ value: d.id, label: d.name })),
+    () => distributors.map((d) => ({ value: d.id, label: d.name, isFavorite: !!d.is_favorite })),
     [distributors]
   )
 

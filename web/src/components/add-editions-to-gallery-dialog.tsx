@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import type { EditionWithRelations } from '@/lib/types'
+import { compareEditions } from '@/lib/utils'
 
 type Props = {
   distributorId: number
@@ -104,7 +105,7 @@ export function AddEditionsToGalleryDialog({
       .map(([name, editions]) => ({
         artworkName: name,
         editions: editions.sort(
-          (a, b) => (a.edition_number || 0) - (b.edition_number || 0)
+          compareEditions
         ),
       }))
 

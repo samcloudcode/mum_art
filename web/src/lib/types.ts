@@ -70,6 +70,7 @@ export type Database = {
           distributor_id: number | null
           edition_display_name: string
           edition_number: number | null
+          edition_type: string | null
           frame_type: string | null
           id: number
           is_active: boolean | null
@@ -98,6 +99,7 @@ export type Database = {
           distributor_id?: number | null
           edition_display_name: string
           edition_number?: number | null
+          edition_type?: string | null
           frame_type?: string | null
           id?: number
           is_active?: boolean | null
@@ -126,6 +128,7 @@ export type Database = {
           distributor_id?: number | null
           edition_display_name?: string
           edition_number?: number | null
+          edition_type?: string | null
           frame_type?: string | null
           id?: number
           is_active?: boolean | null
@@ -170,6 +173,7 @@ export type Database = {
           id: number
           image_urls: string[] | null
           is_active: boolean | null
+          is_favorite: boolean | null
           last_synced_at: string | null
           name: string
           notes: string | null
@@ -186,6 +190,7 @@ export type Database = {
           id?: number
           image_urls?: string[] | null
           is_active?: boolean | null
+          is_favorite?: boolean | null
           last_synced_at?: string | null
           name: string
           notes?: string | null
@@ -202,6 +207,7 @@ export type Database = {
           id?: number
           image_urls?: string[] | null
           is_active?: boolean | null
+          is_favorite?: boolean | null
           last_synced_at?: string | null
           name?: string
           notes?: string | null

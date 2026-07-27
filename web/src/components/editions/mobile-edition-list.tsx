@@ -49,7 +49,7 @@ export function MobileEditionList({
   isSaving = false,
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [page, setPage] = useState(1)
+  const [rawPage, setPage] = useState(1)
   const [showMoveDialog, setShowMoveDialog] = useState(false)
   const [moveToDistributorId, setMoveToDistributorId] = useState('')
   const [moveDate, setMoveDate] = useState(new Date().toISOString().split('T')[0])
@@ -57,7 +57,12 @@ export function MobileEditionList({
   const [isSelectMode, setIsSelectMode] = useState(false)
 
   // Pagination
-  const totalPages = Math.ceil(editions.length / pageSize)
+  const totalPages = Math.max(1, Math.ceil(editions.length / pageSize))
+
+  // This list has no filter-driven reset, so a filter that shrinks the results
+  // could otherwise strand the user on an empty out-of-range page. Clamped
+  // during render to avoid a corrective setState.
+  const page = Math.min(rawPage, totalPages)
   const startIndex = (page - 1) * pageSize
   const paginatedEditions = useMemo(
     () => editions.slice(startIndex, startIndex + pageSize),

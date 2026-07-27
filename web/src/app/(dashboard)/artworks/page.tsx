@@ -6,7 +6,8 @@ import { useInventory } from '@/lib/hooks/use-inventory'
 import { createClient } from '@/lib/supabase/client'
 import { ArtworkImage } from '@/components/artwork-image'
 import { ImagePlaceholderIcon, SearchIcon, ExternalLinkIcon } from '@/components/ui/icons'
-import { Plus } from 'lucide-react'
+import { Plus, Star } from 'lucide-react'
+import { isArtistProof, editionDisplayName } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,11 +34,12 @@ type PrintStats = {
   sold: number
   inStock: number
   unsettled: number
+  proofs: number
   locationStock: LocationStock[]
 }
 
 export default function ArtworksPage() {
-  const { prints, allEditions, isReady, refresh } = useInventory()
+  const { prints, allEditions, isReady, refresh, togglePrintFavorite } = useInventory()
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
@@ -98,7 +100,10 @@ export default function ArtworksPage() {
         airtable_id: `${airtableId}_${i + 1}`,
         print_id: print.id,
         edition_number: i + 1,
-        edition_display_name: `${newArtwork.name.trim()} ${i + 1}/${totalEditions}`,
+        // Was `${name} ${n}/${total}` here while the importer wrote `${name} - ${n}`,
+        // so the app disagreed with itself about an edition's name depending on
+        // how it was created. One helper now decides for everyone.
+        edition_display_name: editionDisplayName(newArtwork.name, i + 1),
         is_printed: false,
         is_sold: false,
         is_settled: false,
@@ -135,8 +140,21 @@ export default function ArtworksPage() {
         sold: 0,
         inStock: 0,
         unsettled: 0,
+        proofs: 0,
         locationStock: [],
       }
+
+      // This card describes the numbered run, so proofs are counted on their own
+      // and excluded from everything else. Mixing them in would break the
+      // arithmetic the card renders: "unprinted" is total - printed, and the
+      // progress bar divides by total, so a printed proof would show negative
+      // unprinted and push sell-through past 100%.
+      if (isArtistProof(edition)) {
+        current.proofs++
+        map.set(edition.print_id, current)
+        return
+      }
+
       current.total++
       if (edition.is_printed) current.printed++
       if (edition.is_sold) {
@@ -307,9 +325,11 @@ export default function ArtworksPage() {
                 sold: 0,
                 inStock: 0,
                 unsettled: 0,
+                proofs: 0,
                 locationStock: [],
               }}
               index={index}
+              onToggleFavorite={togglePrintFavorite}
             />
           ))
         )}
@@ -322,10 +342,12 @@ function ArtworkListItem({
   print,
   stats,
   index,
+  onToggleFavorite,
 }: {
   print: Print
   stats: PrintStats
   index: number
+  onToggleFavorite: (id: number) => void
 }) {
   const sellThrough = stats.total > 0 ? Math.round((stats.sold / stats.total) * 100) : 0
   const staggerClass = `stagger-${(index % 4) + 1}`
@@ -370,12 +392,34 @@ function ArtworkListItem({
               </p>
             </div>
 
-            {/* Web link indicator */}
-            {print.web_link && (
-              <span className="flex-shrink-0 text-muted-foreground/50 group-hover:text-accent/70 transition-colors">
-                <ExternalLinkIcon className="w-4 h-4" />
-              </span>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Web link indicator */}
+              {print.web_link && (
+                <span className="text-muted-foreground/50 group-hover:text-accent/70 transition-colors">
+                  <ExternalLinkIcon className="w-4 h-4" />
+                </span>
+              )}
+
+              {/* Favourite toggle — pins this artwork to the top of dropdowns */}
+              <button
+                onClick={(e) => {
+                  // The whole card is a Link; keep the star from navigating.
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onToggleFavorite(print.id)
+                }}
+                className="p-1.5 rounded-full hover:bg-muted/50 transition-colors"
+                title={print.is_favorite ? 'Remove from favourites' : 'Add to favourites'}
+              >
+                <Star
+                  className={`w-4 h-4 transition-colors ${
+                    print.is_favorite
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-muted-foreground/40 hover:text-muted-foreground'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Stats row */}
@@ -392,6 +436,14 @@ function ArtworkListItem({
               <span className="stat-value-sm text-muted-foreground/60">{stats.total - stats.printed}</span>
               <span className="text-xs uppercase tracking-wider text-muted-foreground">unprinted</span>
             </div>
+            {stats.proofs > 0 && (
+              <div className="flex items-baseline gap-1.5">
+                <span className="stat-value-sm text-muted-foreground/60">{stats.proofs}</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                  AP{stats.proofs === 1 ? '' : 's'}
+                </span>
+              </div>
+            )}
             {stats.unsettled > 0 && (
               <div className="flex items-baseline gap-1.5">
                 <span className="stat-value-sm text-coral">{stats.unsettled}</span>

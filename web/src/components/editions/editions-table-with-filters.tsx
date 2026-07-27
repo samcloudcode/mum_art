@@ -234,10 +234,21 @@ export function EditionsTableWithFilters({
     return () => clearTimeout(timeoutId)
   }, [searchTerm, debouncedSearch])
 
+  // Signature of every filter/sort this component owns. Used both to reset its
+  // own card pagination and, via resetKey, the data table's — so that a filter
+  // change returns to page 1 while an inline edit leaves the page alone.
+  const filterSignature = useMemo(
+    () => JSON.stringify([
+      debouncedSearch, artworkFilter, locationFilter,
+      sizeFilter, frameFilter, printedFilter, soldFilter, sortBy,
+    ]),
+    [debouncedSearch, artworkFilter, locationFilter, sizeFilter, frameFilter, printedFilter, soldFilter, sortBy]
+  )
+
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, artworkFilter, locationFilter, sizeFilter, frameFilter, printedFilter, soldFilter])
+  }, [filterSignature])
 
   // Apply pre-filter first
   const preFiltered = useMemo(
@@ -714,6 +725,7 @@ export function EditionsTableWithFilters({
         showExpandableRows={showExpandableRows}
         enableInlineEdit={enableInlineEdit}
         pageSize={pageSize}
+        resetKey={filterSignature}
         columns={columns}
         onUpdate={update}
         onBulkUpdate={updateMany}

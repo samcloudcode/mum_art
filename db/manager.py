@@ -13,8 +13,11 @@ from dotenv import load_dotenv
 
 from .models import Base, Print, Distributor, Edition, SyncLog
 
-# Override system env vars with .env file
-load_dotenv(override=True)
+# Not override=True: an exported DATABASE_URL has to be able to beat .env, or
+# pointing a sync at a test database silently writes to production instead.
+# (override was added during the Supabase migration to shut out a leftover
+# local-Postgres URL; that transition is long done.)
+load_dotenv()
 
 
 class DatabaseManager:

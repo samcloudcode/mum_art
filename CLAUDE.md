@@ -18,17 +18,30 @@ Art print inventory management system for tracking fine art editions as they mov
 ### Connection
 ```bash
 # Set in .env (see .env.example)
-DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:6543/postgres
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
 ```
 
+Port 5432 is the direct connection and is what the working setup uses. Port 6543
+on the same host is the transaction pooler; it also works, but keeps no session
+state between statements. An exported `DATABASE_URL` beats `.env`, so a script
+can be pointed at a test database without editing files.
+
 ### Tables
-| Table | Records | Description |
-|-------|---------|-------------|
-| prints | 44 | Master catalog of artwork designs |
-| distributors | 23 | Galleries and locations |
-| editions | 7,879 | Individual physical prints |
+Row counts are order-of-magnitude only — they drift with every import. Query the
+database for a real number rather than quoting these.
+
+| Table | Rough size | Description |
+|-------|-----------|-------------|
+| prints | tens | Master catalog of artwork designs |
+| distributors | tens | Galleries and locations |
+| editions | ~8,600 | Individual physical prints |
 | sync_logs | - | Import audit trail |
 | profiles | - | User profiles (for auth) |
+| activity_log | - | Audit trail of user changes; one row per changed field |
+
+About half of `editions.size` is NULL, and that is correct: old imports guessed
+'Small' for anything unmeasured, and `scripts/db/04_backfill_blank_sizes.py`
+cleared the guesses. A blank size means nobody has measured that edition.
 
 ### Key Relationships
 - One Print -> Many Editions
@@ -39,13 +52,13 @@ DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:6543/post
 
 ```bash
 # Install dependencies
-uv pip install
+uv sync
 
 # Import data from CSV to Supabase
 echo "IMPORT" | uv run python smart_import.py
 
-# Check database stats
-uv run python main.py db stats
+# Run a one-off SQL script (dry run by default; --commit to apply)
+uv run python scripts/db/run_sql.py scripts/db/<script>.sql
 ```
 
 ## Frontend (Next.js)
@@ -63,6 +76,12 @@ vercel link --cwd web
 
 **Important:** The Next.js app lives in `web/`. Always use `--cwd web` when running Vercel CLI commands from the project root.
 
+**Important:** `web/.env.local` points at the production Supabase project
+(`jfgoonjqdspogbkjpgcb`) — the same database `scripts/db/` operates on. `npm run
+dev` therefore reads and **writes live inventory**: a stock-check tick, bulk edit
+or gallery reset against localhost changes real data. There is no staging
+database.
+
 ## Project Structure
 
 ```
@@ -75,8 +94,8 @@ mum_art/
 ├── supabase/           # Database migrations
 │   └── migrations/     # SQL schema files
 ├── planning/           # Project requirements (PRP docs)
-├── smart_import.py     # Main import script
-└── main.py             # CLI for database operations
+├── scripts/db/         # One-off SQL fixes + dry-run runner (see its README)
+└── smart_import.py     # Main import script
 ```
 
 ## Key Files

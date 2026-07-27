@@ -25,6 +25,55 @@ export function calculateNetAmount(
   return retailPrice * (1 - commission / 100)
 }
 
+/** An artist's proof sits outside the numbered run and never counts toward it. */
+export const AP = 'ap'
+
+export function isArtistProof(edition: { edition_type?: string | null }): boolean {
+  return edition.edition_type === AP
+}
+
+/**
+ * The canonical name for an edition — "Ducie - 5", or "Ducie AP 1".
+ *
+ * This existed in three different forms before: the importer and db/manager.py
+ * both produce "Name - N", while the artwork-creation dialog produced
+ * "Name N/total", so the app disagreed with itself about what an edition was
+ * called depending on how it was created. "Name - N" wins because it matches
+ * the several thousand rows already imported; changing those to "N/total"
+ * would be a data migration, not a code change.
+ */
+export function editionDisplayName(
+  printName: string,
+  editionNumber: number | null | undefined,
+  editionType: string | null = 'numbered'
+): string {
+  const name = printName.trim()
+  if (editionType === AP) {
+    return editionNumber == null ? `${name} AP` : `${name} AP ${editionNumber}`
+  }
+  return editionNumber == null ? name : `${name} - ${editionNumber}`
+}
+
+/**
+ * Sort order for editions of one artwork: the numbered run first in ascending
+ * order, then the proofs. Replaces `(a.edition_number || 0) - (b.edition_number || 0)`,
+ * which was copy-pasted in three places and coerced a null number to 0, sorting
+ * unnumbered rows to the very front.
+ */
+export function compareEditions(
+  a: { edition_number: number | null; edition_type?: string | null },
+  b: { edition_number: number | null; edition_type?: string | null }
+): number {
+  const aProof = isArtistProof(a)
+  const bProof = isArtistProof(b)
+  if (aProof !== bProof) return aProof ? 1 : -1
+
+  // Nulls last within each group rather than first.
+  if (a.edition_number == null) return b.edition_number == null ? 0 : 1
+  if (b.edition_number == null) return -1
+  return a.edition_number - b.edition_number
+}
+
 /**
  * Format a date string for display
  */

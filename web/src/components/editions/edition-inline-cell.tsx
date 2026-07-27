@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Star } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { feedbackStyles } from '@/lib/utils/badge-styles'
 
@@ -39,7 +39,7 @@ type NumberCellProps = BaseProps & {
 type SelectCellProps = BaseProps & {
   type: 'select'
   value: string | number | null
-  options: { value: string | number; label: string }[]
+  options: { value: string | number; label: string; isFavorite?: boolean }[]
   placeholder?: string
   onSave: (id: number, field: string, value: string | number | null) => Promise<boolean>
 }
@@ -312,7 +312,13 @@ function SelectCell({
           <SelectItem value="__none__">-</SelectItem>
           {options.map((option) => (
             <SelectItem key={option.value} value={String(option.value)}>
-              {option.label}
+              <span className="flex items-center gap-1.5">
+                {/* Favourites are sorted to the top; the star says why */}
+                {option.isFavorite && (
+                  <Star className="w-3 h-3 fill-amber-400 text-amber-400 flex-shrink-0" />
+                )}
+                {option.label}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -404,6 +410,8 @@ function DateCell({ editionId, field, value, onSave, disabled, className }: Date
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
           disabled={isSaving}
+          min="1970-01-01"
+          max={new Date().toISOString().split('T')[0]}
           className={cn('h-7 text-sm', className)}
         />
         {isSaving && (

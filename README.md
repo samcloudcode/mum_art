@@ -4,22 +4,11 @@ Art print inventory management system for tracking fine art editions as they mov
 
 **Frontend:** Next.js + Supabase Auth (in `web/` directory)
 **Backend:** Supabase (PostgreSQL)
-**Data Import:** High-performance migration from Airtable CSV exports
+**Data Import:** Migration from Airtable CSV exports
 
-## Performance
-
-- **Import Speed**: ~250 editions/second (35 seconds for full dataset)
-- **Batch Processing**: 5,000 records per batch with PostgreSQL ON CONFLICT handling
-- **Connection Pooling**: 10 persistent connections for optimal throughput
-- **Smart Deduplication**: Pre-computed duplicate decisions for 76 known conflicts
-
-## Features
-
-- **Optimized Bulk Imports**: Uses PostgreSQL's native bulk insert with ON CONFLICT
-- **Intelligent Data Cleaning**: Standardizes names, currencies, dates, and relationships
-- **Duplicate Handling**: Automatic resolution of duplicate editions via decision matrix
-- **Independent Architecture**: Database management separated from import logic
-- **Full Sync Support**: Complete dataset replacement in under 40 seconds
+> **There is no staging database.** `web/.env.local` and `.env` both point at the
+> production Supabase project. `npm run dev` reads and **writes live inventory**,
+> and so does every script here. See [CLAUDE.md](CLAUDE.md) for the details.
 
 ## Project Structure
 
@@ -32,11 +21,10 @@ mum_art/
 ├── cleaning/                 # Data transformation
 │   └── cleaner.py           # Smart name standardization & validation
 ├── sync/                     # Import engine
-│   ├── importer_smart.py    # Optimized bulk import with ON CONFLICT
-│   └── error_handler.py     # Comprehensive error recovery
-├── airtable_export/         # Source CSV files (8,400+ records)
-├── main.py                  # CLI interface
-└── smart_import.py          # Quick import script
+│   └── importer_smart.py    # Optimized bulk import with ON CONFLICT
+├── scripts/db/               # One-off SQL fixes + dry-run runner (see its README)
+├── airtable_export/         # Source CSV files
+└── smart_import.py          # Import script
 ```
 
 ## Quick Start
@@ -44,29 +32,37 @@ mum_art/
 ### 1. Setup Environment
 
 ```bash
-# Install dependencies
-uv pip install -r requirements.txt
+# Install dependencies (dependencies live in pyproject.toml)
+uv sync
 
 # Configure database
 cp .env.example .env
 # Edit .env with your PostgreSQL connection string
 ```
 
-### 2. Run Full Import
+An exported `DATABASE_URL` takes precedence over `.env`, so you can point any
+script at a test database without editing files.
+
+### 2. Run Import
 
 ```bash
-# Quick import with duplicate handling
 echo "IMPORT" | uv run python smart_import.py
-
-# Or use the CLI
-uv run python main.py sync --mode full
 ```
 
-### 3. Verify Results
+`smart_import.py` prompts for confirmation before writing. It is the only import
+entry point — there is no subcommand CLI.
+
+### 3. Inspect the Data
+
+Live figures are in the app's dashboard. For ad-hoc queries, write a `.sql` file
+and use the runner, which rolls back unless you pass `--commit`:
 
 ```bash
-uv run python main.py db stats
+uv run python scripts/db/run_sql.py path/to/query.sql
 ```
+
+See [scripts/db/README.md](scripts/db/README.md) for conventions on one-off
+scripts, the dry-run guarantees, and the testing fixture.
 
 ## Frontend Development
 
@@ -80,6 +76,8 @@ npm install
 npm run dev
 ```
 
+Remember this talks to the production database.
+
 ### Deploy to Vercel
 
 ```bash
@@ -92,84 +90,40 @@ vercel link --cwd web
 
 **Important:** Always use `--cwd web` when running Vercel CLI from the project root, since the Next.js app is in a subdirectory.
 
-## CLI Commands
-
-### Database Management
-
-```bash
-# Create tables
-uv run python main.py db create
-
-# Show statistics
-uv run python main.py db stats
-
-# Reset database (WARNING: deletes all data)
-uv run python main.py db reset
-```
-
-### Data Import
-
-```bash
-# Full sync (replaces all data) - 35 seconds
-uv run python main.py sync --mode full
-
-# Incremental sync (only updates)
-uv run python main.py sync
-
-# Validate data integrity
-uv run python main.py validate
-```
-
 ## Data Model
 
-### Tables
+| Table | Description |
+|-------|-------------|
+| `prints` | Master catalog of print designs. Standardized names (e.g. "No Man's Fort" not "NoMansFort"), unique on name. |
+| `distributors` | Galleries and sales channels. Commission rates 0–50%. |
+| `editions` | Individual print editions. Each belongs to one print and optional distributor. Tracks sales, pricing and location. |
+| `sync_logs` | Audit trail of sync operations. |
+| `activity_log` | Audit trail of user changes; one row per changed field. |
 
-1. **prints** (44 records)
-   - Master catalog of print designs
-   - Standardized names (e.g., "No Man's Fort" not "NoMansFort")
-   - Unique constraint on name
+Row counts drift with every import — query the database rather than quoting a
+number. `editions.size` is NULL for roughly half of rows, which is correct: old
+imports guessed 'Small' for anything unmeasured and those guesses have since
+been cleared. A blank size means nobody has measured that edition.
 
-2. **distributors** (23 records)
-   - Galleries and sales channels
-   - Commission rates 0-50%
-   - Revenue tracking
+> **Migration 005 is not yet applied to production.** The artist's-proof feature
+> is merged and expects `editions.edition_type`, but the live database has no
+> such column and still identifies APs by a negative `edition_number`. Until
+> `supabase/migrations/005_add_edition_type.sql` runs, "Add artist's proof"
+> fails and AP detection silently treats the 69 existing proofs as numbered
+> editions. Apply it before deploying.
 
-3. **editions** (7,879 valid records)
-   - Individual print editions
-   - Each belongs to one print and optional distributor
-   - Unique constraint on (print_id, edition_number)
-   - Tracks sales, pricing, and location
+## Import Design
 
-4. **sync_logs**
-   - Audit trail of all sync operations
-   - Rollback capability
+- **Bulk inserts** via psycopg2's `execute_values`, 5,000 records per batch.
+- **ON CONFLICT handling** resolves duplicates at the database level.
+- **Connection pooling** maintains 10 persistent connections (overflow 20).
+- **Duplicate decisions** are pre-computed in `duplicate_handling_decisions.csv`;
+  listed `record_id`s are skipped at import. If the file is absent the importer
+  falls back to resolving duplicates dynamically.
+- **Smart cleaning** standardizes names, currencies, dates and relationships
+  before load.
 
-## Key Statistics
-
-- **Total Editions**: 8,326 in source, 7,879 valid after cleaning
-- **Duplicates Handled**: 76 automatically resolved
-- **Missing Prints**: 371 editions skipped (unknown print names)
-- **Sell-through Rate**: 45.9%
-- **Total Revenue**: £579,938
-- **Top Performer**: Lymington (97.1% sell-through)
-
-## Technical Optimizations
-
-1. **Connection Pooling**: Maintains 10 persistent database connections
-2. **Bulk Inserts**: Uses psycopg2's `execute_values` for efficient bulk operations
-3. **ON CONFLICT Handling**: Database-level duplicate resolution
-4. **Batch Processing**: 5,000 records per batch minimizes round trips
-5. **Smart Cleaning**: Pre-compiled regex patterns and cached lookups
-
-## Development
-
-```bash
-# Test data cleaning
-uv run python cleaning/cleaner.py
-
-# Run with custom database URL
-DATABASE_URL=postgresql://... uv run python main.py db stats
-```
+A full import runs in well under a minute.
 
 ## License
 

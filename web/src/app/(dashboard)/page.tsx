@@ -146,19 +146,24 @@ export default function DashboardPage() {
       .slice(0, 5)
   }, [allEditions, prints, distributors])
 
-  // Last sale date
+  // Last sale date. Unparseable and future-dated rows are discarded first: a
+  // single mistyped year (e.g. 20256 for 2025) would otherwise win the sort and
+  // render as a nonsense negative age.
   const lastSaleDate = useMemo(() => {
-    const soldEditions = allEditions
-      .filter(e => e.is_sold && e.date_sold && e.status_confidence !== 'legacy_unknown')
-      .sort((a, b) => new Date(b.date_sold!).getTime() - new Date(a.date_sold!).getTime())
+    const nowMs = new Date().getTime()
 
-    if (soldEditions.length === 0) return null
+    const lastSaleMs = allEditions.reduce((latest, e) => {
+      if (!e.is_sold || !e.date_sold || e.status_confidence === 'legacy_unknown') return latest
+      const t = new Date(e.date_sold).getTime()
+      if (!Number.isFinite(t) || t > nowMs) return latest
+      return t > latest ? t : latest
+    }, -Infinity)
 
-    const lastSale = new Date(soldEditions[0].date_sold!)
-    const now = new Date()
-    const diffDays = Math.floor((now.getTime() - lastSale.getTime()) / (1000 * 60 * 60 * 24))
+    if (lastSaleMs === -Infinity) return null
 
-    if (diffDays === 0) return 'Today'
+    const diffDays = Math.floor((nowMs - lastSaleMs) / (1000 * 60 * 60 * 24))
+
+    if (diffDays <= 0) return 'Today'
     if (diffDays === 1) return 'Yesterday'
     if (diffDays < 7) return `${diffDays} days ago`
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`

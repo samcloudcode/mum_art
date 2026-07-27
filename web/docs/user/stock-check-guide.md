@@ -50,7 +50,11 @@ Any items you flagged will still be visible. Follow up on these - they might ind
 - A data entry error
 
 ### Starting fresh
-Click **Reset** to clear all checkmarks and start a new stock check. This is useful for periodic full inventory counts.
+Click **Reset** to clear all checkmarks and flags for the gallery and start a new stock check. This is useful for periodic full inventory counts.
+
+Two things to know before using it:
+- **There is no undo on the screen.** Every checkmark and flag for that gallery clears at once.
+- **Let the full list load first.** Reset only affects editions the page has loaded, so if you reset before scrolling through the whole gallery, some items keep their checkmarks.
 
 ## Tips
 

@@ -3,7 +3,8 @@
 import { use, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
-import { formatPrice, calculateNetAmount } from '@/lib/utils'
+import { formatPrice, calculateNetAmount, isArtistProof, compareEditions, editionDisplayName } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,7 @@ import { editionStatusStyles } from '@/lib/utils/badge-styles'
 import { EditionsTableWithFilters } from '@/components/editions/editions-table-with-filters'
 import { artworkEditionsPreset } from '@/lib/editions-presets'
 import { ArtworkImageSection } from '@/components/artwork-image-section'
+import { nextUnprintedEditionNumber } from '@/lib/utils/analytics'
 import { Loader2, Check } from 'lucide-react'
 import {
   BarChart,
@@ -37,7 +39,9 @@ export default function ArtworkDetailPage({ params }: PageProps) {
   const [salesTimeFilter, setSalesTimeFilter] = useState<SalesTimeFilter>('all')
   const [selectedUnsettled, setSelectedUnsettled] = useState<Set<number>>(new Set())
   const [isSettling, setIsSettling] = useState(false)
-  const { prints, allEditions, isReady, markSettled } = useInventory()
+  const [isAddingProof, setIsAddingProof] = useState(false)
+  const [addProofError, setAddProofError] = useState<string | null>(null)
+  const { prints, allEditions, isReady, markSettled, refresh } = useInventory()
 
   const print = useMemo(() => prints.find((p) => p.id === parseInt(id)), [prints, id])
 
@@ -45,19 +49,33 @@ export default function ArtworkDetailPage({ params }: PageProps) {
     () =>
       allEditions
         .filter((e) => e.print_id === parseInt(id))
-        .sort((a, b) => (a.edition_number || 0) - (b.edition_number || 0)),
+        .sort(compareEditions),
     [allEditions, id]
   )
 
-  // Calculate stats
+  // Calculate stats.
+  //
+  // Counted over the numbered run only: an artist's proof is not one of the 350,
+  // so including proofs would inflate the edition count and let sell-through
+  // exceed 100%. Proofs are reported separately rather than hidden. Revenue
+  // below is deliberately NOT filtered — a proof that sold is real money.
   const stats = useMemo(() => {
-    const total = editions.length
-    const printed = editions.filter((e) => e.is_printed).length
-    const sold = editions.filter((e) => e.is_sold).length
-    const settled = editions.filter((e) => e.is_settled).length
-    const inStock = editions.filter((e) => e.is_printed && !e.is_sold).length
-    const remaining = total - sold // Total unsold editions
-    return { total, printed, sold, settled, inStock, remaining }
+    const numbered = editions.filter((e) => !isArtistProof(e))
+    const proofs = editions.filter(isArtistProof)
+
+    const total = numbered.length
+    const printed = numbered.filter((e) => e.is_printed).length
+    const sold = numbered.filter((e) => e.is_sold).length
+    const settled = numbered.filter((e) => e.is_settled).length
+    const inStock = numbered.filter((e) => e.is_printed && !e.is_sold).length
+    const remaining = total - sold // Unsold editions in the numbered run
+    const nextUnprinted = nextUnprintedEditionNumber(editions)
+
+    return {
+      total, printed, sold, settled, inStock, remaining, nextUnprinted,
+      proofCount: proofs.length,
+      proofsSold: proofs.filter((e) => e.is_sold).length,
+    }
   }, [editions])
 
   // Calculate revenue
@@ -166,6 +184,41 @@ export default function ArtworkDetailPage({ params }: PageProps) {
     } finally {
       setIsSettling(false)
     }
+  }
+
+  // Add the next artist's proof. Numbering is its own sequence per artwork —
+  // AP 1, AP 2 — independent of the numbered run, which the widened
+  // unique_print_edition constraint (print_id, edition_type, edition_number)
+  // allows. Takes max+1 rather than count+1 so deleting AP 2 of 3 does not
+  // produce a duplicate.
+  const handleAddArtistProof = async () => {
+    if (!print) return
+    setIsAddingProof(true)
+    setAddProofError(null)
+
+    const nextProofNumber = editions.reduce(
+      (highest, e) => (isArtistProof(e) ? Math.max(highest, e.edition_number ?? 0) : highest),
+      0
+    ) + 1
+
+    const supabase = createClient()
+    const { error } = await supabase.from('editions').insert({
+      airtable_id: `ap_${print.id}_${nextProofNumber}`,
+      print_id: print.id,
+      edition_number: nextProofNumber,
+      edition_type: 'ap',
+      edition_display_name: editionDisplayName(print.name, nextProofNumber, 'ap'),
+      is_printed: false,
+      is_sold: false,
+      is_settled: false,
+    })
+
+    if (error) {
+      setAddProofError(error.message)
+    } else {
+      await refresh()
+    }
+    setIsAddingProof(false)
   }
 
   const toggleUnsettledSelection = useCallback((id: number) => {
@@ -313,6 +366,32 @@ export default function ArtworkDetailPage({ params }: PageProps) {
             <p className="text-xs text-gray-500">
               {stats.printed} printed, {stats.total - stats.printed} unprinted
             </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {stats.nextUnprinted !== null
+                ? <>Next to print: <span className="font-serif text-foreground">#{stats.nextUnprinted}</span></>
+                : 'All editions printed'}
+            </p>
+            <div className="flex items-center justify-between gap-2 mt-2">
+              <p className="text-xs text-gray-500">
+                {stats.proofCount > 0
+                  ? <>plus {stats.proofCount} AP{stats.proofCount === 1 ? '' : 's'}
+                      {stats.proofsSold > 0 && ` (${stats.proofsSold} sold)`}</>
+                  : 'No artist’s proofs'}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={handleAddArtistProof}
+                disabled={isAddingProof}
+                title="Add the next artist's proof for this artwork"
+              >
+                {isAddingProof ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add AP'}
+              </Button>
+            </div>
+            {addProofError && (
+              <p className="text-xs text-coral mt-1">{addProofError}</p>
+            )}
           </CardContent>
         </Card>
 

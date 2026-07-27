@@ -45,6 +45,7 @@ export function useInventory(filters: EditionFilters = {}) {
     updateEdition,
     updateEditions,
     toggleDistributorFavorite,
+    togglePrintFavorite,
     isEditionSaving,
   } = useInventoryStore(
     useShallow((state) => ({
@@ -65,6 +66,7 @@ export function useInventory(filters: EditionFilters = {}) {
       updateEdition: state.updateEdition,
       updateEditions: state.updateEditions,
       toggleDistributorFavorite: state.toggleDistributorFavorite,
+      togglePrintFavorite: state.togglePrintFavorite,
       isEditionSaving: state.isEditionSaving,
     }))
   )
@@ -257,5 +259,6 @@ export function useInventory(filters: EditionFilters = {}) {
 
     // Distributor actions
     toggleDistributorFavorite,
+    togglePrintFavorite,
   }
 }

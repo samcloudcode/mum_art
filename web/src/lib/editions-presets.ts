@@ -85,7 +85,7 @@ export const fullInventoryPreset: EditionsTablePreset = {
   showPagination: true,
   showExpandableRows: true,
   enableInlineEdit: true,
-  pageSize: 50,
+  pageSize: 250,
 }
 
 /**

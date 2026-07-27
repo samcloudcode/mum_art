@@ -8,6 +8,7 @@ Open issues and blockers for the art inventory system.
 |---|-------|--------|------------|
 | 001 | Dashboard needs client-side cache | Blocked | PRP-client-side-cache |
 | 002 | 135 sales missing date_sold | Open | - |
+| 003 | Nothing validates date_sold on input | Open | - |
 
 ## Issue Template
 

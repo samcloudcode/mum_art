@@ -3,7 +3,7 @@
 import { use, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
-import { cn } from '@/lib/utils'
+import { cn, compareEditions } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -112,7 +112,7 @@ export default function StockCheckPage({ params }: PageProps) {
 
     // Sort editions within each group by edition number
     for (const group of groups.values()) {
-      group.editions.sort((a, b) => (a.edition_number || 0) - (b.edition_number || 0))
+      group.editions.sort(compareEditions)
     }
 
     // Sort groups by artwork name

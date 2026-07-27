@@ -96,7 +96,7 @@ vercel link --cwd web
 |-------|-------------|
 | `prints` | Master catalog of print designs. Standardized names (e.g. "No Man's Fort" not "NoMansFort"), unique on name. |
 | `distributors` | Galleries and sales channels. Commission rates 0–50%. |
-| `editions` | Individual print editions. Each belongs to one print and optional distributor, unique on (print_id, edition_number). Tracks sales, pricing and location. |
+| `editions` | Individual print editions. Each belongs to one print and optional distributor. Tracks sales, pricing and location. |
 | `sync_logs` | Audit trail of sync operations. |
 | `activity_log` | Audit trail of user changes; one row per changed field. |
 
@@ -104,6 +104,13 @@ Row counts drift with every import — query the database rather than quoting a
 number. `editions.size` is NULL for roughly half of rows, which is correct: old
 imports guessed 'Small' for anything unmeasured and those guesses have since
 been cleared. A blank size means nobody has measured that edition.
+
+> **Migration 005 is not yet applied to production.** The artist's-proof feature
+> is merged and expects `editions.edition_type`, but the live database has no
+> such column and still identifies APs by a negative `edition_number`. Until
+> `supabase/migrations/005_add_edition_type.sql` runs, "Add artist's proof"
+> fails and AP detection silently treats the 69 existing proofs as numbered
+> editions. Apply it before deploying.
 
 ## Import Design
 

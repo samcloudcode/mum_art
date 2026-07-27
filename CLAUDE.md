@@ -22,14 +22,21 @@ DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:6543/post
 ```
 
 ### Tables
-| Table | Records | Description |
-|-------|---------|-------------|
-| prints | 44 | Master catalog of artwork designs |
-| distributors | 23 | Galleries and locations |
-| editions | 7,879 | Individual physical prints |
+Row counts are order-of-magnitude only — they drift with every import. Query the
+database for a real number rather than quoting these.
+
+| Table | Rough size | Description |
+|-------|-----------|-------------|
+| prints | tens | Master catalog of artwork designs |
+| distributors | tens | Galleries and locations |
+| editions | ~8,600 | Individual physical prints |
 | sync_logs | - | Import audit trail |
 | profiles | - | User profiles (for auth) |
 | activity_log | - | Audit trail of user changes; one row per changed field |
+
+About half of `editions.size` is NULL, and that is correct: old imports guessed
+'Small' for anything unmeasured, and `scripts/db/04_backfill_blank_sizes.py`
+cleared the guesses. A blank size means nobody has measured that edition.
 
 ### Key Relationships
 - One Print -> Many Editions
@@ -44,9 +51,6 @@ uv pip install
 
 # Import data from CSV to Supabase
 echo "IMPORT" | uv run python smart_import.py
-
-# Check database stats
-uv run python main.py db stats
 
 # Run a one-off SQL script (dry run by default; --commit to apply)
 uv run python scripts/db/run_sql.py scripts/db/<script>.sql
@@ -86,8 +90,7 @@ mum_art/
 │   └── migrations/     # SQL schema files
 ├── planning/           # Project requirements (PRP docs)
 ├── scripts/db/         # One-off SQL fixes + dry-run runner (see its README)
-├── smart_import.py     # Main import script
-└── main.py             # CLI for database operations
+└── smart_import.py     # Main import script
 ```
 
 ## Key Files

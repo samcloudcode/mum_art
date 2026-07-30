@@ -1,6 +1,29 @@
 # PRP: Artist's Proofs and other non-numbered editions
 
-**Status:** proposal, not built. Needs a decision on the open questions at the end.
+**Status:** shipped 2026-07-27 — migrations 005–009, deployed in PR #44.
+
+> **What actually landed** (2026-07-27). The recommendation below was built as
+> described: `edition_type` plus a widened `unique_print_edition`. The data
+> turned out differently from the counts in "The problem" once checked against
+> the database rather than the export:
+>
+> - **69 negatives** converted to proofs, as expected.
+> - **6 unnumbered proofs**, not 5 "edition-zero" rows. Nothing is stored with
+>   `edition_number = 0` — the importer writes NULL — so the first draft of the
+>   migration matched nothing at all. Two of the six are marked only in `notes`,
+>   and the Osborne row, assumed to be a stray placeholder, is marked
+>   `Variation: AP` in the source: a proof not yet printed.
+> - **22 blank rows deleted** (`008`) — no number, price, gallery, sale or flag.
+>   They return on the next import of that export; see `docs/import_assumptions.md`.
+> - **4 contradictory rows** flagged `legacy_unknown` (`009`) — marked sold with
+>   nothing to evidence a sale.
+>
+> Verified after: 75 proofs, 0 negative numbers, and every row the source marks
+> `AP` now carries `edition_type = 'ap'`.
+>
+> The counts in "The problem" are left as written — they were the best reading
+> of the export at proposal time, and the gap between them and reality is the
+> useful part.
 
 ## The problem
 

@@ -28,6 +28,9 @@ Consider marking editions as legacy unknown when:
 - A gallery closed and you lost track of consigned pieces
 - You're unsure if something was sold or returned years ago
 - Records exist but you can't verify their accuracy
+- A record contradicts itself — marked sold but never marked printed, with no
+  price, gallery or date. Marking it unknown is honest; picking one of the two
+  flags to "correct" invents a fact
 
 ## Recovering Unknown Items
 

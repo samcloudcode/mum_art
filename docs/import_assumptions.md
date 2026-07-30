@@ -139,6 +139,17 @@ These are the configured behaviors, not necessarily what happened in this run.
 ### If distributor name not found, distributor_id is set to NULL
 **Reason:** Distributor is optional - editions can exist without a distributor
 
+### A blank Print Edition is stored as NULL, not 0
+**Reason:** A missing number is unknown, not zero. Note the consequence for
+queries: `WHERE edition_number = 0` matches nothing and fails silently, which is
+exactly how the first draft of migration `006` became a no-op.
+
+### Source rows with no edition number and no data still import as editions
+**Reason:** Every source row is upserted on `airtable_id`; the importer has no
+concept of a row being empty. 22 such rows were deleted in migration `008`, but
+they are still in the export and re-importing it recreates them. Making that
+clean permanent needs a skip rule here.
+
 ## Defaults
 
 ### Unknown or missing sizes are left blank

@@ -9,10 +9,11 @@
 --   `Variation: AP` — it is a real proof that has not been printed yet.
 --
 -- THE SIX ROWS, AND THE EVIDENCE FOR EACH
---   Selected by airtable_id because the deciding evidence lives in the source
---   export's `Variation` column, which was never imported. Matching on data
---   present in the database (notes ILIKE 'ap') would catch only three of the
---   six. An explicit key list cannot over-match.
+--   Selected by airtable_id because no single column identifies all six. The
+--   `variation` column carries the source's AP marker and is imported, but one
+--   of the six has it NULL and is marked only in `notes`; matching on `notes`
+--   alone catches three. Either predicate on its own misses rows, so an
+--   explicit key list is used — it cannot over-match either.
 --
 --   rec0Y0yWIbRD3drN3  Classics         Variation: AP   printed, sold, £90
 --   recuvqMSu7ett2nvB  Corby            Variation: AP   printed, sold, £240

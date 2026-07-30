@@ -219,7 +219,7 @@ export default function GalleryDetailPage({ params }: PageProps) {
             </DialogContent>
           </Dialog>
           <Button asChild>
-            <Link href={`/galleries/${id}/stock-check`}>Start Stock Check</Link>
+            <Link href={`/galleries/${id}/stock-check`}>Stock Check</Link>
           </Button>
         </div>
       </div>

@@ -3,19 +3,21 @@
 import { use, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
-import { cn, compareEditions } from '@/lib/utils'
+import { cn, compareEditions, isArtistProof } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import {
   ArrowLeft,
   Search,
   ChevronDown,
   ChevronRight,
-  AlertTriangle,
   CheckCircle2,
-  RotateCcw,
+  Circle,
+  MapPinOff,
+  Plus,
+  X,
 } from 'lucide-react'
 import type { EditionWithRelations } from '@/lib/types'
 
@@ -27,8 +29,39 @@ type ArtworkGroup = {
   printId: number
   printName: string
   editions: EditionWithRelations[]
-  checkedCount: number
-  flaggedCount: number
+}
+
+// How many quick-add matches to render before asking for a narrower search.
+const ADD_RESULT_LIMIT = 20
+
+/** "Bembridge 47" -> artwork name + edition number, if the query looks like that. */
+function parseSmartSearch(query: string): { artwork: string; editionNum: number } | null {
+  const match = query.match(/^(.+?)[\s#-]*(\d+)$/)
+  if (!match) return null
+  return { artwork: match[1].trim().toLowerCase(), editionNum: parseInt(match[2]) }
+}
+
+function groupByArtwork(editions: EditionWithRelations[]): ArtworkGroup[] {
+  const groups = new Map<number, ArtworkGroup>()
+
+  for (const edition of editions) {
+    let group = groups.get(edition.print_id)
+    if (!group) {
+      group = {
+        printId: edition.print_id,
+        printName: edition.prints?.name || 'Unknown Artwork',
+        editions: [],
+      }
+      groups.set(edition.print_id, group)
+    }
+    group.editions.push(edition)
+  }
+
+  for (const group of groups.values()) {
+    group.editions.sort(compareEditions)
+  }
+
+  return Array.from(groups.values()).sort((a, b) => a.printName.localeCompare(b.printName))
 }
 
 export default function StockCheckPage({ params }: PageProps) {
@@ -40,20 +73,22 @@ export default function StockCheckPage({ params }: PageProps) {
     isReady,
     isSaving,
     markStockChecked,
-    markNeedsReview,
-    resetStockCheckForGallery,
+    markLocationUnknown,
+    addStockToGallery,
+    unknownDistributor,
   } = useInventory()
 
   const [search, setSearch] = useState('')
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set())
-  const [isResetting, setIsResetting] = useState(false)
+  const [showConfirmed, setShowConfirmed] = useState(true)
+  const [addSearch, setAddSearch] = useState('')
+  const [addDate, setAddDate] = useState(() => new Date().toISOString().split('T')[0])
 
   const distributor = useMemo(
     () => distributors.find((d) => d.id === distributorId),
     [distributors, distributorId]
   )
 
-  // Get in-stock editions for this gallery
+  // Everything the records place at this gallery right now.
   const stockEditions = useMemo(
     () =>
       allEditions.filter(
@@ -62,26 +97,20 @@ export default function StockCheckPage({ params }: PageProps) {
     [allEditions, distributorId]
   )
 
-  // Filter by search
   const filteredEditions = useMemo(() => {
     if (!search.trim()) return stockEditions
 
     const searchLower = search.toLowerCase()
-    // Smart search: "Bembridge 47" matches artwork name + edition number
-    const match = search.match(/^(.+?)[\s#-]*(\d+)$/)
+    const smart = parseSmartSearch(search)
 
     return stockEditions.filter((e) => {
-      if (match) {
-        const artworkSearch = match[1].trim().toLowerCase()
-        const editionNum = parseInt(match[2])
-        if (
-          e.edition_number === editionNum &&
-          e.prints?.name?.toLowerCase().includes(artworkSearch)
-        ) {
-          return true
-        }
+      if (
+        smart &&
+        e.edition_number === smart.editionNum &&
+        e.prints?.name?.toLowerCase().includes(smart.artwork)
+      ) {
+        return true
       }
-      // Regular search
       return (
         e.edition_display_name.toLowerCase().includes(searchLower) ||
         e.prints?.name?.toLowerCase().includes(searchLower)
@@ -89,93 +118,98 @@ export default function StockCheckPage({ params }: PageProps) {
     })
   }, [stockEditions, search])
 
-  // Group by artwork
-  const artworkGroups = useMemo(() => {
-    const groups = new Map<number, ArtworkGroup>()
+  const unconfirmedGroups = useMemo(
+    () => groupByArtwork(filteredEditions.filter((e) => !e.is_stock_checked)),
+    [filteredEditions]
+  )
 
-    for (const edition of filteredEditions) {
-      const printId = edition.print_id
-      if (!groups.has(printId)) {
-        groups.set(printId, {
-          printId,
-          printName: edition.prints?.name || 'Unknown Artwork',
-          editions: [],
-          checkedCount: 0,
-          flaggedCount: 0,
-        })
-      }
-      const group = groups.get(printId)!
-      group.editions.push(edition)
-      if (edition.is_stock_checked) group.checkedCount++
-      if (edition.to_check_in_detail) group.flaggedCount++
-    }
+  const confirmedGroups = useMemo(
+    () => groupByArtwork(filteredEditions.filter((e) => e.is_stock_checked)),
+    [filteredEditions]
+  )
 
-    // Sort editions within each group by edition number
-    for (const group of groups.values()) {
-      group.editions.sort(compareEditions)
-    }
-
-    // Sort groups by artwork name
-    return Array.from(groups.values()).sort((a, b) =>
-      a.printName.localeCompare(b.printName)
-    )
-  }, [filteredEditions])
-
-  // Progress stats
-  const progress = useMemo(() => {
+  const counts = useMemo(() => {
     const total = stockEditions.length
-    const checked = stockEditions.filter((e) => e.is_stock_checked).length
-    const flagged = stockEditions.filter((e) => e.to_check_in_detail).length
-    const percentage = total > 0 ? Math.round((checked / total) * 100) : 0
-    return { total, checked, flagged, percentage }
+    const confirmed = stockEditions.filter((e) => e.is_stock_checked).length
+    return {
+      total,
+      confirmed,
+      unconfirmed: total - confirmed,
+      percentage: total > 0 ? Math.round((confirmed / total) * 100) : 0,
+    }
   }, [stockEditions])
 
-  const toggleGroup = useCallback((printId: number) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(printId)) {
-        next.delete(printId)
-      } else {
-        next.add(printId)
+  // Quick add: candidates are existing edition rows held anywhere else. The
+  // catalogue pre-creates every edition, so adding stock moves a row here
+  // rather than inserting one — inserting would duplicate an edition number.
+  const addCandidates = useMemo(() => {
+    const query = addSearch.trim().toLowerCase()
+    if (query.length < 2) return []
+
+    const smart = parseSmartSearch(addSearch.trim())
+
+    const matches = allEditions.filter((e) => {
+      if (e.distributor_id === distributorId) return false
+      if (e.is_sold) return false
+      if (e.status_confidence === 'legacy_unknown') return false
+
+      const artworkName = e.prints?.name?.toLowerCase() || ''
+      if (
+        smart &&
+        e.edition_number === smart.editionNum &&
+        artworkName.includes(smart.artwork)
+      ) {
+        return true
       }
-      return next
+      return (
+        artworkName.includes(query) ||
+        e.edition_display_name.toLowerCase().includes(query)
+      )
     })
-  }, [])
 
-  const handleCheck = useCallback(
-    async (editionId: number, checked: boolean) => {
-      await markStockChecked([editionId], checked)
-    },
+    matches.sort(
+      (a, b) =>
+        (a.prints?.name || '').localeCompare(b.prints?.name || '') || compareEditions(a, b)
+    )
+
+    return matches
+  }, [allEditions, addSearch, distributorId])
+
+  const handleToggleConfirm = useCallback(
+    (editionId: number, confirmed: boolean) => markStockChecked([editionId], confirmed),
     [markStockChecked]
   )
 
-  const handleFlag = useCallback(
-    async (editionId: number, flagged: boolean) => {
-      await markNeedsReview([editionId], flagged)
-    },
-    [markNeedsReview]
-  )
-
-  const handleCheckAllInGroup = useCallback(
-    async (group: ArtworkGroup) => {
-      const uncheckedIds = group.editions
-        .filter((e) => !e.is_stock_checked)
-        .map((e) => e.id)
-      if (uncheckedIds.length > 0) {
-        await markStockChecked(uncheckedIds, true)
+  const handleNotHere = useCallback(
+    async (edition: EditionWithRelations) => {
+      const label = `${edition.prints?.name || 'this edition'} ${edition.edition_number ?? ''}`.trim()
+      if (
+        !confirm(
+          `Set the location of ${label} to Unknown? It leaves this gallery's stock and its in-gallery date is cleared.`
+        )
+      ) {
+        return
       }
+      await markLocationUnknown([edition.id])
+    },
+    [markLocationUnknown]
+  )
+
+  const handleConfirmGroup = useCallback(
+    (group: ArtworkGroup) => {
+      const ids = group.editions.filter((e) => !e.is_stock_checked).map((e) => e.id)
+      if (ids.length > 0) markStockChecked(ids, true)
     },
     [markStockChecked]
   )
 
-  const handleReset = useCallback(async () => {
-    if (!confirm('Reset all stock check progress for this gallery? This will uncheck all items.')) {
-      return
-    }
-    setIsResetting(true)
-    await resetStockCheckForGallery(distributorId)
-    setIsResetting(false)
-  }, [resetStockCheckForGallery, distributorId])
+  const handleAdd = useCallback(
+    async (edition: EditionWithRelations) => {
+      await addStockToGallery([edition.id], distributorId, addDate)
+      setAddSearch('')
+    },
+    [addStockToGallery, distributorId, addDate]
+  )
 
   if (!isReady) return null
 
@@ -201,8 +235,6 @@ export default function StockCheckPage({ params }: PageProps) {
     )
   }
 
-  const isComplete = progress.checked === progress.total && progress.total > 0
-
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -218,115 +250,231 @@ export default function StockCheckPage({ params }: PageProps) {
         <span className="text-gray-900">Stock Check</span>
       </div>
 
-      {/* Header with Progress */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href={`/galleries/${id}`}>
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Stock Check</h1>
-            <p className="text-gray-600">{distributor.name}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleReset}
-            disabled={isResetting || isSaving}
-          >
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Reset
-          </Button>
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href={`/galleries/${id}`}>
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Stock Check</h1>
+          <p className="text-gray-600">{distributor.name}</p>
         </div>
       </div>
 
-      {/* Progress Card */}
-      <Card
-        className={cn(
-          'border-2 transition-colors',
-          isComplete ? 'border-green-500 bg-green-50' : 'border-gray-200'
-        )}
-      >
+      {/* Standing tally — confirmations persist, nothing resets them */}
+      <Card>
         <CardContent className="py-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              {isComplete ? (
-                <>
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  <span className="font-medium text-green-700">Stock Check Complete</span>
-                </>
-              ) : (
-                <span className="font-medium text-gray-700">
-                  {progress.checked} of {progress.total} verified
-                </span>
-              )}
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-4 text-sm">
-              {progress.flagged > 0 && (
-                <span className="flex items-center gap-1 text-amber-600">
-                  <AlertTriangle className="h-4 w-4" />
-                  {progress.flagged} flagged
-                </span>
-              )}
-              <span className="font-mono text-gray-600">{progress.percentage}%</span>
+              <span className="font-medium text-gray-700">
+                {counts.total} in stock
+              </span>
+              <span className="flex items-center gap-1 text-green-700">
+                <CheckCircle2 className="h-4 w-4" />
+                {counts.confirmed} confirmed
+              </span>
+              <span className="flex items-center gap-1 text-gray-500">
+                <Circle className="h-4 w-4" />
+                {counts.unconfirmed} unconfirmed
+              </span>
             </div>
+            <span className="font-mono text-sm text-gray-600">{counts.percentage}%</span>
           </div>
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
             <div
-              className={cn(
-                'h-full transition-all duration-300',
-                isComplete ? 'bg-green-500' : 'bg-blue-500'
-              )}
-              style={{ width: `${progress.percentage}%` }}
+              className="h-full bg-green-500 transition-all duration-300"
+              style={{ width: `${counts.percentage}%` }}
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* Search */}
+      {/* Quick add */}
+      <Card>
+        <CardContent className="py-4 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="add-stock">Add stock to {distributor.name}</Label>
+              <div className="relative">
+                <Plus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="add-stock"
+                  type="text"
+                  placeholder="Artwork and edition number (e.g. Bembridge 47)"
+                  value={addSearch}
+                  onChange={(e) => setAddSearch(e.target.value)}
+                  className="pl-10 pr-9"
+                />
+                {addSearch && (
+                  <button
+                    onClick={() => setAddSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                    aria-label="Clear"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="space-y-1 sm:w-44">
+              <Label htmlFor="add-date">In gallery from</Label>
+              <Input
+                id="add-date"
+                type="date"
+                value={addDate}
+                onChange={(e) => setAddDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {addSearch.trim().length >= 2 && (
+            <div className="border rounded-md divide-y max-h-72 overflow-y-auto">
+              {addCandidates.length === 0 ? (
+                <p className="px-3 py-4 text-sm text-muted-foreground text-center">
+                  No edition elsewhere matches that. Editions already here, sold ones and
+                  legacy-unknown rows are excluded.
+                </p>
+              ) : (
+                <>
+                  {addCandidates.slice(0, ADD_RESULT_LIMIT).map((edition) => (
+                    <div
+                      key={edition.id}
+                      className="flex items-center justify-between gap-3 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate">
+                          <span className="font-serif">{edition.prints?.name}</span>
+                          <span className="font-mono ml-2">
+                            {edition.edition_number ?? '?'}
+                            {edition.prints?.total_editions
+                              ? `/${edition.prints.total_editions}`
+                              : ''}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {[
+                            edition.distributors?.name || 'Direct',
+                            edition.is_printed ? null : 'not marked printed',
+                            edition.size,
+                            edition.frame_type,
+                          ]
+                            .filter(Boolean)
+                            .join(' • ')}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAdd(edition)}
+                        disabled={isSaving}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  ))}
+                  {addCandidates.length > ADD_RESULT_LIMIT && (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">
+                      {addCandidates.length - ADD_RESULT_LIMIT} more match — narrow the
+                      search.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Search within this gallery's stock */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
           type="text"
-          placeholder="Search editions... (e.g., Bembridge 47)"
+          placeholder="Search this gallery's stock... (e.g. Bembridge 47)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10"
         />
       </div>
 
-      {/* Artwork Groups */}
-      <div className="space-y-3">
-        {artworkGroups.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">
-                {search ? 'No editions match your search' : 'No stock at this location'}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          artworkGroups.map((group) => (
-            <ArtworkGroupCard
-              key={group.printId}
-              group={group}
-              isCollapsed={collapsedGroups.has(group.printId)}
-              onToggle={() => toggleGroup(group.printId)}
-              onCheck={handleCheck}
-              onFlag={handleFlag}
-              onCheckAll={() => handleCheckAllInGroup(group)}
-              isSaving={isSaving}
-            />
-          ))
-        )}
-      </div>
+      {counts.total === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">No stock at this location</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {/* Confirmed first, but collapsible: once a gallery is mostly done it
+              is a long list to scroll past to reach what still needs doing. */}
+          <div>
+            <button
+              onClick={() => setShowConfirmed((v) => !v)}
+              className="flex items-baseline gap-2 text-left"
+            >
+              {showConfirmed ? (
+                <ChevronDown className="h-4 w-4 self-center text-gray-400" />
+              ) : (
+                <ChevronRight className="h-4 w-4 self-center text-gray-400" />
+              )}
+              <h2 className="text-lg font-semibold text-gray-900">
+                Confirmed ({confirmedGroups.reduce((n, g) => n + g.editions.length, 0)})
+              </h2>
+              <span className="text-sm text-gray-500">Seen at this gallery</span>
+            </button>
+            {showConfirmed && (
+              <div className="mt-3">
+                <StockSection
+                  groups={confirmedGroups}
+                  emptyMessage={
+                    search ? 'No confirmed editions match your search' : 'Nothing confirmed yet'
+                  }
+                  tone="confirmed"
+                  onToggleConfirm={handleToggleConfirm}
+                  onNotHere={handleNotHere}
+                  onConfirmGroup={handleConfirmGroup}
+                  canMarkUnknown={Boolean(unknownDistributor)}
+                  isSaving={isSaving}
+                />
+              </div>
+            )}
+          </div>
 
-      {/* Back button */}
+          <div>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Unconfirmed ({unconfirmedGroups.reduce((n, g) => n + g.editions.length, 0)})
+              </h2>
+              <span className="text-sm text-gray-500">Recorded here, not yet seen</span>
+            </div>
+            <div className="mt-3">
+              <StockSection
+                groups={unconfirmedGroups}
+                emptyMessage={
+                  search
+                    ? 'No unconfirmed editions match your search'
+                    : 'Everything here is confirmed'
+                }
+                tone="unconfirmed"
+                onToggleConfirm={handleToggleConfirm}
+                onNotHere={handleNotHere}
+                onConfirmGroup={handleConfirmGroup}
+                canMarkUnknown={Boolean(unknownDistributor)}
+                isSaving={isSaving}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!unknownDistributor && (
+        <p className="text-sm text-amber-700">
+          No distributor named &ldquo;Unknown&rdquo; exists, so the &ldquo;not here&rdquo;
+          action is unavailable.
+        </p>
+      )}
+
       <Button variant="outline" asChild>
         <Link href={`/galleries/${id}`}>Back to Gallery</Link>
       </Button>
@@ -334,148 +482,126 @@ export default function StockCheckPage({ params }: PageProps) {
   )
 }
 
-// Artwork Group Component
-function ArtworkGroupCard({
-  group,
-  isCollapsed,
-  onToggle,
-  onCheck,
-  onFlag,
-  onCheckAll,
+function StockSection({
+  groups,
+  emptyMessage,
+  tone,
+  onToggleConfirm,
+  onNotHere,
+  onConfirmGroup,
+  canMarkUnknown,
   isSaving,
 }: {
-  group: ArtworkGroup
-  isCollapsed: boolean
-  onToggle: () => void
-  onCheck: (id: number, checked: boolean) => void
-  onFlag: (id: number, flagged: boolean) => void
-  onCheckAll: () => void
+  groups: ArtworkGroup[]
+  emptyMessage: string
+  tone: 'confirmed' | 'unconfirmed'
+  onToggleConfirm: (id: number, confirmed: boolean) => void
+  onNotHere: (edition: EditionWithRelations) => void
+  onConfirmGroup: (group: ArtworkGroup) => void
+  canMarkUnknown: boolean
   isSaving: boolean
 }) {
-  const allChecked = group.checkedCount === group.editions.length
-  const uncheckedCount = group.editions.length - group.checkedCount
+  const total = groups.reduce((n, g) => n + g.editions.length, 0)
 
   return (
-    <Card>
-      {/* Group Header */}
-      <button
-        onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          {isCollapsed ? (
-            <ChevronRight className="h-5 w-5 text-gray-400" />
-          ) : (
-            <ChevronDown className="h-5 w-5 text-gray-400" />
-          )}
-          <span className="font-serif font-medium text-gray-900">{group.printName}</span>
-          <span className="text-sm text-gray-500">({group.editions.length})</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {group.flaggedCount > 0 && (
-            <span className="flex items-center gap-1 text-amber-600 text-sm">
-              <AlertTriangle className="h-4 w-4" />
-              {group.flaggedCount}
-            </span>
-          )}
-          <span
-            className={cn(
-              'text-sm font-medium',
-              allChecked ? 'text-green-600' : 'text-gray-500'
-            )}
-          >
-            {group.checkedCount}/{group.editions.length}
-          </span>
-        </div>
-      </button>
-
-      {/* Edition List */}
-      {!isCollapsed && (
-        <div className="border-t">
-          {/* Check All Button */}
-          {uncheckedCount > 0 && (
-            <div className="px-4 py-2 bg-gray-50 border-b">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onCheckAll()
-                }}
-                disabled={isSaving}
-                className="text-blue-600 hover:text-blue-700"
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Check all {uncheckedCount} remaining
-              </Button>
+    <div className="space-y-3">
+      {total === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <p className="text-muted-foreground">{emptyMessage}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        groups.map((group) => (
+          <Card key={group.printId}>
+            <div className="px-4 py-3 flex items-center justify-between border-b">
+              <div className="flex items-center gap-3">
+                <span className="font-serif font-medium text-gray-900">
+                  {group.printName}
+                </span>
+                <span className="text-sm text-gray-500">({group.editions.length})</span>
+              </div>
+              {tone === 'unconfirmed' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onConfirmGroup(group)}
+                  disabled={isSaving}
+                  className="text-green-700 hover:text-green-800"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Confirm all {group.editions.length}
+                </Button>
+              )}
             </div>
-          )}
-
-          {/* Editions */}
-          <div className="divide-y">
-            {group.editions.map((edition) => (
-              <EditionCheckRow
-                key={edition.id}
-                edition={edition}
-                onCheck={onCheck}
-                onFlag={onFlag}
-                isSaving={isSaving}
-              />
-            ))}
-          </div>
-        </div>
+            <div className="divide-y">
+              {group.editions.map((edition) => (
+                <EditionRow
+                  key={edition.id}
+                  edition={edition}
+                  onToggleConfirm={onToggleConfirm}
+                  onNotHere={onNotHere}
+                  canMarkUnknown={canMarkUnknown}
+                  isSaving={isSaving}
+                />
+              ))}
+            </div>
+          </Card>
+        ))
       )}
-    </Card>
+    </div>
   )
 }
 
-// Individual Edition Row
-function EditionCheckRow({
+function EditionRow({
   edition,
-  onCheck,
-  onFlag,
+  onToggleConfirm,
+  onNotHere,
+  canMarkUnknown,
   isSaving,
 }: {
   edition: EditionWithRelations
-  onCheck: (id: number, checked: boolean) => void
-  onFlag: (id: number, flagged: boolean) => void
+  onToggleConfirm: (id: number, confirmed: boolean) => void
+  onNotHere: (edition: EditionWithRelations) => void
+  canMarkUnknown: boolean
   isSaving: boolean
 }) {
-  const isChecked = edition.is_stock_checked ?? false
-  const isFlagged = edition.to_check_in_detail ?? false
+  const isConfirmed = edition.is_stock_checked ?? false
 
   return (
     <div
       className={cn(
         'flex items-center justify-between px-4 py-3 transition-colors',
-        isChecked && 'bg-green-50',
-        isFlagged && !isChecked && 'bg-amber-50'
+        isConfirmed && 'bg-green-50'
       )}
     >
       <div className="flex items-center gap-4">
-        {/* Large touch-friendly checkbox */}
+        {/* Large touch-friendly confirm toggle */}
         <button
-          onClick={() => onCheck(edition.id, !isChecked)}
+          onClick={() => onToggleConfirm(edition.id, !isConfirmed)}
           disabled={isSaving}
           className={cn(
             'w-10 h-10 rounded-lg border-2 flex items-center justify-center transition-all',
             'hover:scale-105 active:scale-95',
-            isChecked
+            isConfirmed
               ? 'bg-green-500 border-green-500 text-white'
               : 'bg-white border-gray-300 hover:border-gray-400'
           )}
+          title={isConfirmed ? 'Remove confirmation' : 'Confirm it is here'}
         >
-          {isChecked && <CheckCircle2 className="h-6 w-6" />}
+          {isConfirmed && <CheckCircle2 className="h-6 w-6" />}
         </button>
 
         <div>
           <p
             className={cn(
               'font-mono font-medium',
-              isChecked ? 'text-green-700' : 'text-gray-900'
+              isConfirmed ? 'text-green-700' : 'text-gray-900'
             )}
           >
-            {edition.edition_number}/{edition.prints?.total_editions || '?'}
+            {isArtistProof(edition)
+              ? `AP ${edition.edition_number ?? '?'}`
+              : `${edition.edition_number ?? '?'}/${edition.prints?.total_editions || '?'}`}
           </p>
           {(edition.size || edition.frame_type) && (
             <p className="text-sm text-gray-500">
@@ -485,20 +611,17 @@ function EditionCheckRow({
         </div>
       </div>
 
-      {/* Flag button */}
-      <button
-        onClick={() => onFlag(edition.id, !isFlagged)}
-        disabled={isSaving}
-        className={cn(
-          'p-2 rounded-lg transition-colors',
-          isFlagged
-            ? 'bg-amber-100 text-amber-600 hover:bg-amber-200'
-            : 'text-gray-400 hover:bg-gray-100 hover:text-amber-500'
-        )}
-        title={isFlagged ? 'Remove flag' : 'Flag for review'}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onNotHere(edition)}
+        disabled={isSaving || !canMarkUnknown}
+        className="text-gray-500 hover:text-amber-700"
+        title="Not at this gallery — set location to Unknown"
       >
-        <AlertTriangle className="h-5 w-5" />
-      </button>
+        <MapPinOff className="h-4 w-4 mr-2" />
+        Not here
+      </Button>
     </div>
   )
 }

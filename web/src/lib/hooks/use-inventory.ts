@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from 'react'
 import { useInventoryStore } from '@/lib/store/inventory-store'
-import type { EditionFilters, EditionWithRelations } from '@/lib/types'
+import type { EditionFilters } from '@/lib/types'
 import { useShallow } from 'zustand/react/shallow'
 
 /**
@@ -195,27 +195,48 @@ export function useInventory(filters: EditionFilters = {}) {
 
   const refresh = useCallback(() => storeRefresh(), [storeRefresh])
 
+  // is_stock_checked is a standing fact — "this has been seen at the location it
+  // is recorded at" — not a per-session pass. Nothing resets it in bulk; it is
+  // cleared only for the row that moves.
   const markStockChecked = useCallback(
     (ids: number[], checked: boolean = true) =>
       updateEditions(ids, { is_stock_checked: checked }),
     [updateEditions]
   )
 
-  const markNeedsReview = useCallback(
-    (ids: number[], needsReview: boolean = true) =>
-      updateEditions(ids, { to_check_in_detail: needsReview }),
-    [updateEditions]
+  // The location a print goes to when it isn't where the records say it is.
+  // Looked up by name rather than hardcoded, so a renamed row breaks visibly
+  // (the action disables) instead of writing to the wrong distributor.
+  const unknownDistributor = useMemo(
+    () => distributors.find((d) => d.name.toLowerCase() === 'unknown'),
+    [distributors]
   )
 
-  const resetStockCheckForGallery = useCallback(
-    async (distributorId: number) => {
-      const editionIds = allEditions
-        .filter((e: EditionWithRelations) => e.distributor_id === distributorId && e.is_printed && !e.is_sold)
-        .map((e: EditionWithRelations) => e.id)
-      if (editionIds.length === 0) return true
-      return updateEditions(editionIds, { is_stock_checked: false, to_check_in_detail: false })
+  // Not at the gallery after all: the location is now genuinely unknown, so the
+  // in-gallery date and the confirmation both stop being true.
+  const markLocationUnknown = useCallback(
+    (ids: number[]) => {
+      if (!unknownDistributor) return Promise.resolve(false)
+      return updateEditions(ids, {
+        distributor_id: unknownDistributor.id,
+        date_in_gallery: null,
+        is_stock_checked: false,
+      })
     },
-    [allEditions, updateEditions]
+    [unknownDistributor, updateEditions]
+  )
+
+  // Adding stock you are holding: it's at this gallery from today, it plainly
+  // exists so it is printed, and you just saw it so it counts as confirmed.
+  const addStockToGallery = useCallback(
+    (ids: number[], distributorId: number, dateInGallery?: string) =>
+      updateEditions(ids, {
+        distributor_id: distributorId,
+        date_in_gallery: dateInGallery || new Date().toISOString().split('T')[0],
+        is_printed: true,
+        is_stock_checked: true,
+      }),
+    [updateEditions]
   )
 
   return {
@@ -254,8 +275,9 @@ export function useInventory(filters: EditionFilters = {}) {
 
     // Stock check actions
     markStockChecked,
-    markNeedsReview,
-    resetStockCheckForGallery,
+    markLocationUnknown,
+    addStockToGallery,
+    unknownDistributor,
 
     // Distributor actions
     toggleDistributorFavorite,

@@ -166,7 +166,7 @@ export default function GalleriesPage() {
                 )}
               </Link>
 
-              {/* Quick Stock Check button - prominent on mobile */}
+              {/* Stock check entry point - prominent on mobile */}
               {stats.inStock > 0 && (
                 <div className="mt-4 pt-4 border-t border-border">
                   <Button
@@ -176,7 +176,7 @@ export default function GalleriesPage() {
                   >
                     <Link href={`/galleries/${dist.id}/stock-check`}>
                       <ClipboardCheck className="w-4 h-4 mr-2" />
-                      Start Stock Check ({stats.inStock})
+                      Stock Check ({stats.inStock})
                     </Link>
                   </Button>
                 </div>

@@ -4,61 +4,68 @@ How to verify physical inventory at a gallery location.
 
 ## When to Use
 
-Run a stock check when you visit a gallery to confirm that:
+Open the stock check when you visit a gallery to confirm that:
 - Items recorded in the system are physically present
 - Nothing has been sold without being recorded
 - Items haven't been moved or misplaced
 
-## Starting a Stock Check
+## Opening the Stock Check
 
 1. Go to **Galleries** and select the gallery you're visiting
-2. Click **Start Stock Check** in the top-right corner
-3. You'll see all in-stock editions grouped by artwork
+2. Click **Stock Check** in the top-right corner
+3. You'll see everything the system places at that gallery, split into
+   **Unconfirmed** and **Confirmed**
 
 ## The Stock Check Screen
 
-### Progress Bar
-Shows how many items you've verified out of the total. Turns green when complete.
+### The tally at the top
+Counts in stock, confirmed and unconfirmed, with a bar for the confirmed share.
+Confirmations are a standing record — "this has been seen here" — so the bar
+carries over between visits. Nothing clears it in bulk.
 
-### Artwork Groups
-Editions are grouped by artwork name (e.g., all "Bembridge" prints together). This matches how you'd naturally scan a gallery wall. Click a group header to collapse/expand it.
+### Unconfirmed and Confirmed
+Unconfirmed comes first: recorded at this gallery, not yet seen. Confirmed is
+collapsed by default; open it to review or undo a confirmation. Within each,
+editions are grouped by artwork name (e.g. all "Bembridge" prints together),
+which matches how you'd scan a gallery wall.
 
 ### Search
-Use the search bar to quickly find specific editions:
+The search bar filters this gallery's stock:
 - Type `Bembridge 47` to find edition 47 of Bembridge
 - Or just type `Bembridge` to see all Bembridge editions
 
-## Checking Items
+## Working through the stock
 
-### Verify an item
-Tap the large checkbox next to an edition when you physically see it. The row turns green.
+### Confirm an item
+Tap the large box next to an edition when you physically see it. It turns green
+and moves to Confirmed. Tap it again to undo.
 
-### Check all in a group
-If you've verified all editions of an artwork, click **Check all X remaining** to mark them all at once.
+### Confirm a whole artwork
+If you've seen every edition of an artwork, click **Confirm all X** in that
+group's header.
 
-### Flag a problem
-If you can't find an item, or something seems wrong, tap the warning icon to flag it for review. Flagged items show an amber indicator.
+### It isn't here
+Tap **Not here** on an edition that isn't at the gallery. After a confirmation
+prompt, its location becomes **Unknown**, its in-gallery date is cleared, and it
+leaves this gallery's stock — so it stops counting as being here while you work
+out where it went. It stays findable by searching for the artwork on the
+Editions page.
 
-## Finishing Up
+### Add stock
+Type an artwork and edition number into **Add stock to <gallery>** — e.g.
+`Bembridge 47`. Matches held anywhere else appear with their current location;
+click **Add** and that edition moves here, dated from the **In gallery from**
+date (today unless you change it), marked printed, and counted as confirmed.
 
-When the progress bar shows 100% and turns green, you've completed the stock check.
-
-### Flagged items
-Any items you flagged will still be visible. Follow up on these - they might indicate:
-- An unrecorded sale
-- An item moved to a different location
-- A data entry error
-
-### Starting fresh
-Click **Reset** to clear all checkmarks and flags for the gallery and start a new stock check. This is useful for periodic full inventory counts.
-
-Two things to know before using it:
-- **There is no undo on the screen.** Every checkmark and flag for that gallery clears at once.
-- **Let the full list load first.** Reset only affects editions the page has loaded, so if you reset before scrolling through the whole gallery, some items keep their checkmarks.
+This moves the existing edition record rather than creating a new one, because
+every edition in a run already exists in the catalogue. Editions already at this
+gallery, sold ones and legacy-unknown rows don't appear as matches.
 
 ## Tips
 
-- **Work systematically**: Walk the gallery wall-by-wall, checking items as you go
-- **Use your phone**: The large checkboxes are designed for easy tapping on mobile
-- **Flag liberally**: If in doubt, flag it - you can investigate later
-- **Check the flagged count**: The progress bar shows how many items need follow-up
+- **Work systematically**: walk the gallery wall-by-wall, confirming as you go
+- **Use your phone**: the large boxes are designed for easy tapping on mobile
+- **Unconfirmed is not an accusation**: it only means nobody has ticked it yet.
+  Use **Not here** for the ones that are genuinely missing.
+- **Every change is live**: there is no draft state — a tap writes to the real
+  inventory immediately

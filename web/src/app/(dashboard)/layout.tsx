@@ -32,7 +32,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-background gallery-texture">
       {/* Refined top navigation */}
-      <nav className="bg-card/80 backdrop-blur-sm border-b border-border/50 fixed top-0 left-0 right-0 z-10">
+      <nav className="bg-card/80 backdrop-blur-sm border-b border-border/50 fixed top-0 left-0 right-0 z-10 safe-area-inset-top">
         <div className="max-w-screen-2xl mx-auto px-4 lg:px-6">
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center gap-12">
@@ -96,7 +96,7 @@ export default async function DashboardLayout({
       <MobileNav />
 
       {/* Main content area */}
-      <main className="pt-16 pb-24 md:pb-12">
+      <main className="pt-nav pb-24 md:pb-12">
         <div className="max-w-screen-2xl mx-auto px-4 lg:px-6 py-10">
           <InventoryProvider>
             {children}

@@ -1,0 +1,86 @@
+export type AssistantMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+
+export type InventoryAction =
+  | {
+      type: 'mark_printed'
+      edition_ids: number[]
+    }
+  | {
+      type: 'move_stock'
+      edition_ids: number[]
+      distributor_id: number
+      date_in_gallery: string
+    }
+  | {
+      type: 'confirm_stock_present'
+      edition_ids: number[]
+      distributor_id: number
+    }
+  | {
+      type: 'report_stock_missing'
+      edition_ids: number[]
+      distributor_id: number
+    }
+  | {
+      type: 'receive_stock_at_gallery'
+      edition_ids: number[]
+      distributor_id: number
+      date_in_gallery: string
+    }
+
+export type ProposalFieldChange = {
+  field: 'is_printed' | 'location' | 'date_in_gallery' | 'is_stock_checked'
+  label: string
+  before: string
+  after: string
+}
+
+export type ProposalEditionPreview = {
+  editionId: number
+  editionName: string
+  artworkName: string
+  editionLabel: string
+  changes: ProposalFieldChange[]
+}
+
+export type ProposalPreview = {
+  summary: string
+  editions: ProposalEditionPreview[]
+  warnings: string[]
+}
+
+export type AssistantProposalStatus =
+  | 'pending'
+  | 'applied'
+  | 'rejected'
+  | 'superseded'
+  | 'expired'
+  | 'stale'
+
+export type AssistantProposal = {
+  id: string
+  status: AssistantProposalStatus
+  preview: ProposalPreview
+  expiresAt: string
+  appliedAt: string | null
+  result?: Record<string, unknown> | null
+}
+
+export type AssistantConversationResponse = {
+  conversationId: string
+  messages: AssistantMessage[]
+  proposal: AssistantProposal | null
+}
+
+export type ApplyProposalResult = {
+  ok: boolean
+  status: AssistantProposalStatus
+  message?: string
+  proposal_id?: string
+  edition_count?: number
+}

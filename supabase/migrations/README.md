@@ -32,10 +32,14 @@ not lexical globbing, distinguish them. The historical repository order is:
 9. `007_fix_sold_but_unprinted.sql`
 10. `008_delete_blank_editions.sql` — expects `edition_type` from 005
 11. `009_flag_unverifiable_sales.sql` — expects `status_confidence` from 002
+12. `010_add_inventory_assistant.sql` — additive proposal/audit tables and the
+    bounded atomic confirmation function; expects 001, 002,
+    `003_add_activity_log.sql`, and 005
 
 Migrations 004–007 entered the repository in PR #44, 008 in PR #45, and 009 in
 PR #46. That records Git history only; verify current production state directly.
 
-Continue with `010` for the next migration rather than renumbering historical
-files. Include dependencies, compatibility requirements, dry-run evidence, and
-the production result in the migration header or release record.
+Migration 010 now occupies the next number; continue with `011` rather than
+renumbering historical files. Include dependencies, compatibility requirements,
+dry-run evidence, and the production result in the migration header or release
+record.

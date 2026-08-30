@@ -198,6 +198,9 @@ export function ActivityLogList({
                         {actionStyle.label}
                       </span>
                       <span className="text-sm text-muted-foreground">{activity.entity_type}</span>
+                      {activity.source === 'assistant' && (
+                        <span className="text-xs text-purple-600">via Assistant</span>
+                      )}
                       {activity.entity_name && (
                         <span className="text-sm font-medium text-foreground truncate">
                           {activity.entity_name}

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Home,
+  Bot,
   Layers,
   Image,
   Building2,
@@ -24,12 +25,13 @@ import { cn } from '@/lib/utils'
 
 const mainNavItems = [
   { name: 'Home', href: '/', icon: Home },
+  { name: 'Assistant', href: '/assistant', icon: Bot },
   { name: 'Editions', href: '/editions', icon: Layers },
-  { name: 'Artworks', href: '/artworks', icon: Image },
   { name: 'Galleries', href: '/galleries', icon: Building2 },
 ]
 
 const moreNavItems = [
+  { name: 'Artworks', href: '/artworks', icon: Image },
   { name: 'Sales', href: '/sales', icon: PoundSterling },
   { name: 'Analytics', href: '/analytics', icon: TrendingUp },
   { name: 'Change History', href: '/changelog', icon: History },

@@ -7,6 +7,7 @@ import { MobileNav } from '@/components/mobile-nav'
 
 const navigation = [
   { name: 'Overview', href: '/' },
+  { name: 'Assistant', href: '/assistant' },
   { name: 'Editions', href: '/editions' },
   { name: 'Artworks', href: '/artworks' },
   { name: 'Galleries', href: '/galleries' },

@@ -116,7 +116,10 @@ not run database migrations or other production data writes.
 The repository contains historical migrations, but no tooling records which
 ones production has applied. The application expects current fields including
 `editions.edition_type` and `editions.status_confidence`; inspect the live schema
-instead of relying on an old status note.
+instead of relying on an old status note. The inventory assistant additionally
+requires the additive `010_add_inventory_assistant.sql` migration and a
+server-only `ANTHROPIC_API_KEY`; coordinate that individual production migration
+with the frontend release rather than replaying migration history.
 
 Never run every migration in a loop. There are three historical `003` files,
 some migrations are data-specific, and not all are safe to replay. See
@@ -132,6 +135,8 @@ change.
 | `editions` | Individual print editions. Each belongs to one print and optional distributor. Tracks sales, pricing and location. |
 | `sync_logs` | Audit trail of sync operations. |
 | `activity_log` | Audit trail of user changes; one row per changed field. |
+| `assistant_conversations` / `assistant_messages` | User-owned natural-language inventory conversations. |
+| `assistant_proposals` | Exact, expiring inventory proposals applied only after confirmation. |
 
 Row counts drift with every import — query the database rather than quoting a
 number. `editions.size` is NULL for roughly half of rows, which is correct: old

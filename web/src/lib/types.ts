@@ -178,6 +178,7 @@ export type Database = {
           name: string
           notes: string | null
           primary_image_path: string | null
+          short_name: string | null
           sync_version: number | null
           total_editions: number | null
           updated_at: string | null
@@ -195,6 +196,7 @@ export type Database = {
           name: string
           notes?: string | null
           primary_image_path?: string | null
+          short_name?: string | null
           sync_version?: number | null
           total_editions?: number | null
           updated_at?: string | null
@@ -212,6 +214,7 @@ export type Database = {
           name?: string
           notes?: string | null
           primary_image_path?: string | null
+          short_name?: string | null
           sync_version?: number | null
           total_editions?: number | null
           updated_at?: string | null
@@ -356,6 +359,8 @@ export type ActivityLog = {
   related_entity_type: string | null
   related_entity_id: number | null
   related_entity_name: string | null
+  proposal_id: string | null
+  source: 'app' | 'assistant'
   created_at: string
 }
 

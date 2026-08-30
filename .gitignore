@@ -45,3 +45,6 @@ Thumbs.db
 test_*.py
 .vercel
 .env*.local
+
+# Amp orb runtime files
+.amp/portals/*

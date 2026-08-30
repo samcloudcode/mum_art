@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PATH="$HOME/.local/bin:$PATH"
+
+run_step() {
+  local label="$1"
+  shift
+  local started_at="$SECONDS"
+
+  printf '[setup] %s...\n' "$label"
+  "$@"
+  printf '[setup] %s completed in %ss\n' "$label" "$((SECONDS - started_at))"
+}
+
+install_uv() {
+  if command -v uv >/dev/null 2>&1; then
+    uv --version
+    return
+  fi
+
+  local installer
+  installer="$(mktemp)"
+  if ! curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o "$installer"; then
+    rm -f "$installer"
+    return 1
+  fi
+  if ! UV_INSTALL_DIR="$HOME/.local/bin" sh "$installer"; then
+    rm -f "$installer"
+    return 1
+  fi
+  rm -f "$installer"
+}
+
+check_node() {
+  command -v node >/dev/null 2>&1 || {
+    printf '[setup] Node.js is required but is not installed.\n' >&2
+    return 1
+  }
+  command -v npm >/dev/null 2>&1 || {
+    printf '[setup] npm is required but is not installed.\n' >&2
+    return 1
+  }
+
+  node -e '
+    const [major, minor] = process.versions.node.split(".").map(Number)
+    if (major < 20 || (major === 20 && minor < 9)) {
+      console.error(`[setup] Next.js requires Node.js >=20.9.0; found ${process.versions.node}.`)
+      process.exit(1)
+    }
+  '
+  printf 'node %s\n' "$(node --version)"
+  printf 'npm %s\n' "$(npm --version)"
+}
+
+install_python_dependencies() {
+  cd "$repo_root"
+  uv python install 3.13
+  uv sync --frozen
+}
+
+install_web_dependencies() {
+  cd "$repo_root/web"
+
+  local fingerprint marker
+  fingerprint="$({ sha256sum package.json package-lock.json; node --version; } | sha256sum | cut -d' ' -f1)"
+  marker="node_modules/.amp-orb-dependencies"
+  if [[ -f "$marker" ]] && [[ "$(cat "$marker")" == "$fingerprint" ]]; then
+    printf '[setup] Locked web dependencies are unchanged; reusing node_modules.\n'
+    return
+  fi
+
+  npm ci --no-audit --no-fund
+  printf '%s\n' "$fingerprint" > "$marker"
+}
+
+profile_marker="# mum-art orb toolchain"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >> "$HOME/.bash_profile" <<'EOF'
+
+# mum-art orb toolchain
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+EOF
+fi
+
+run_step "Installing uv" install_uv
+run_step "Checking the Node.js toolchain" check_node
+run_step "Installing locked Python dependencies" install_python_dependencies
+run_step "Installing locked web dependencies" install_web_dependencies
+
+printf '[setup] Orb dependencies are ready. Supply Supabase credentials through project environment variables when needed.\n'

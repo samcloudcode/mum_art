@@ -117,7 +117,9 @@ does not run database migrations or other production data writes.
 Every orb needs these project-scoped values under **Project Settings → Secrets
 & Env Vars**:
 
-- `VERCEL_TOKEN` — mark this as a secret.
+- `VERCEL_TOKEN` — mark this as a secret. Vercel CLI 59.10.0 currently requires
+  a **Full Account** token because its identity preflight rejects narrower
+  team- and project-scoped tokens.
 - `VERCEL_ORG_ID` — environment variable identifying the Vercel account/team.
 - `VERCEL_PROJECT_ID` — environment variable identifying the existing project.
 

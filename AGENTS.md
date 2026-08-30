@@ -101,10 +101,13 @@ application and database remain compatible.
 
 The Amp project uses Custom Ship with the tracked prompt in `.agents/ship.md`.
 Ship runs the complete frontend check, pushes `master`, and deploys that commit
-to Vercel production. It requires project-scoped `VERCEL_TOKEN` (secret),
-`VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` values. Database changes are excluded
-and require separate explicit approval. Amp stores a copy of the prompt, so
-after editing `.agents/ship.md`, update the project setting again:
+to Vercel production. It requires `VERCEL_TOKEN` (secret), `VERCEL_ORG_ID`, and
+`VERCEL_PROJECT_ID` in the Amp project environment. Vercel CLI 59.10.0
+currently rejects team- and project-scoped tokens during its user-identity
+preflight, so `VERCEL_TOKEN` must use Full Account scope until that CLI
+limitation is removed. Database changes are excluded and require separate
+explicit approval. Amp stores a copy of the prompt, so after editing
+`.agents/ship.md`, update the project setting again:
 
 ```bash
 amp projects update user_01KZRR03QFY939RW9SJC57G10J/mum_art \

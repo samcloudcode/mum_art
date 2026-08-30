@@ -48,4 +48,6 @@ npm --prefix web run deploy:production
 GitHub pushes do not automatically deploy this project. Read the root
 `README.md`, `AGENTS.md`, and `.agents/ship.md` before any production action.
 Deployment requires `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` in
-the environment; the token must be stored as a secret.
+the environment. The token must be stored as a secret and currently needs Full
+Account scope because Vercel CLI 59.10.0 rejects narrower tokens during its
+identity preflight.

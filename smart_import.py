@@ -106,7 +106,7 @@ def main():
         if report_summary['editions_missing_print'] > 0:
             print(f"   Editions skipped (missing print): {report_summary['editions_missing_print']}")
 
-        print(f"\n📄 Full report saved to: docs/user/import_assumptions.md")
+        print(f"\n📄 Full report saved to: web/docs/user/import_assumptions.md")
         print(f"\n✅ SUCCESS! Database fully populated with {stats['editions']} editions")
 
         return 0

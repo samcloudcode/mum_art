@@ -38,7 +38,16 @@ If you later find out what happened to a piece:
 
 1. Find the edition (use "Show legacy items" toggle)
 2. Update its status (sold, location, etc.)
-3. The system will automatically include it in your active inventory again
+3. Ask an administrator to mark its `status_confidence` as `verified`
+
+Ordinary edits do not automatically change confidence. The edition remains
+hidden from default lists and statistics until an administrator verifies it:
+
+```sql
+UPDATE editions
+SET status_confidence = 'verified'
+WHERE id = <edition_id>;
+```
 
 ## Bulk Updates
 

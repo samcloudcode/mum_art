@@ -1,14 +1,20 @@
 # Issues
 
-Open issues and blockers for the art inventory system.
+Known issues and completed issue records for the art inventory system. Counts in
+data-quality issues are dated snapshots; query production before quoting them.
 
 ## Open Issues
 
 | # | Title | Status | Blocked By |
 |---|-------|--------|------------|
-| 001 | Dashboard needs client-side cache | Blocked | PRP-client-side-cache |
-| 002 | 135 sales missing date_sold | Open | - |
-| 003 | Nothing validates date_sold on input | Open | - |
+| 002 | Sales missing `date_sold` | Open; count needs refresh | - |
+| 003 | Date inputs lack enforceable range validation | Open | - |
+
+## Completed Issues
+
+| # | Title | Completed |
+|---|-------|-----------|
+| 001 | Dashboard client-side cache | 2025-12-20 |
 
 ## Issue Template
 

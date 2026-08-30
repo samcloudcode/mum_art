@@ -1,5 +1,11 @@
 # Import Report
 
+> **Historical record.** The figures below are a snapshot of one import on
+> 2026-01-01, not current inventory counts. The later reference section records
+> important importer caveats discovered after that run. The report displayed in
+> the application and replaced by future imports lives at
+> `web/docs/user/import_assumptions.md`.
+
 Generated: 2026-01-01 10:07:33
 Sync ID: 3e5b535f-6d73-466e-8662-2400c2edba0e
 

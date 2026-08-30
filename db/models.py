@@ -83,7 +83,7 @@ class Edition(Base):
     id = Column(Integer, primary_key=True)
     airtable_id = Column(String(20), unique=True, nullable=False)
 
-    # Foreign Keys (One edition belongs to one print and one distributor)
+    # Foreign keys (a print is required; a distributor/location is optional)
     print_id = Column(Integer, ForeignKey('prints.id'), nullable=False)
     distributor_id = Column(Integer, ForeignKey('distributors.id'))
 

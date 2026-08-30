@@ -158,7 +158,7 @@ class SmartImporter:
 
     def _generate_assumptions_file(self) -> str:
         """Generate import_assumptions.md documenting all import assumptions and actions taken."""
-        docs_dir = Path('docs/user')
+        docs_dir = Path('web/docs/user')
         docs_dir.mkdir(parents=True, exist_ok=True)
         output_path = docs_dir / 'import_assumptions.md'
 
@@ -167,6 +167,9 @@ class SmartImporter:
             "",
             f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             f"Sync ID: {self.sync_id}",
+            "",
+            "> This is a snapshot of one import run, not a current inventory count.",
+            "> The reference section below describes the importer behavior at generation time.",
             "",
         ]
 

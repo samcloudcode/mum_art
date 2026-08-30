@@ -1,6 +1,8 @@
 # PRP: Artist's Proofs and other non-numbered editions
 
-**Status:** shipped 2026-07-27 — migrations 005–009, deployed in PR #44.
+**Status:** shipped 2026-07-27 — migrations 005–007 landed in PR #44, 008 in
+PR #45, and 009 in PR #46. The production verification recorded below is a
+point-in-time result, not an applied-migration ledger.
 
 > **What actually landed** (2026-07-27). The recommendation below was built as
 > described: `edition_type` plus a widened `unique_print_edition`. The data

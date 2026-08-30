@@ -1,15 +1,17 @@
-# Issue: 135 Sales Missing date_sold
+# Issue: Sales Missing date_sold
 
 ## Status
 Open - data quality issue
 
 ## Description
-135 out of 3,664 sold editions have `date_sold = NULL`. This affects time-based reporting accuracy.
+On 2026-01-01, 135 out of 3,664 sold editions had `date_sold = NULL`. This is a
+historical snapshot, not a current production count. Re-run the query below
+before planning or reporting the cleanup.
 
 ## Impact
-- YTD, last year, last 30 days stats undercount by up to 135 sales
+- YTD, last year, last 30 days stats omit every sale without a recorded date
 - These sales show as sold but don't appear in time-period breakdowns
-- ~3.7% of sales affected
+- The affected percentage must be calculated from current production data
 
 ## Query to Find Affected Records
 ```sql

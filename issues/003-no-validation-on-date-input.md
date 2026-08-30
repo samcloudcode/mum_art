@@ -1,11 +1,13 @@
-# Issue: Nothing validates date_sold on input
+# Issue: Date inputs lack enforceable range validation
 
 ## Status
 Open - data quality / input validation
 
 ## Description
-The app accepts any date Postgres accepts, including five-digit years. Two
-editions were saved with a mistyped year and went unnoticed for six months:
+The database accepts dates outside any plausible inventory range, including
+five-digit years. Several UI paths also pass date values through without an
+enforced application-level check. Two editions were saved with a mistyped year
+and went unnoticed for six months:
 
 | id | edition | stored date_sold | intended |
 |---|---|---|---|
@@ -30,6 +32,9 @@ but nothing stops the same typo being entered again.
   recent sale (`web/src/app/(dashboard)/page.tsx`), so the stat no longer
   breaks — but the underlying row still renders as e.g. "10 Apr 20255" in the
   editions table.
+- The primary sale-status and inline date inputs have native `min` and `max`
+  attributes. Other date inputs do not, and HTML attributes are not validation
+  for writes from other UI paths, imports, scripts, or direct database access.
 - `scripts/db/03_find_bad_sale_dates.sql` finds any out-of-range rows.
 
 ## Possible Solutions

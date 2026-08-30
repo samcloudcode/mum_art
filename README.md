@@ -1,14 +1,20 @@
 # Art Print Inventory System
 
-Art print inventory management system for tracking fine art editions as they move between home and galleries. Tracks print locations, sales status, and commissions.
+Production inventory management for fine-art print editions as they move between
+the artist and galleries. It tracks printing, framing, location, sales,
+commission, settlement, and stock checks.
 
 **Frontend:** Next.js + Supabase Auth (in `web/` directory)
 **Backend:** Supabase (PostgreSQL)
-**Data Import:** Migration from Airtable CSV exports
+**Hosting:** Vercel
 
-> **There is no staging database.** `web/.env.local` and `.env` both point at the
-> production Supabase project. `npm run dev` reads and **writes live inventory**,
-> and so does every script here. See [CLAUDE.md](CLAUDE.md) for the details.
+## Production safety
+
+> **There is no staging database.** Credentials are not committed, but whenever
+> local or orb credentials target Supabase, the app and scripts read and write
+> live inventory. Do not edit records, commit SQL, import data, migrate, or
+> deploy without explicitly intending a production action. See
+> [AGENTS.md](AGENTS.md) for the operational rules.
 
 ## Project Structure
 
@@ -29,33 +35,40 @@ mum_art/
 
 ## Quick Start
 
-### 1. Setup Environment
+### 1. Install dependencies
 
 ```bash
-# Install dependencies (dependencies live in pyproject.toml)
-uv sync
+# Python 3.13 dependencies
+uv sync --frozen
 
-# Configure database
-cp .env.example .env
-# Edit .env with your PostgreSQL connection string
+# Next.js dependencies
+npm --prefix web ci
 ```
 
-An exported `DATABASE_URL` takes precedence over `.env`, so you can point any
-script at a test database without editing files.
+Fresh Amp orbs run `.agents/setup` automatically. It installs both locked
+dependency sets and reuses them from the project snapshot.
 
-### 2. Run Import
+### 2. Configure the environment
+
+Database scripts use `DATABASE_URL` from the environment or an untracked `.env`.
+The frontend needs `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` in its environment or an untracked
+`web/.env.local`. Do not put credentials in committed files.
+
+An exported `DATABASE_URL` takes precedence over `.env`, so a script can be
+pointed at an isolated test database without editing files.
+
+### 3. Run the frontend
 
 ```bash
-echo "IMPORT" | uv run python smart_import.py
+npm --prefix web run dev
 ```
 
-`smart_import.py` prompts for confirmation before writing. It is the only import
-entry point — there is no subcommand CLI.
+With production Supabase credentials configured, localhost writes live data.
 
-### 3. Inspect the Data
+## Database scripts and imports
 
-Live figures are in the app's dashboard. For ad-hoc queries, write a `.sql` file
-and use the runner, which rolls back unless you pass `--commit`:
+For ad-hoc SQL, use the runner. It rolls back unless `--commit` is passed:
 
 ```bash
 uv run python scripts/db/run_sql.py path/to/query.sql
@@ -64,31 +77,49 @@ uv run python scripts/db/run_sql.py path/to/query.sql
 See [scripts/db/README.md](scripts/db/README.md) for conventions on one-off
 scripts, the dry-run guarantees, and the testing fixture.
 
-## Frontend Development
-
-The Next.js app lives in the `web/` directory.
-
-### Local Development
+The full CSV import clears and repopulates core tables and requires an explicit
+confirmation phrase:
 
 ```bash
-cd web
-npm install
-npm run dev
+echo "IMPORT" | uv run python smart_import.py
 ```
 
-Remember this talks to the production database.
+The generated import report is displayed in the app from
+`web/docs/user/import_assumptions.md`.
 
-### Deploy to Vercel
+## Checks
 
 ```bash
-# From project root - use --cwd web flag
+npm --prefix web run lint
+npm --prefix web run build
+web/node_modules/.bin/tsc --noEmit --project web/tsconfig.json
+```
+
+Build and type-check currently pass; lint has known existing failures that are
+tracked for cleanup.
+
+## Deployment
+
+```bash
 vercel --prod --cwd web
-
-# First-time setup: link Vercel project
-vercel link --cwd web
 ```
 
-**Important:** Always use `--cwd web` when running Vercel CLI from the project root, since the Next.js app is in a subdirectory.
+Vercel does **not** auto-deploy from GitHub for this project. Pushing or merging
+`master` does not change the live application; production changes only after an
+explicit Vercel deployment. The Amp release workflow will be documented here
+once it is configured.
+
+## Migrations
+
+The repository contains historical migrations, but no tooling records which
+ones production has applied. The application expects current fields including
+`editions.edition_type` and `editions.status_confidence`; inspect the live schema
+instead of relying on an old status note.
+
+Never run every migration in a loop. There are three historical `003` files,
+some migrations are data-specific, and not all are safe to replay. See
+[the migration history](supabase/migrations/README.md) before handling a schema
+change.
 
 ## Data Model
 
@@ -105,13 +136,6 @@ number. `editions.size` is NULL for roughly half of rows, which is correct: old
 imports guessed 'Small' for anything unmeasured and those guesses have since
 been cleared. A blank size means nobody has measured that edition.
 
-> **Migration 005 is not yet applied to production.** The artist's-proof feature
-> is merged and expects `editions.edition_type`, but the live database has no
-> such column and still identifies APs by a negative `edition_number`. Until
-> `supabase/migrations/005_add_edition_type.sql` runs, "Add artist's proof"
-> fails and AP detection silently treats the 69 existing proofs as numbered
-> editions. Apply it before deploying.
-
 ## Import Design
 
 - **Bulk inserts** via psycopg2's `execute_values`, 5,000 records per batch.
@@ -124,6 +148,15 @@ been cleared. A blank size means nobody has measured that edition.
   before load.
 
 A full import runs in well under a minute.
+
+## Documentation
+
+- `AGENTS.md` — canonical project and production-safety guidance
+- `web/README.md` — frontend-specific setup
+- `web/docs/user/` — guides rendered inside the application
+- `supabase/migrations/README.md` — migration history and safety
+- `planning/` and `PRPs/` — historical design proposals, not current-state
+  guarantees
 
 ## License
 

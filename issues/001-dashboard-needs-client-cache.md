@@ -1,10 +1,11 @@
 # Issue: Dashboard Overview Page Needs Client-Side Cache
 
 ## Status
-Complete - implemented 2024-12-20
+Complete - implemented 2025-12-20
 
 ## Description
-The dashboard overview page currently shows placeholder/loading state. It needs to be wired up to display real stats once the Zustand client-side cache is implemented.
+The dashboard overview page originally showed a placeholder/loading state. This
+issue tracked wiring it to the Zustand client-side cache and real statistics.
 
 ## Requirements
 Once the cache is built (see `planning/PRP-client-side-cache.md`), the dashboard should show:
@@ -29,13 +30,13 @@ Once the cache is built (see `planning/PRP-client-side-cache.md`), the dashboard
 - Unsettled badge if applicable
 - Filter out galleries with no stock and no sales history
 
-## Implementation Notes
+## Design notes
 - Use memoized selectors from Zustand store
 - All calculations derived from cached editions data
 - Single source of truth - no server-side duplication
 
 ## Related Files
-- `web/src/app/(dashboard)/page.tsx` - placeholder currently
+- `web/src/app/(dashboard)/page.tsx` - implemented dashboard
 - `planning/PRP-client-side-cache.md` - cache implementation plan
 
 ## Implementation Notes

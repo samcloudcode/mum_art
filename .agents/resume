@@ -2,6 +2,12 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PATH="$HOME/.local/bin:$PATH"
+
+if ! command -v vercel >/dev/null 2>&1; then
+  printf '[resume] Vercel CLI is missing; run .agents/setup.\n' >&2
+  exit 1
+fi
 
 if [[ ! -x "$repo_root/.venv/bin/python" ]]; then
   printf '[resume] Python dependencies are missing; run .agents/setup.\n' >&2

@@ -54,6 +54,22 @@ check_node() {
   printf 'npm %s\n' "$(npm --version)"
 }
 
+install_vercel_cli() {
+  local expected_version="59.10.0"
+  local installed_version=""
+
+  if command -v vercel >/dev/null 2>&1; then
+    installed_version="$(vercel --version 2>/dev/null | tail -n 1)"
+  fi
+  if [[ "$installed_version" == "$expected_version" ]]; then
+    printf 'vercel %s\n' "$installed_version"
+    return
+  fi
+
+  npm install --global --prefix "$HOME/.local" --no-audit --no-fund "vercel@$expected_version"
+  printf 'vercel %s\n' "$(vercel --version 2>/dev/null | tail -n 1)"
+}
+
 install_python_dependencies() {
   cd "$repo_root"
   uv python install 3.13
@@ -89,6 +105,7 @@ fi
 
 run_step "Installing uv" install_uv
 run_step "Checking the Node.js toolchain" check_node
+run_step "Installing the Vercel CLI" install_vercel_cli
 run_step "Installing locked Python dependencies" install_python_dependencies
 run_step "Installing locked web dependencies" install_web_dependencies
 

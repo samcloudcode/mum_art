@@ -36,8 +36,9 @@ and distributors are galleries or the artist's direct stock location.
 
 ## Setup and checks
 
-Fresh Amp orbs run `.agents/setup`, which installs Python 3.13 and both locked
-dependency sets. Manual setup from the repository root is:
+Fresh Amp orbs run `.agents/setup`, which installs Python 3.13, both locked
+dependency sets, and the pinned Vercel CLI used by Ship. Manual application
+setup from the repository root is:
 
 ```bash
 uv sync --frozen
@@ -90,13 +91,26 @@ npm --prefix web run dev
 npm --prefix web run build
 
 # Production deployment from the repository root
-vercel --prod --cwd web
+npm --prefix web run deploy:production
 ```
 
 Vercel does not auto-deploy this repository from GitHub. Pushing or merging
 `master` does not change production. A production deployment requires a separate
 explicit action. Coordinate schema-dependent code and migrations so the live
 application and database remain compatible.
+
+The Amp project uses Custom Ship with the tracked prompt in `.agents/ship.md`.
+Ship runs the complete frontend check, pushes `master`, and deploys that commit
+to Vercel production. It requires project-scoped `VERCEL_TOKEN` (secret),
+`VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` values. Database changes are excluded
+and require separate explicit approval. Amp stores a copy of the prompt, so
+after editing `.agents/ship.md`, update the project setting again:
+
+```bash
+amp projects update user_01KZRR03QFY939RW9SJC57G10J/mum_art \
+  --ship-behavior custom \
+  --custom-ship-prompt-file .agents/ship.md
+```
 
 ## Documentation ownership
 

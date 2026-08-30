@@ -30,6 +30,7 @@ npm run build     # production build and Next.js type checking
 npm run typecheck # standalone TypeScript check
 npm run lint      # ESLint, with zero warnings allowed
 npm run check     # lint, type-check, and production build in sequence
+npm run deploy:production # deploy the existing project to Vercel production
 npm run start     # serve an existing production build
 ```
 
@@ -41,8 +42,10 @@ directory. `web/docs/user` is therefore their canonical repository location.
 From the repository root:
 
 ```bash
-vercel --prod --cwd web
+npm --prefix web run deploy:production
 ```
 
 GitHub pushes do not automatically deploy this project. Read the root
-`README.md` and `AGENTS.md` before any production action.
+`README.md`, `AGENTS.md`, and `.agents/ship.md` before any production action.
+Deployment requires `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` in
+the environment; the token must be stored as a secret.

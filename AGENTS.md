@@ -37,8 +37,8 @@ and distributors are galleries or the artist's direct stock location.
 ## Setup and checks
 
 Fresh Amp orbs run `.agents/setup`, which installs Python 3.13, both locked
-dependency sets, and the pinned Vercel CLI used by Ship. Manual application
-setup from the repository root is:
+dependency sets, and the frontend toolchain. Manual application setup from the
+repository root is:
 
 ```bash
 uv sync --frozen
@@ -89,25 +89,21 @@ npm --prefix web run dev
 
 # Production build
 npm --prefix web run build
-
-# Production deployment from the repository root
-npm --prefix web run deploy:production
 ```
 
-Vercel does not auto-deploy this repository from GitHub. Pushing or merging
-`master` does not change production. A production deployment requires a separate
-explicit action. Coordinate schema-dependent code and migrations so the live
-application and database remain compatible.
+The existing Vercel `mum_art` project is connected to
+`samcloudcode/mum_art`, uses `web` as its Root Directory, and tracks `master`
+as its production branch. Every push to `master` automatically starts a
+production deployment. Treat pushing `master` as a production action and
+coordinate schema-dependent code and migrations so the live application and
+database remain compatible.
 
 The Amp project uses Custom Ship with the tracked prompt in `.agents/ship.md`.
-Ship runs the complete frontend check, pushes `master`, and deploys that commit
-to Vercel production. It requires `VERCEL_TOKEN` (secret), `VERCEL_ORG_ID`, and
-`VERCEL_PROJECT_ID` in the Amp project environment. Vercel CLI 59.10.0
-currently rejects team- and project-scoped tokens during its user-identity
-preflight, so `VERCEL_TOKEN` must use Full Account scope until that CLI
-limitation is removed. Database changes are excluded and require separate
-explicit approval. Amp stores a copy of the prompt, so after editing
-`.agents/ship.md`, update the project setting again:
+Ship runs the complete frontend check, pushes `master`, and waits for Vercel's
+GitHub deployment status on that exact commit. It does not require a Vercel
+token. Database changes are excluded and require separate explicit approval.
+Amp stores a copy of the prompt, so after editing `.agents/ship.md`, update the
+project setting again:
 
 ```bash
 amp projects update user_01KZRR03QFY939RW9SJC57G10J/mum_art \

@@ -30,7 +30,6 @@ npm run build     # production build and Next.js type checking
 npm run typecheck # standalone TypeScript check
 npm run lint      # ESLint, with zero warnings allowed
 npm run check     # lint, type-check, and production build in sequence
-npm run deploy:production # deploy the existing project to Vercel production
 npm run start     # serve an existing production build
 ```
 
@@ -39,15 +38,8 @@ directory. `web/docs/user` is therefore their canonical repository location.
 
 ## Deployment
 
-From the repository root:
-
-```bash
-npm --prefix web run deploy:production
-```
-
-GitHub pushes do not automatically deploy this project. Read the root
-`README.md`, `AGENTS.md`, and `.agents/ship.md` before any production action.
-Deployment requires `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` in
-the environment. The token must be stored as a secret and currently needs Full
-Account scope because Vercel CLI 59.10.0 rejects narrower tokens during its
-identity preflight.
+Vercel uses this directory as the project's Root Directory and automatically
+deploys pushes to the production branch, `master`. Read the root `README.md`,
+`AGENTS.md`, and `.agents/ship.md` before any production action. Amp Ship runs
+the release checks, pushes the reviewed commit, and verifies Vercel's GitHub
+deployment status without storing Vercel credentials.

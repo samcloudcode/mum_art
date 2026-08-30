@@ -8,8 +8,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "check": "npm run lint && npm run typecheck && npm run build",
-    "deploy:production": "vercel deploy --prod --non-interactive"
+    "check": "npm run lint && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",

@@ -46,8 +46,7 @@ npm --prefix web ci
 ```
 
 Fresh Amp orbs run `.agents/setup` automatically. It installs both locked
-dependency sets and the pinned Vercel CLI, then reuses them from the project
-snapshot.
+dependency sets and reuses them from the project snapshot.
 
 ### 2. Configure the environment
 
@@ -100,32 +99,17 @@ available as `lint`, `typecheck`, or `build` in `web/package.json`.
 
 ## Deployment
 
-```bash
-npm --prefix web run deploy:production
-```
-
-Vercel does **not** auto-deploy from GitHub for this project. Pushing or merging
-`master` does not change the live application; production changes only after an
-explicit Vercel deployment.
+The existing Vercel `mum_art` project is connected to this GitHub repository,
+uses `web` as its Root Directory, and tracks `master` as its production branch.
+Every push to `master` automatically starts a production deployment, so do not
+push `master` unless the change is intended to go live.
 
 The Amp project uses a Custom Ship workflow tracked in [`.agents/ship.md`](.agents/ship.md).
-After reviewing a thread's changes, pressing **Ship** checks the Vercel target,
-runs `npm --prefix web run check`, rebases and pushes `master`, deploys that
-commit to Vercel production, and verifies the deployment. Ship deliberately
-does not run database migrations or other production data writes.
-
-Every orb needs these project-scoped values under **Project Settings → Secrets
-& Env Vars**:
-
-- `VERCEL_TOKEN` — mark this as a secret. Vercel CLI 59.10.0 currently requires
-  a **Full Account** token because its identity preflight rejects narrower
-  team- and project-scoped tokens.
-- `VERCEL_ORG_ID` — environment variable identifying the Vercel account/team.
-- `VERCEL_PROJECT_ID` — environment variable identifying the existing project.
-
-Never commit these values or paste the token into a thread. Existing orbs must
-run `amp orb restart-processes` after the values are added; new orbs receive
-them when they start.
+After reviewing a thread's changes, pressing **Ship** runs
+`npm --prefix web run check`, rebases and pushes `master`, then waits for the
+Vercel GitHub deployment status on that exact commit. The push is the production
+release action; no Vercel credentials are stored in Amp. Ship deliberately does
+not run database migrations or other production data writes.
 
 ## Migrations
 

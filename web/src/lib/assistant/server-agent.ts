@@ -40,7 +40,7 @@ type AgentContext = {
 
 class ToolInputError extends Error {}
 
-const TOOLS: Tool[] = ([
+export const ASSISTANT_TOOLS: Tool[] = ([
   {
     name: 'find_artworks',
     description:
@@ -49,7 +49,7 @@ const TOOLS: Tool[] = ([
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Artwork name or abbreviation from the user.' },
-        limit: { type: 'integer', minimum: 1, maximum: 20 },
+        limit: { type: 'integer', description: 'Optional result limit from 1 to 20.' },
       },
       required: ['query'],
       additionalProperties: false,
@@ -63,7 +63,7 @@ const TOOLS: Tool[] = ([
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Gallery or location name.' },
-        limit: { type: 'integer', minimum: 1, maximum: 20 },
+        limit: { type: 'integer', description: 'Optional result limit from 1 to 20.' },
       },
       required: ['query'],
       additionalProperties: false,
@@ -78,12 +78,16 @@ const TOOLS: Tool[] = ([
       properties: {
         print_id: { type: 'integer' },
         distributor_id: { type: 'integer' },
-        edition_numbers: { type: 'array', items: { type: 'integer' }, maxItems: 100 },
+        edition_numbers: {
+          type: 'array',
+          description: 'At most 100 exact edition numbers.',
+          items: { type: 'integer' },
+        },
         edition_type: { type: 'string', enum: ['numbered', 'ap'] },
         is_printed: { type: 'boolean' },
         is_sold: { type: 'boolean' },
         include_legacy: { type: 'boolean' },
-        limit: { type: 'integer', minimum: 1, maximum: 100 },
+        limit: { type: 'integer', description: 'Optional result limit from 1 to 100.' },
       },
       additionalProperties: false,
     },
@@ -97,7 +101,7 @@ const TOOLS: Tool[] = ([
       properties: {
         distributor_id: { type: 'integer' },
         print_id: { type: 'integer' },
-        limit: { type: 'integer', minimum: 1, maximum: 100 },
+        limit: { type: 'integer', description: 'Optional result limit from 1 to 100.' },
       },
       required: ['distributor_id'],
       additionalProperties: false,
@@ -113,7 +117,7 @@ const TOOLS: Tool[] = ([
         entries: {
           type: 'array',
           minItems: 1,
-          maxItems: 50,
+          description: 'Between 1 and 50 transcribed inventory entries.',
           items: {
             type: 'object',
             properties: {
@@ -141,7 +145,7 @@ const TOOLS: Tool[] = ([
         distributor_id: { type: 'integer' },
         action: { type: 'string', enum: ['update', 'move', 'sell', 'settle', 'create', 'delete'] },
         since: { type: 'string', description: 'ISO date or timestamp lower bound.' },
-        limit: { type: 'integer', minimum: 1, maximum: 50 },
+        limit: { type: 'integer', description: 'Optional result limit from 1 to 50.' },
       },
       additionalProperties: false,
     },
@@ -156,7 +160,7 @@ const TOOLS: Tool[] = ([
         actions: {
           type: 'array',
           minItems: 1,
-          maxItems: 20,
+          description: 'Between 1 and 20 named inventory actions.',
           items: {
             type: 'object',
             properties: {
@@ -173,7 +177,7 @@ const TOOLS: Tool[] = ([
               edition_ids: {
                 type: 'array',
                 minItems: 1,
-                maxItems: 100,
+                description: 'Between 1 and 100 resolved edition IDs.',
                 items: { type: 'integer' },
               },
               distributor_id: { type: 'integer' },
@@ -558,7 +562,7 @@ export async function runProposalAgent(params: {
         hasImage: Boolean(params.image),
       }),
       messages,
-      tools: TOOLS,
+      tools: ASSISTANT_TOOLS,
       metadata: { user_id: params.userId },
     })
 

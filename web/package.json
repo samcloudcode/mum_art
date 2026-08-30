@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/lib/assistant/server-inventory.test.ts 'src/app/(dashboard)/assistant/assistant-client.test.tsx'",
+    "test": "tsx --test src/lib/assistant/*.test.ts 'src/app/(dashboard)/assistant/assistant-client.test.tsx'",
     "check": "npm run lint && npm run typecheck && npm run build"
   },
   "dependencies": {

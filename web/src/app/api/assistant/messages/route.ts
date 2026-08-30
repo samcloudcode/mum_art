@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { runProposalAgent, type AgentImage } from '@/lib/assistant/server-agent'
+import { assistantErrorDetails, assistantErrorResponse } from '@/lib/assistant/server-errors'
 import { toAssistantProposal } from '@/lib/assistant/server-inventory'
 import type {
   AssistantConversationResponse,
@@ -269,11 +270,20 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     if (error instanceof Error && error.message === 'The assistant is not configured yet') {
-      return NextResponse.json({ error: error.message }, { status: 503 })
+      return NextResponse.json(
+        {
+          error: 'The assistant is not configured yet. No inventory was changed. Please ask an administrator to check its settings.',
+          code: 'assistant_not_configured',
+        },
+        { status: 503 }
+      )
     }
+    const details = assistantErrorDetails(error)
+    const response = assistantErrorResponse(error)
+    console.error('Assistant request failed', details)
     return NextResponse.json(
-      { error: 'The assistant could not complete the request. Please try again.' },
-      { status: 502 }
+      { error: response.error, code: response.code, reference: details.requestId },
+      { status: response.status }
     )
   }
 }

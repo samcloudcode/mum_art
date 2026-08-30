@@ -50,11 +50,13 @@ function ToggleButtonGroup({
 }) {
   // Internal state for instant visual feedback
   const [internalValue, setInternalValue] = useState(value)
+  const [previousValue, setPreviousValue] = useState(value)
 
   // Sync with external value when it changes (e.g., clear filters)
-  useEffect(() => {
+  if (value !== previousValue) {
+    setPreviousValue(value)
     setInternalValue(value)
-  }, [value])
+  }
 
   const handleClick = (newValue: string) => {
     flushSync(() => setInternalValue(newValue))
@@ -104,27 +106,28 @@ export function EditionFilters({
   onClearFilters,
   legacyCount = 0,
 }: FilterProps) {
-  const [searchValue, setSearchValue] = useState(currentFilters.search || '')
-  const [isSearching, setIsSearching] = useState(false)
+  const externalSearch = currentFilters.search || ''
+  const [searchValue, setSearchValue] = useState(externalSearch)
+  const [previousSearch, setPreviousSearch] = useState(externalSearch)
+
+  // Clear filters can change the controlled search value independently of the
+  // input. Adjust it before rendering so the field clears immediately.
+  if (externalSearch !== previousSearch) {
+    setPreviousSearch(externalSearch)
+    setSearchValue(externalSearch)
+  }
+
+  const isSearching = searchValue !== externalSearch
 
   // Debounce search input
   useEffect(() => {
-    if (searchValue !== currentFilters.search) {
-      setIsSearching(true)
-    }
+    if (searchValue === externalSearch) return
+
     const timeoutId = setTimeout(() => {
-      if (searchValue !== currentFilters.search) {
-        onFilterChange('search', searchValue)
-      }
-      setIsSearching(false)
+      onFilterChange('search', searchValue)
     }, 300)
     return () => clearTimeout(timeoutId)
-  }, [searchValue, currentFilters.search, onFilterChange])
-
-  // Sync search value when filters are cleared externally
-  useEffect(() => {
-    setSearchValue(currentFilters.search || '')
-  }, [currentFilters.search])
+  }, [searchValue, externalSearch, onFilterChange])
 
   const hasFilters = Object.values(currentFilters).some((v) => v && v !== 'all' && v !== '')
 

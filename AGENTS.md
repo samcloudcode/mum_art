@@ -44,16 +44,16 @@ uv sync --frozen
 npm --prefix web ci
 ```
 
-Current frontend checks are:
+Run the complete frontend release check from the repository root:
 
 ```bash
-npm --prefix web run lint
-npm --prefix web run build
-web/node_modules/.bin/tsc --noEmit --project web/tsconfig.json
+npm --prefix web run check
 ```
 
-The production build and type check pass. The repository currently has known
-lint failures; do not describe lint as green until those are resolved.
+This runs ESLint with zero warnings allowed, the standalone TypeScript check,
+and the production build in sequence. Run an individual stage with
+`npm --prefix web run lint`, `npm --prefix web run typecheck`, or
+`npm --prefix web run build`.
 
 ## Database operations
 

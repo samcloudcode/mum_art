@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  editionStatusStyles,
   paymentStatusStyles,
   statusConfidenceStyles,
   getEditionStatusStyle,
@@ -40,6 +39,7 @@ type Props = {
 export function EditionDetail({ edition, distributors, onUpdate, isSaving }: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [syncedEdition, setSyncedEdition] = useState(edition)
 
   // Form state
   const [size, setSize] = useState(edition.size || '')
@@ -49,15 +49,18 @@ export function EditionDetail({ edition, distributors, onUpdate, isSaving }: Pro
   const [isPrinted, setIsPrinted] = useState(edition.is_printed || false)
   const [notes, setNotes] = useState(edition.notes || '')
 
-  // Sync form state when edition changes (optimistic updates)
-  useEffect(() => {
+  // Optimistic updates replace the edition object. Adjust the draft before
+  // rendering its children so the form reflects the new store value without a
+  // synchronization effect and its extra stale render.
+  if (edition !== syncedEdition) {
+    setSyncedEdition(edition)
     setSize(edition.size || '')
     setFrameType(edition.frame_type || '')
     setRetailPrice(edition.retail_price?.toString() || '')
     setDistributorId(edition.distributor_id?.toString() || '')
     setIsPrinted(edition.is_printed || false)
     setNotes(edition.notes || '')
-  }, [edition])
+  }
 
   const handleSave = async () => {
     setError(null)

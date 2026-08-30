@@ -8,7 +8,6 @@ import {
   calculatePortfolioHealth,
   calculateArtworkStats,
   calculateGalleryStats,
-  calculateYearOverYear,
   calculateRollingMetrics,
   generateInventoryAlerts,
   buildGalleryArtworkMatrix,
@@ -50,11 +49,6 @@ export default function AnalyticsPage() {
     [allEditions, distributors]
   )
 
-  const yoyComparison = useMemo(
-    () => calculateYearOverYear(allEditions),
-    [allEditions]
-  )
-
   const rollingMetrics = useMemo(
     () => calculateRollingMetrics(allEditions),
     [allEditions]
@@ -66,8 +60,8 @@ export default function AnalyticsPage() {
   )
 
   const matrix = useMemo(
-    () => buildGalleryArtworkMatrix(allEditions, prints, distributors),
-    [allEditions, prints, distributors]
+    () => buildGalleryArtworkMatrix(allEditions),
+    [allEditions]
   )
 
   if (!isReady) return null
@@ -115,7 +109,6 @@ export default function AnalyticsPage() {
       {activeTab === 'overview' && (
         <OverviewTab
           portfolioHealth={portfolioHealth}
-          yoyComparison={yoyComparison}
           rollingMetrics={rollingMetrics}
           alerts={alerts}
           artworkStats={artworkStats}
@@ -135,7 +128,6 @@ export default function AnalyticsPage() {
         <MatrixTab
           matrix={matrix}
           prints={prints}
-          distributors={distributors}
           galleryStats={galleryStats}
         />
       )}
@@ -149,14 +141,12 @@ export default function AnalyticsPage() {
 
 function OverviewTab({
   portfolioHealth,
-  yoyComparison,
   rollingMetrics,
   alerts,
   artworkStats,
   galleryStats,
 }: {
   portfolioHealth: ReturnType<typeof calculatePortfolioHealth>
-  yoyComparison: ReturnType<typeof calculateYearOverYear>
   rollingMetrics: RollingMetrics
   alerts: ReturnType<typeof generateInventoryAlerts>
   artworkStats: ArtworkStats[]
@@ -1101,12 +1091,10 @@ function GalleriesTab({
 function MatrixTab({
   matrix,
   prints,
-  distributors,
   galleryStats,
 }: {
   matrix: Map<string, { allocated: number; sold: number; conversionRate: number; inStock: number }>
   prints: ReturnType<typeof useInventory>['prints']
-  distributors: ReturnType<typeof useInventory>['distributors']
   galleryStats: GalleryStats[]
 }) {
   // Only show galleries with allocations

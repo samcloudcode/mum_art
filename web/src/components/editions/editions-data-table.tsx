@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect, Fragment, memo } from 'react'
+import { useState, useCallback, useMemo, Fragment, memo } from 'react'
 import Link from 'next/link'
 import {
   Table,
@@ -512,14 +512,16 @@ export function EditionsDataTable({
   const [actionError, setActionError] = useState<string | null>(null)
   const [activeAction, setActiveAction] = useState<'printed' | 'settled' | 'move' | 'bulkEdit' | null>(null)
   const [rawPage, setPage] = useState(1)
+  const [previousResetKey, setPreviousResetKey] = useState(resetKey)
 
   // Return to page 1 only when the caller's filters/sort change. This used to
   // key off the `editions` array, but every inline edit replaces that array
   // (the store clones it for React), so any edit made on page 4 threw the user
   // back to page 1.
-  useEffect(() => {
+  if (resetKey !== previousResetKey) {
+    setPreviousResetKey(resetKey)
     setPage(1)
-  }, [resetKey])
+  }
 
   // Client-side pagination - memoized to prevent unnecessary recalculations
   const totalPages = Math.max(1, Math.ceil(editions.length / pageSize))

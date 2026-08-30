@@ -27,8 +27,9 @@ through the shell or an untracked `.env.local`.
 ```bash
 npm run dev       # development server
 npm run build     # production build and Next.js type checking
-npx tsc --noEmit  # standalone TypeScript check
-npm run lint      # ESLint; currently has known baseline failures
+npm run typecheck # standalone TypeScript check
+npm run lint      # ESLint, with zero warnings allowed
+npm run check     # lint, type-check, and production build in sequence
 npm run start     # serve an existing production build
 ```
 

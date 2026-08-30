@@ -207,12 +207,9 @@ function getTaxYearQuarter(date: Date): number {
  */
 export function calculateTaxYearReport(
   editions: EditionWithRelations[],
-  distributors: Distributor[],
   taxYear: TaxYear,
   includePreviousYear = true
 ): TaxYearReport {
-  const distributorMap = new Map(distributors.map(d => [d.id, d]))
-
   // Filter sales for this tax year
   const taxYearEditions = editions.filter(e =>
     e.is_sold && isInTaxYear(e.date_sold, taxYear)

@@ -11,8 +11,6 @@ import {
   calculateYearEndGalleryStock,
   generateTaxYearCSV,
   type TaxYear,
-  type TaxYearReport,
-  type YearEndGalleryStockReport,
 } from '@/lib/utils/uk-tax-year'
 import {
   Table,
@@ -42,8 +40,8 @@ export default function UKTaxYearReportPage() {
 
   // Calculate report
   const report = useMemo(
-    () => calculateTaxYearReport(allEditions, distributors, activeTaxYear),
-    [allEditions, distributors, activeTaxYear]
+    () => calculateTaxYearReport(allEditions, activeTaxYear),
+    [allEditions, activeTaxYear]
   )
 
   // Calculate year-end gallery stock
@@ -625,7 +623,7 @@ export default function UKTaxYearReportPage() {
 
         {!showSalesRegister && report.sales.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            {report.sales.length} sales recorded. Click "Show All" to view the complete register.
+            {report.sales.length} sales recorded. Click “Show All” to view the complete register.
           </p>
         )}
       </section>
@@ -645,7 +643,7 @@ export default function UKTaxYearReportPage() {
           </li>
           <li>
             <strong>Settlement Status:</strong> For cash basis accounting, only include income that has been received.
-            The "unsettled" amount indicates sales where payment is still pending from galleries.
+            The “unsettled” amount indicates sales where payment is still pending from galleries.
           </li>
         </ul>
       </section>

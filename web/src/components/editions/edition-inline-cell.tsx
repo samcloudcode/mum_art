@@ -14,8 +14,6 @@ import { Loader2, Star } from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
 import { feedbackStyles } from '@/lib/utils/badge-styles'
 
-type CellType = 'text' | 'number' | 'select' | 'checkbox' | 'date'
-
 type BaseProps = {
   editionId: number
   field: string
@@ -59,9 +57,7 @@ type DateCellProps = BaseProps & {
 type InlineCellProps = TextCellProps | NumberCellProps | SelectCellProps | CheckboxCellProps | DateCellProps
 
 export function EditionInlineCell(props: InlineCellProps) {
-  const { type, editionId, field, disabled, className } = props
-
-  switch (type) {
+  switch (props.type) {
     case 'text':
       return <TextCell {...props} />
     case 'number':

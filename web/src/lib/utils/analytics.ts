@@ -475,9 +475,7 @@ export function calculateGalleryStats(
  * Build a gallery x artwork matrix showing conversion rates
  */
 export function buildGalleryArtworkMatrix(
-  editions: EditionWithRelations[],
-  prints: Print[],
-  distributors: Distributor[]
+  editions: EditionWithRelations[]
 ): Map<string, GalleryArtworkCell> {
   const matrix = new Map<string, GalleryArtworkCell>()
 
@@ -597,7 +595,7 @@ export function calculateYearOverYear(
   const prevStats = salesByYear.get(currentYear - 1) || { count: 0, revenue: 0 }
 
   // Three year average (previous 3 years, not including current)
-  let threeYearTotal = { count: 0, revenue: 0 }
+  const threeYearTotal = { count: 0, revenue: 0 }
   let yearsWithData = 0
   for (let y = currentYear - 3; y < currentYear; y++) {
     const yearStats = salesByYear.get(y)
@@ -654,9 +652,9 @@ export function calculateRollingMetrics(
     : editions
 
   // Aggregate by period
-  let current = { count: 0, revenue: 0, netRevenue: 0 }
-  let previous = { count: 0, revenue: 0, netRevenue: 0 }
-  let threeYear = { count: 0, revenue: 0, netRevenue: 0 }
+  const current = { count: 0, revenue: 0, netRevenue: 0 }
+  const previous = { count: 0, revenue: 0, netRevenue: 0 }
+  const threeYear = { count: 0, revenue: 0, netRevenue: 0 }
 
   filteredEditions.forEach(e => {
     if (!e.is_sold || !e.date_sold) return
@@ -739,7 +737,6 @@ export function generateInventoryAlerts(
   const artworkStats = calculateArtworkStats(editions, prints, distributors)
   const galleryStats = calculateGalleryStats(editions, distributors)
   const now = new Date()
-  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
 
   // Artwork-level alerts
   artworkStats.forEach(artwork => {

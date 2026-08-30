@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useMemo, useState } from 'react'
+import { use, useMemo } from 'react'
 import Link from 'next/link'
 import { useInventory } from '@/lib/hooks/use-inventory'
 import { formatPrice } from '@/lib/utils'
@@ -19,7 +19,6 @@ export default function GalleryStockPage({ params }: PageProps) {
   const { id } = use(params)
   const distributorId = parseInt(id)
   const { distributors, allEditions, isReady } = useInventory()
-  const [stockValue, setStockValue] = useState(0)
 
   const distributor = useMemo(
     () => distributors.find((d) => d.id === distributorId),
@@ -110,7 +109,6 @@ export default function GalleryStockPage({ params }: PageProps) {
       <EditionsTableWithFilters
         {...galleryStockPreset(distributorId)}
         showResultsSummary
-        onStockValueChange={setStockValue}
         enableMobileView
         hideLocationInCards
       />

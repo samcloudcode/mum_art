@@ -3,15 +3,15 @@
 /**
  * Generate thumbnails for all existing artwork images
  *
- * Usage: node scripts/generate-thumbnails.js
+ * Usage: node scripts/generate-thumbnails.mjs
  *
  * Requires environment variables:
  * - SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL
  * - SUPABASE_SERVICE_ROLE_KEY
  */
 
-const { createClient } = require('@supabase/supabase-js')
-const sharp = require('sharp')
+import { createClient } from '@supabase/supabase-js'
+import sharp from 'sharp'
 
 // Configuration
 const BUCKET_NAME = 'artwork-images'

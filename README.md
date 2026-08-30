@@ -90,13 +90,12 @@ The generated import report is displayed in the app from
 ## Checks
 
 ```bash
-npm --prefix web run lint
-npm --prefix web run build
-web/node_modules/.bin/tsc --noEmit --project web/tsconfig.json
+npm --prefix web run check
 ```
 
-Build and type-check currently pass; lint has known existing failures that are
-tracked for cleanup.
+The release check runs ESLint with zero warnings allowed, standalone TypeScript
+checking, and the production Next.js build in sequence. Each stage is also
+available as `lint`, `typecheck`, or `build` in `web/package.json`.
 
 ## Deployment
 

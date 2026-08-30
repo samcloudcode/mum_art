@@ -8,7 +8,6 @@ import { MobileEditionCard } from './mobile-edition-card'
 import {
   type EditionsTablePreset,
   type ColumnKey,
-  type FilterKey,
   type SortOption,
   applyPreFilter,
   sortEditions,
@@ -49,10 +48,12 @@ function ToggleButtonGroup({
   className?: string
 }) {
   const [internalValue, setInternalValue] = useState(value)
+  const [previousValue, setPreviousValue] = useState(value)
 
-  useEffect(() => {
+  if (value !== previousValue) {
+    setPreviousValue(value)
     setInternalValue(value)
-  }, [value])
+  }
 
   const handleClick = (newValue: string) => {
     flushSync(() => setInternalValue(newValue))
@@ -123,8 +124,6 @@ type Props = EditionsTablePreset & {
   maxHeight?: string
   /** Show filtered results summary */
   showResultsSummary?: boolean
-  /** Callback when stock value changes (for displaying in parent) */
-  onStockValueChange?: (value: number) => void
   /** Enable mobile card view with toggle */
   enableMobileView?: boolean
   /** Hide location in mobile cards (useful when already filtered by gallery) */
@@ -151,7 +150,6 @@ export function EditionsTableWithFilters({
   showCard = true,
   maxHeight,
   showResultsSummary = false,
-  onStockValueChange,
   enableMobileView = false,
   hideLocationInCards = false,
 }: Props) {
@@ -212,7 +210,6 @@ export function EditionsTableWithFilters({
 
   // Filter state
   const [searchTerm, setSearchTerm] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [artworkFilter, setArtworkFilter] = useState<string>('all')
   const [locationFilter, setLocationFilter] = useState<string>('all')
@@ -221,15 +218,15 @@ export function EditionsTableWithFilters({
   const [printedFilter, setPrintedFilter] = useState<string>('all')
   const [soldFilter, setSoldFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<SortOption>(defaultSort)
+  const isSearching = searchTerm !== debouncedSearch
 
   // Debounce search
   useEffect(() => {
-    if (searchTerm !== debouncedSearch) {
-      setIsSearching(true)
-    }
+    if (searchTerm === debouncedSearch) return
+
     const timeoutId = setTimeout(() => {
       setDebouncedSearch(searchTerm)
-      setIsSearching(false)
+      setPage(1)
     }, 300)
     return () => clearTimeout(timeoutId)
   }, [searchTerm, debouncedSearch])
@@ -244,11 +241,6 @@ export function EditionsTableWithFilters({
     ]),
     [debouncedSearch, artworkFilter, locationFilter, sizeFilter, frameFilter, printedFilter, soldFilter, sortBy]
   )
-
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1)
-  }, [filterSignature])
 
   // Apply pre-filter first
   const preFiltered = useMemo(
@@ -327,11 +319,6 @@ export function EditionsTableWithFilters({
     [finalEditions]
   )
 
-  // Notify parent of stock value changes
-  useEffect(() => {
-    onStockValueChange?.(stockValue)
-  }, [stockValue, onStockValueChange])
-
   // Get available filter options based on pre-filtered data
   const availableSizes = useMemo(() => {
     const sizeSet = new Set(preFiltered.map((e) => e.size).filter(Boolean))
@@ -361,6 +348,7 @@ export function EditionsTableWithFilters({
     setFrameFilter('all')
     setPrintedFilter('all')
     setSoldFilter('all')
+    setPage(1)
   }, [])
 
   if (!isReady) return null
@@ -400,17 +388,15 @@ export function EditionsTableWithFilters({
   }
 
   // Count active filters for badge
-  const activeFilterCount = useMemo(() => {
-    let count = 0
-    if (debouncedSearch) count++
-    if (artworkFilter !== 'all') count++
-    if (locationFilter !== 'all') count++
-    if (sizeFilter !== 'all') count++
-    if (frameFilter !== 'all') count++
-    if (printedFilter !== 'all') count++
-    if (soldFilter !== 'all') count++
-    return count
-  }, [debouncedSearch, artworkFilter, locationFilter, sizeFilter, frameFilter, printedFilter, soldFilter])
+  const activeFilterCount = [
+    debouncedSearch !== '',
+    artworkFilter !== 'all',
+    locationFilter !== 'all',
+    sizeFilter !== 'all',
+    frameFilter !== 'all',
+    printedFilter !== 'all',
+    soldFilter !== 'all',
+  ].filter(Boolean).length
 
   // Render filters
   const renderFilters = () => {
@@ -466,7 +452,10 @@ export function EditionsTableWithFilters({
                   <ToggleButtonGroup
                     options={printedOptions}
                     value={printedFilter}
-                    onChange={setPrintedFilter}
+                    onChange={(value) => {
+                      setPrintedFilter(value)
+                      setPage(1)
+                    }}
                   />
                 </div>
               )}
@@ -476,7 +465,10 @@ export function EditionsTableWithFilters({
                   <ToggleButtonGroup
                     options={soldOptions}
                     value={soldFilter}
-                    onChange={setSoldFilter}
+                    onChange={(value) => {
+                      setSoldFilter(value)
+                      setPage(1)
+                    }}
                   />
                 </div>
               )}
@@ -514,7 +506,10 @@ export function EditionsTableWithFilters({
 
             {/* Artwork filter */}
             {showFilters.includes('artwork') && (
-              <Select value={artworkFilter} onValueChange={setArtworkFilter}>
+              <Select value={artworkFilter} onValueChange={(value) => {
+                setArtworkFilter(value)
+                setPage(1)
+              }}>
                 <SelectTrigger className="w-full md:w-[180px]">
                   <SelectValue placeholder="Artwork" />
                 </SelectTrigger>
@@ -531,7 +526,10 @@ export function EditionsTableWithFilters({
 
             {/* Location filter */}
             {showFilters.includes('location') && (
-              <Select value={locationFilter} onValueChange={setLocationFilter}>
+              <Select value={locationFilter} onValueChange={(value) => {
+                setLocationFilter(value)
+                setPage(1)
+              }}>
                 <SelectTrigger className="w-full md:w-[180px]">
                   <SelectValue placeholder="Location" />
                 </SelectTrigger>
@@ -548,7 +546,10 @@ export function EditionsTableWithFilters({
 
             {/* Size filter */}
             {showFilters.includes('size') && (
-              <Select value={sizeFilter} onValueChange={setSizeFilter}>
+              <Select value={sizeFilter} onValueChange={(value) => {
+                setSizeFilter(value)
+                setPage(1)
+              }}>
                 <SelectTrigger className="w-full md:w-[150px]">
                   <SelectValue placeholder="Size" />
                 </SelectTrigger>
@@ -565,7 +566,10 @@ export function EditionsTableWithFilters({
 
             {/* Frame filter */}
             {showFilters.includes('frame') && (
-              <Select value={frameFilter} onValueChange={setFrameFilter}>
+              <Select value={frameFilter} onValueChange={(value) => {
+                setFrameFilter(value)
+                setPage(1)
+              }}>
                 <SelectTrigger className="w-full md:w-[150px]">
                   <SelectValue placeholder="Frame" />
                 </SelectTrigger>
@@ -582,7 +586,10 @@ export function EditionsTableWithFilters({
 
             {/* Sort */}
             {showSortControl && (
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <Select value={sortBy} onValueChange={(value) => {
+                setSortBy(value as SortOption)
+                setPage(1)
+              }}>
                 <SelectTrigger className="w-full md:w-[180px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>

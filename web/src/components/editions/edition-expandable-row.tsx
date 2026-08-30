@@ -17,6 +17,7 @@ export function EditionExpandableRow({ edition, onUpdateNotes, colSpan }: Props)
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [notesValue, setNotesValue] = useState(edition.notes || '')
   const [isSaving, setIsSaving] = useState(false)
+  const [openedAt] = useState(() => Date.now())
 
   const handleSaveNotes = async () => {
     setIsSaving(true)
@@ -33,7 +34,7 @@ export function EditionExpandableRow({ edition, onUpdateNotes, colSpan }: Props)
   }
 
   const daysAtLocation = edition.date_in_gallery
-    ? Math.floor((Date.now() - new Date(edition.date_in_gallery).getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.floor((openedAt - new Date(edition.date_in_gallery).getTime()) / (1000 * 60 * 60 * 24))
     : null
 
   const netRevenue = edition.is_sold && edition.retail_price !== null

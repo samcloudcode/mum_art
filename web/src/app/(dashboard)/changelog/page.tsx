@@ -44,9 +44,6 @@ export default async function ChangelogPage({
 
   const uniqueUsers = [...new Set(users?.map((u) => u.user_email).filter(Boolean))] as string[]
 
-  // Get action counts for stats
-  const { data: actionCounts } = await supabase.rpc('get_activity_action_counts').maybeSingle()
-
   return (
     <div className="space-y-10">
       {/* Page header */}

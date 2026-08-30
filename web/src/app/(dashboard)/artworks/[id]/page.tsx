@@ -78,18 +78,12 @@ export default function ArtworkDetailPage({ params }: PageProps) {
     }
   }, [editions])
 
-  // Calculate revenue
-  const { totalRevenue, unsettledRevenue } = useMemo(() => {
-    const totalRevenue = editions
-      .filter((e) => e.is_sold && e.retail_price)
-      .reduce((sum, e) => sum + (e.retail_price || 0), 0)
-
-    const unsettledRevenue = editions
+  const unsettledRevenue = useMemo(
+    () => editions
       .filter((e) => e.is_sold && !e.is_settled && e.retail_price)
-      .reduce((sum, e) => sum + calculateNetAmount(e.retail_price, e.commission_percentage), 0)
-
-    return { totalRevenue, unsettledRevenue }
-  }, [editions])
+      .reduce((sum, e) => sum + calculateNetAmount(e.retail_price, e.commission_percentage), 0),
+    [editions]
+  )
 
   // Get unsettled editions with location info
   const unsettledEditions = useMemo(() => {

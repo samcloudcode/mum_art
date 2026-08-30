@@ -123,7 +123,7 @@ export default function ArtworksPage() {
       setShowAddDialog(false)
       setNewArtwork({ name: '', description: '', totalEditions: '', webLink: '' })
       await refresh()
-    } catch (err) {
+    } catch {
       setCreateError('An unexpected error occurred')
     } finally {
       setIsCreating(false)

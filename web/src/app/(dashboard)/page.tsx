@@ -7,7 +7,6 @@ import { formatPrice, calculateNetAmount } from '@/lib/utils'
 import { ChevronRightIcon } from '@/components/ui/icons'
 import {
   generateInventoryAlerts,
-  calculateYearOverYear,
   calculateRollingMetrics,
   calculateArtworkStats,
   getTrendIndicator,
@@ -115,7 +114,7 @@ export default function DashboardPage() {
 
     // Filter: only galleries with stock OR any sales history
     return Array.from(stats.entries())
-      .filter(([_, g]) => g.stock > 0 || g.salesLast12M > 0)
+      .filter(([, gallery]) => gallery.stock > 0 || gallery.salesLast12M > 0)
       .sort((a, b) => b[1].stock - a[1].stock)
   }, [allEditions, distributors])
 
@@ -123,12 +122,6 @@ export default function DashboardPage() {
   const alerts = useMemo(
     () => generateInventoryAlerts(allEditions, prints, distributors).slice(0, 3),
     [allEditions, prints, distributors]
-  )
-
-  // Year-over-year comparison for trend indicators (calendar year)
-  const yoyComparison = useMemo(
-    () => calculateYearOverYear(allEditions),
-    [allEditions]
   )
 
   // Rolling 12-month metrics for more accurate YoY

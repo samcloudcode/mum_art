@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { ProposalCard } from './assistant-client'
+import { AssistantMessageContent, ProposalCard } from './assistant-client'
 import type { AssistantProposal } from '@/lib/assistant/types'
 
 test('proposal card renders exact before and after values with an explicit confirmation', () => {
@@ -47,4 +47,28 @@ test('proposal card renders exact before and after values with an explicit confi
   assert.match(html, /Kendalls/)
   assert.match(html, /Confirm 1 edition/)
   assert.match(html, /Dismiss/)
+})
+
+test('assistant replies render GFM structure for readable mobile content', () => {
+  const html = renderToStaticMarkup(
+    <AssistantMessageContent
+      content={`## Kendalls stock
+
+- **Bembridge 12**
+- Ducie 4
+
+| Artwork | Edition |
+| --- | --- |
+| Bembridge | 12 |
+
+~~Legacy note~~`}
+    />
+  )
+
+  assert.match(html, /<h2/)
+  assert.match(html, /<ul/)
+  assert.match(html, /<strong/)
+  assert.match(html, /overflow-x-auto/)
+  assert.match(html, /<table/)
+  assert.match(html, /<del>Legacy note<\/del>/)
 })

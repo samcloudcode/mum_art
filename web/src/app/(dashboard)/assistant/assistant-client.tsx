@@ -2,7 +2,8 @@
 
 import Image from 'next/image'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   Bot,
   Camera,
@@ -54,6 +55,68 @@ function apiError(value: unknown, fallback: string): string {
     return value.error
   }
   return fallback
+}
+
+const assistantMarkdownComponents: Components = {
+  h1: ({ children }) => <h1 className="mb-2 mt-4 text-lg font-semibold first:mt-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="mb-2 mt-4 text-base font-semibold first:mt-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="mb-1.5 mt-3 font-semibold first:mt-0">{children}</h3>,
+  p: ({ children }) => <p className="mb-3 leading-6 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="mb-3 list-disc space-y-1.5 pl-5 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1.5 pl-5 last:mb-0">{children}</ol>,
+  li: ({ children }) => <li className="pl-0.5 leading-6">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+  blockquote: ({ children }) => (
+    <blockquote className="my-3 border-l-2 border-accent/50 pl-3 text-muted-foreground">
+      {children}
+    </blockquote>
+  ),
+  a: ({ children, href }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-accent underline decoration-accent/40 underline-offset-2 [overflow-wrap:anywhere]"
+    >
+      {children}
+    </a>
+  ),
+  code: ({ children, className }) => (
+    <code className={cn('rounded bg-muted px-1.5 py-0.5 font-mono text-xs [overflow-wrap:anywhere]', className)}>
+      {children}
+    </code>
+  ),
+  pre: ({ children }) => (
+    <pre className="my-3 max-w-full overflow-x-auto rounded-lg border bg-muted p-3 text-xs leading-5">
+      {children}
+    </pre>
+  ),
+  table: ({ children }) => (
+    <div className="my-3 max-w-full overflow-x-auto rounded-lg border">
+      <table className="w-full border-collapse text-left text-xs">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => (
+    <th className="border-b border-r bg-muted px-2 py-2 font-semibold [overflow-wrap:normal] sm:px-3 last:border-r-0">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => (
+    <td className="border-b border-r px-2 py-2 align-top leading-5 [overflow-wrap:normal] sm:px-3 last:border-r-0">
+      {children}
+    </td>
+  ),
+  hr: () => <hr className="my-4 border-border" />,
+}
+
+export function AssistantMessageContent({ content }: { content: string }) {
+  return (
+    <div className="min-w-0 [overflow-wrap:anywhere]">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={assistantMarkdownComponents}>
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
 }
 
 async function resizeInventoryPhoto(file: File): Promise<File> {
@@ -428,21 +491,15 @@ export function AssistantClient() {
             >
               <div
                 className={cn(
-                  'max-w-[90%] rounded-2xl px-4 py-3 text-sm sm:max-w-[78%]',
+                  'min-w-0 rounded-2xl px-4 py-3 text-sm',
                   message.role === 'user'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'border bg-card text-card-foreground'
+                    ? 'max-w-[90%] whitespace-pre-wrap bg-accent text-accent-foreground sm:max-w-[78%]'
+                    : 'max-w-[96%] border bg-card text-card-foreground sm:max-w-[85%]'
                 )}
               >
-                <ReactMarkdown
-                  components={{
-                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                    ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
-                    ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
+                {message.role === 'assistant'
+                  ? <AssistantMessageContent content={message.content} />
+                  : message.content}
               </div>
             </div>
           ))

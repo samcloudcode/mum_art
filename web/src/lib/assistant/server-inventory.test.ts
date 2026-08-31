@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { draftInventoryProposal, draftUndoProposal } from './server-inventory'
+import {
+  draftInventoryProposal,
+  draftUndoProposal,
+  findArtworks,
+  findDistributors,
+  getRecentActivity,
+  resolveInventoryEntries,
+} from './server-inventory'
 import type { InventoryAction } from './types'
 
 type QueryResult = { data: unknown; error: null }
@@ -79,6 +86,12 @@ class FakeQuery implements PromiseLike<QueryResult> {
     if (this.table === 'distributors') {
       return { data: this.database.distributors, error: null }
     }
+    if (this.table === 'prints') {
+      return { data: this.database.prints, error: null }
+    }
+    if (this.table === 'activity_log') {
+      return { data: this.database.activities, error: null }
+    }
     if (this.table === 'assistant_proposals' && this.operation === 'insert') {
       this.database.insertedProposal = this.payload
       const proposal = {
@@ -112,6 +125,33 @@ class FakeDatabase {
     { id: 2, name: 'Kendalls', commission_percentage: 40, is_active: true, is_favorite: true },
     { id: 3, name: 'Unknown', commission_percentage: null, is_active: true, is_favorite: false },
   ]
+
+  prints = [{
+    id: 5,
+    name: 'Bembridge',
+    short_name: 'Bemb',
+    total_editions: 350,
+    is_active: true,
+    is_favorite: true,
+  }]
+
+  activities = [{
+    id: 20,
+    action: 'move',
+    entity_type: 'edition',
+    entity_id: 10,
+    entity_name: 'Bembridge 12',
+    field_name: 'distributor_id',
+    old_value: 'Direct',
+    new_value: 'Kendalls',
+    description: 'Moved to Kendalls',
+    related_entity_id: 2,
+    related_entity_name: 'Kendalls',
+    user_email: 'sue@example.com',
+    created_at: '2026-08-30T10:00:00.000Z',
+    source: 'assistant',
+    proposal_id: '40000000-0000-4000-8000-000000000001',
+  }]
 
   editions = [this.edition()]
 
@@ -166,6 +206,27 @@ async function draft(database: FakeDatabase, actions: InventoryAction[]) {
     canWrite: true,
   })
 }
+
+test('read tools return canonical app paths for resolved inventory and history', async () => {
+  const database = new FakeDatabase()
+  const client = database.client()
+
+  const artworks = await findArtworks(client, 'Bemb')
+  const locations = await findDistributors(client, 'Kendalls')
+  const entries = await resolveInventoryEntries(client, [{
+    artwork_query: 'Bemb',
+    edition_number: 12,
+  }])
+  const history = await getRecentActivity(client, {})
+
+  assert.equal(artworks.matches[0]?.app_path, '/artworks/5')
+  assert.equal(locations.matches[0]?.app_path, '/galleries/2')
+  assert.equal(entries.entries[0]?.artwork?.app_path, '/artworks/5')
+  assert.equal(entries.entries[0]?.editions[0]?.app_path, '/editions/10')
+  assert.equal(entries.entries[0]?.editions[0]?.location_app_path, '/galleries/1')
+  assert.equal(history.history_app_path, '/changelog')
+  assert.equal(history.activities[0]?.edition_app_path, '/editions/10')
+})
 
 test('compiles printing and moving into one exact edition patch', async () => {
   const database = new FakeDatabase()

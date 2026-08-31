@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -96,16 +97,18 @@ const assistantMarkdownComponents: Components = {
       {children}
     </blockquote>
   ),
-  a: ({ children, href }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="text-accent underline decoration-accent/40 underline-offset-2 [overflow-wrap:anywhere]"
-    >
-      {children}
-    </a>
-  ),
+  a: ({ children, href }) => {
+    const className =
+      'text-accent underline decoration-accent/40 underline-offset-2 [overflow-wrap:anywhere]'
+    if (href?.startsWith('/') && !href.startsWith('//')) {
+      return <Link href={href} className={className}>{children}</Link>
+    }
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className={className}>
+        {children}
+      </a>
+    )
+  },
   code: ({ children, className }) => (
     <code className={cn('rounded bg-muted px-1.5 py-0.5 font-mono text-xs [overflow-wrap:anywhere]', className)}>
       {children}

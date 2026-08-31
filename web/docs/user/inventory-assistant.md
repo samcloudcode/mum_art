@@ -18,6 +18,8 @@ Open **Assistant** from the main navigation and ask questions such as:
 The assistant searches the current database rather than relying on a fixed list.
 It can also review the app's activity history. Older imported changes may have no
 activity record, so no history is not proof that an edition never changed.
+Artwork, edition, gallery and activity names in its replies can link directly to
+the corresponding page in the app.
 
 ## Reviewing proposed changes
 

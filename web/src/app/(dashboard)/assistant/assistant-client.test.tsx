@@ -117,3 +117,15 @@ test('assistant replies render GFM structure for readable mobile content', () =>
   assert.match(html, /<table/)
   assert.match(html, /<del>Legacy note<\/del>/)
 })
+
+test('assistant replies navigate internal links in-app and open external links safely', () => {
+  const html = renderToStaticMarkup(
+    <AssistantMessageContent
+      content="Open [Bembridge 12](/editions/10) or [the external guide](https://example.com/guide)."
+    />
+  )
+
+  assert.match(html, /href="\/editions\/10"/)
+  assert.doesNotMatch(html, /href="\/editions\/10"[^>]*target=/)
+  assert.match(html, /href="https:\/\/example.com\/guide" target="_blank" rel="noreferrer"/)
+})

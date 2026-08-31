@@ -352,8 +352,11 @@ export function AssistantClient() {
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
-    textarea.style.height = '0px'
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
+    textarea.style.height = 'auto'
+    const borderHeight = textarea.offsetHeight - textarea.clientHeight
+    const contentHeight = textarea.scrollHeight + borderHeight
+    textarea.style.height = `${Math.min(contentHeight, 144)}px`
+    textarea.style.overflowY = contentHeight > 144 ? 'auto' : 'hidden'
   }, [input])
 
   useEffect(() => {
@@ -701,7 +704,7 @@ export function AssistantClient() {
             aria-label="Message the inventory assistant"
             enterKeyHint="send"
             rows={1}
-            className="min-h-11 w-auto min-w-0 flex-1 resize-none overflow-y-auto text-base md:text-sm"
+            className="min-h-11 w-auto min-w-0 flex-1 resize-none overflow-y-hidden text-base md:text-sm"
             disabled={isSending}
           />
           <Button

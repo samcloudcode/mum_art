@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  assistantSpeechPhrases,
   AssistantMessageContent,
   ConversationHistory,
+  microphoneErrorMessage,
   ProposalCard,
 } from './assistant-client'
 import type { AssistantProposal } from '@/lib/assistant/types'
@@ -159,14 +159,9 @@ test('conversation history shows prior threads and identifies the current one', 
   assert.match(html, /border-accent\/40/)
 })
 
-test('voice dictation hints include artwork names, abbreviations, and galleries', () => {
-  const phrases = assistantSpeechPhrases(
-    [{ name: 'Bembridge Harbour', short_name: 'Bemb' }],
-    [{ name: 'Kendalls Fine Art' }]
-  )
-
-  assert.ok(phrases.includes('Bembridge Harbour'))
-  assert.ok(phrases.includes('Bemb'))
-  assert.ok(phrases.includes('Kendalls Fine Art'))
-  assert.ok(phrases.includes('artist proof'))
+test('microphone errors give useful device-specific guidance', () => {
+  assert.match(microphoneErrorMessage({ name: 'NotAllowedError' }), /Allow it/)
+  assert.match(microphoneErrorMessage({ name: 'NotFoundError' }), /No microphone/)
+  assert.match(microphoneErrorMessage({ name: 'NotReadableError' }), /other app/)
+  assert.match(microphoneErrorMessage(new Error('unexpected')), /try again/)
 })

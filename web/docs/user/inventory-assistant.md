@@ -33,16 +33,21 @@ itself scrolls. Choose **New** at any time to begin a new topic. Choose
 
 ## Dictating a request
 
-Where the browser supports speech recognition, use the microphone beside the
-message box to dictate a request in British English. The app supplies current
-artwork names, artwork abbreviations and gallery names as recognition hints on
-browsers that support contextual biasing. The transcript appears in the message
-box first so you can correct it before sending; dictation never submits or
-changes inventory by itself.
+Use the microphone beside the message box to dictate a request in British
+English. Tap once to start recording and again to stop; recording stops
+automatically after one minute. The app sends the recording securely to OpenAI
+for transcription, together with the current artwork names, artwork
+abbreviations and gallery names to help it recognise inventory terminology.
 
-Speech recognition is provided by the browser and may use the browser vendor's
-online speech service. If it is unavailable, the microphone is disabled and all
-typed and photographed assistant features continue to work.
+The transcript appears in the message box first so you can correct it before
+sending. Dictation never submits or changes inventory by itself. The app does
+not store the audio recording, although OpenAI processes it to produce the
+transcript. Claude then handles the resulting inventory request in exactly the
+same way as typed text.
+
+If microphone permission is blocked, no microphone is available, or
+transcription cannot connect, the assistant explains the problem beside the
+microphone. All typed and photographed assistant features continue to work.
 
 ## Reviewing proposed changes
 

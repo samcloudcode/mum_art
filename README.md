@@ -118,7 +118,8 @@ ones production has applied. The application expects current fields including
 `editions.edition_type` and `editions.status_confidence`; inspect the live schema
 instead of relying on an old status note. The inventory assistant additionally
 requires the additive `010_add_inventory_assistant.sql` migration and a
-server-only `ANTHROPIC_API_KEY`; coordinate that individual production migration
+server-only `ANTHROPIC_API_KEY`. Its optional voice transcription requires a
+server-only `OPENAI_API_KEY`. Coordinate that individual production migration
 with the frontend release rather than replaying migration history.
 
 Never run every migration in a loop. There are three historical `003` files,

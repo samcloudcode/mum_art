@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -31,6 +31,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SheetClose } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useInventory } from '@/lib/hooks/use-inventory'
@@ -42,6 +43,7 @@ import type {
   AssistantProposal,
 } from '@/lib/assistant/types'
 import { appPath, isAppPath } from '@/lib/app-navigation'
+import { transcriptionFileName } from '@/lib/assistant/transcription'
 
 const CONVERSATION_STORAGE_KEY = 'inventory-assistant-conversation'
 const DEFAULT_PHOTO_REQUEST =
@@ -96,51 +98,33 @@ async function responseData(response: Response): Promise<unknown> {
   }
 }
 
-export function assistantSpeechPhrases(
-  artworks: Array<{ name: string; short_name?: string | null }>,
-  locations: Array<{ name: string }>
-): string[] {
-  return [...new Set([
-    'artist proof',
-    'edition',
-    'gallery',
-    'stock check',
-    ...artworks.flatMap((artwork) => [artwork.name, artwork.short_name ?? '']),
-    ...locations.map((location) => location.name),
-  ].filter(Boolean))].slice(0, 500)
-}
+type AudioState = 'idle' | 'requesting' | 'recording' | 'transcribing'
 
-type SpeechRecognitionResultEvent = Event & {
-  results: ArrayLike<{ 0: { transcript: string } }>
-}
+const RECORDING_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm']
+const MAX_RECORDING_MS = 60_000
 
-type SpeechRecognitionError = Event & { error: string }
+export function microphoneErrorMessage(error: unknown): string {
+  const name = error instanceof DOMException
+    ? error.name
+    : error && typeof error === 'object' && 'name' in error && typeof error.name === 'string'
+      ? error.name
+      : ''
 
-type SpeechRecognitionInstance = {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  maxAlternatives: number
-  phrases?: unknown[]
-  start: () => void
-  stop: () => void
-  abort: () => void
-  onresult: ((event: SpeechRecognitionResultEvent) => void) | null
-  onerror: ((event: SpeechRecognitionError) => void) | null
-  onend: (() => void) | null
-}
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
-type SpeechRecognitionPhraseConstructor = new (phrase: string, boost: number) => unknown
-
-type SpeechWindow = Window & {
-  SpeechRecognition?: SpeechRecognitionConstructor
-  webkitSpeechRecognition?: SpeechRecognitionConstructor
-  SpeechRecognitionPhrase?: SpeechRecognitionPhraseConstructor
-}
-
-function speechWindow(): SpeechWindow {
-  return window as SpeechWindow
+  switch (name) {
+    case 'NotAllowedError':
+    case 'PermissionDeniedError':
+    case 'SecurityError':
+      return 'Microphone access is blocked. Allow it in your browser settings, then try again.'
+    case 'NotFoundError':
+    case 'DevicesNotFoundError':
+      return 'No microphone was found. Check your device microphone and try again.'
+    case 'NotReadableError':
+    case 'TrackStartError':
+    case 'AbortError':
+      return 'Your microphone is unavailable. Close any other app using it, then try again.'
+    default:
+      return 'I could not start the microphone. Please try again or type your request.'
+  }
 }
 
 const assistantMarkdownComponents: Components = {
@@ -475,7 +459,7 @@ export function AssistantClient({
   onNavigate?: () => void
 }) {
   const panel = variant === 'panel'
-  const { refresh, prints, distributors } = useInventory()
+  const { refresh } = useInventory()
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [conversations, setConversations] = useState<AssistantConversationSummary[]>([])
   const [messages, setMessages] = useState<AssistantMessage[]>([])
@@ -489,18 +473,27 @@ export function AssistantClient({
   const [isLoadingConversations, setIsLoadingConversations] = useState(true)
   const [conversationListError, setConversationListError] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
-  const [speechSupported, setSpeechSupported] = useState(false)
-  const [isListening, setIsListening] = useState(false)
+  const [audioState, setAudioState] = useState<AudioState>('idle')
+  const [speechError, setSpeechError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
-  const refocusAfterDictationRef = useRef(true)
-  const speechPhrases = useMemo(
-    () => assistantSpeechPhrases(prints, distributors),
-    [prints, distributors]
-  )
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const recordingTimeoutRef = useRef<number | null>(null)
+  const transcriptionAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(true)
+
+  const releaseMicrophone = useCallback(() => {
+    if (recordingTimeoutRef.current !== null) {
+      window.clearTimeout(recordingTimeoutRef.current)
+      recordingTimeoutRef.current = null
+    }
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop())
+    mediaStreamRef.current = null
+    mediaRecorderRef.current = null
+  }, [])
 
   const loadConversations = useCallback(async () => {
     setIsLoadingConversations(true)
@@ -582,12 +575,19 @@ export function AssistantClient({
   }, [loadConversation, loadConversations])
 
   useEffect(() => {
-    const speech = speechWindow()
-    setSpeechSupported(Boolean(speech.SpeechRecognition || speech.webkitSpeechRecognition))
+    mountedRef.current = true
     return () => {
-      recognitionRef.current?.abort()
+      mountedRef.current = false
+      transcriptionAbortRef.current?.abort()
+      const recorder = mediaRecorderRef.current
+      if (recorder) {
+        recorder.onstop = null
+        recorder.onerror = null
+        if (recorder.state !== 'inactive') recorder.stop()
+      }
+      releaseMicrophone()
     }
-  }, [])
+  }, [releaseMicrophone])
 
   const clearPhoto = useCallback(() => {
     setPhoto(null)
@@ -622,77 +622,123 @@ export function AssistantClient({
     })
   }, [])
 
-  const toggleListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-      return
-    }
+  const transcribeRecording = useCallback(async (
+    recording: Blob,
+    mimeType: string,
+    existingInput: string
+  ) => {
+    const controller = new AbortController()
+    transcriptionAbortRef.current = controller
+    setAudioState('transcribing')
 
-    const speech = speechWindow()
-    const Recognition = speech.SpeechRecognition || speech.webkitSpeechRecognition
-    if (!Recognition) {
-      setError('Voice dictation is not supported by this browser. You can still type your request.')
-      return
-    }
-
-    const recognition = new Recognition()
-    recognition.continuous = false
-    recognition.interimResults = true
-    recognition.lang = 'en-GB'
-    recognition.maxAlternatives = 3
-
-    const SpeechPhrase = speech.SpeechRecognitionPhrase
-    if (SpeechPhrase && 'phrases' in recognition) {
-      try {
-        recognition.phrases = speechPhrases.map(
-          (phrase) => new SpeechPhrase(phrase, 8)
-        )
-      } catch {
-        // Contextual biasing is experimental; recognition still works without it.
-      }
-    }
-
-    const existingInput = input.trim()
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript ?? '')
-        .join(' ')
-        .trim()
-      setInput([existingInput, transcript].filter(Boolean).join(' '))
-    }
-    recognition.onerror = (event) => {
-      if (event.error === 'aborted') return
-      setError(
-        event.error === 'not-allowed'
-          ? 'Microphone access was not allowed. Enable it in your browser settings to dictate a request.'
-          : 'I could not transcribe that. Please try again or type your request.'
-      )
-    }
-    recognition.onend = () => {
-      recognitionRef.current = null
-      setIsListening(false)
-      if (refocusAfterDictationRef.current) {
-        window.requestAnimationFrame(() => textareaRef.current?.focus())
-      }
-      refocusAfterDictationRef.current = true
-    }
-
-    recognitionRef.current = recognition
-    refocusAfterDictationRef.current = true
-    setError(null)
-    setIsListening(true)
     try {
-      recognition.start()
-    } catch {
-      recognitionRef.current = null
-      setIsListening(false)
-      setError('Voice dictation could not start. Please try again.')
+      const form = new FormData()
+      form.set('audio', recording, transcriptionFileName(mimeType))
+      const response = await fetch('/api/assistant/transcribe', {
+        method: 'POST',
+        body: form,
+        signal: controller.signal,
+      })
+      const data = await responseData(response)
+      if (!response.ok) throw new Error(apiError(data, 'Voice transcription failed. Please try again.'))
+      const transcript = data && typeof data === 'object' && 'transcript' in data
+        && typeof data.transcript === 'string'
+        ? data.transcript.trim()
+        : ''
+      if (!transcript) throw new Error('I could not hear any speech in that recording. Please try again.')
+
+      setInput([existingInput, transcript].filter(Boolean).join(' '))
+      setSpeechError(null)
+      window.requestAnimationFrame(() => textareaRef.current?.focus())
+    } catch (transcriptionError) {
+      if (controller.signal.aborted) return
+      setSpeechError(
+        transcriptionError instanceof Error
+          ? transcriptionError.message
+          : 'Voice transcription failed. Please try again or type your request.'
+      )
+    } finally {
+      if (transcriptionAbortRef.current === controller) transcriptionAbortRef.current = null
+      if (!controller.signal.aborted) setAudioState('idle')
     }
-  }, [input, speechPhrases])
+  }, [])
+
+  const toggleRecording = useCallback(async () => {
+    if (audioState === 'recording') {
+      const recorder = mediaRecorderRef.current
+      if (recorder?.state === 'recording') recorder.stop()
+      return
+    }
+    if (audioState !== 'idle') return
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setSpeechError('Voice recording is not supported by this browser. You can still type your request.')
+      return
+    }
+    const mimeType = RECORDING_MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type))
+    if (!mimeType) {
+      setSpeechError('This browser cannot make a supported audio recording. You can still type your request.')
+      return
+    }
+
+    setSpeechError(null)
+    setAudioState('requesting')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          autoGainControl: true,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      })
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType })
+      const chunks: Blob[] = []
+      const existingInput = input.trim()
+      mediaStreamRef.current = stream
+      mediaRecorderRef.current = recorder
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data)
+      }
+      recorder.onerror = () => {
+        recorder.onstop = null
+        releaseMicrophone()
+        setAudioState('idle')
+        setSpeechError('The recording stopped unexpectedly. Please try again or type your request.')
+      }
+      recorder.onstop = () => {
+        const recordingType = recorder.mimeType || mimeType
+        const recording = new Blob(chunks, { type: recordingType })
+        releaseMicrophone()
+        if (recording.size === 0) {
+          setAudioState('idle')
+          setSpeechError('No audio was captured. Please try again.')
+          return
+        }
+        void transcribeRecording(recording, recordingType, existingInput)
+      }
+
+      recorder.start(1_000)
+      setAudioState('recording')
+      recordingTimeoutRef.current = window.setTimeout(() => {
+        if (recorder.state === 'recording') recorder.stop()
+      }, MAX_RECORDING_MS)
+    } catch (recordingError) {
+      releaseMicrophone()
+      if (!mountedRef.current) return
+      setAudioState('idle')
+      setSpeechError(microphoneErrorMessage(recordingError))
+    }
+  }, [audioState, input, releaseMicrophone, transcribeRecording])
 
   const sendMessage = useCallback(async (suggestedText?: string) => {
     const text = (suggestedText ?? input).trim()
-    if ((!text && !photo) || isSending) return
+    if ((!text && !photo) || isSending || audioState !== 'idle') return
 
     const effectiveText = text || DEFAULT_PHOTO_REQUEST
     const optimistic: AssistantMessage = {
@@ -705,8 +751,6 @@ export function AssistantClient({
     setInput('')
     setError(null)
     setIsSending(true)
-    refocusAfterDictationRef.current = false
-    recognitionRef.current?.stop()
 
     const form = new FormData()
     form.set('message', effectiveText)
@@ -730,7 +774,7 @@ export function AssistantClient({
     } finally {
       setIsSending(false)
     }
-  }, [clearPhoto, conversationId, input, isSending, loadConversations, photo])
+  }, [audioState, clearPhoto, conversationId, input, isSending, loadConversations, photo])
 
   const confirmProposal = useCallback(async () => {
     if (!proposal || proposal.status !== 'pending') return
@@ -784,8 +828,6 @@ export function AssistantClient({
   }, [proposal])
 
   const newConversation = useCallback(() => {
-    refocusAfterDictationRef.current = false
-    recognitionRef.current?.abort()
     window.localStorage.removeItem(CONVERSATION_STORAGE_KEY)
     setConversationId(null)
     setMessages([])
@@ -806,34 +848,56 @@ export function AssistantClient({
       <header
         className={cn(
           'shrink-0 border-b border-border',
-          panel ? 'px-4 py-3 pr-16' : 'pb-4 sm:pb-6'
+          panel ? 'px-4 py-3' : 'pb-4 sm:pb-6'
         )}
       >
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className={cn('flex items-center gap-2 text-accent', !panel && 'mb-1.5')}>
-              <Bot className="h-5 w-5 shrink-0" />
-              {panel ? (
-                <h1 className="truncate text-lg text-foreground">Inventory Assistant</h1>
-              ) : (
-                <span className="text-xs font-medium uppercase tracking-widest">Safe inventory updates</span>
+        <div
+          className={cn(
+            'min-w-0',
+            panel ? 'space-y-3' : 'flex items-center justify-between gap-3'
+          )}
+        >
+          <div className={cn('min-w-0', panel && 'flex items-center justify-between gap-3')}>
+            <div className="min-w-0">
+              <div className={cn('flex items-center gap-2 text-accent', !panel && 'mb-1.5')}>
+                <Bot className="h-5 w-5 shrink-0" />
+                {panel ? (
+                  <h1 className="truncate text-lg text-foreground">Inventory Assistant</h1>
+                ) : (
+                  <span className="text-xs font-medium uppercase tracking-widest">Safe inventory updates</span>
+                )}
+              </div>
+              {!panel && (
+                <h1 className="text-[1.75rem] sm:text-4xl md:text-[2.5rem]">Inventory Assistant</h1>
               )}
             </div>
-            {!panel && (
-              <h1 className="text-[1.75rem] sm:text-4xl md:text-[2.5rem]">Inventory Assistant</h1>
+            {panel && (
+              <SheetClose asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-11 shrink-0 px-3"
+                  aria-label="Close inventory assistant"
+                >
+                  <X className="size-4" />
+                  <span>Close</span>
+                </Button>
+              </SheetClose>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className={cn('flex shrink-0 items-center gap-1.5', panel && '[&>*]:flex-1')}>
             <Button
               type="button"
               variant={showHistory ? 'secondary' : 'outline'}
               size="sm"
               className="h-11 px-2.5 sm:px-3"
               onClick={() => setShowHistory((current) => !current)}
+              disabled={audioState !== 'idle'}
               aria-label="Show previous conversations"
             >
               <History className="size-4" />
-              <span className={cn(panel && 'sr-only sm:not-sr-only')}>History</span>
+              <span>History</span>
             </Button>
             <Button
               type="button"
@@ -841,6 +905,7 @@ export function AssistantClient({
               size="sm"
               className="h-11 px-2.5 sm:px-3"
               onClick={newConversation}
+              disabled={audioState !== 'idle'}
               aria-label="Start a new conversation"
             >
               <MessageSquarePlus className="h-4 w-4" />
@@ -1024,7 +1089,7 @@ export function AssistantClient({
             enterKeyHint="send"
             rows={1}
             className="box-border h-[52px] min-h-[52px] w-full resize-none overflow-y-hidden py-3 text-base leading-6 [scroll-padding-block:0.75rem] md:text-sm"
-            disabled={isSending}
+            disabled={isSending || audioState !== 'idle'}
           />
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -1034,7 +1099,7 @@ export function AssistantClient({
                 size="icon"
                 className="size-12 shrink-0"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isSending}
+                disabled={isSending || audioState !== 'idle'}
                 title="Photograph or attach an inventory note"
               >
                 {photo ? <ImagePlus className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
@@ -1042,30 +1107,49 @@ export function AssistantClient({
               </Button>
               <Button
                 type="button"
-                variant={isListening ? 'default' : 'outline'}
+                variant={audioState === 'recording' ? 'default' : 'outline'}
                 size="icon"
                 className="size-12 shrink-0"
-                onClick={toggleListening}
-                disabled={isSending || !speechSupported}
-                aria-pressed={isListening}
-                title={speechSupported ? 'Dictate a request' : 'Voice dictation is not supported in this browser'}
+                onClick={() => void toggleRecording()}
+                disabled={isSending || audioState === 'requesting' || audioState === 'transcribing'}
+                aria-pressed={audioState === 'recording'}
+                title={audioState === 'recording' ? 'Stop voice recording' : 'Dictate a request'}
               >
-                {isListening ? <Square className="size-4 fill-current" /> : <Mic className="size-4" />}
-                <span className="sr-only">{isListening ? 'Stop dictation' : 'Dictate a request'}</span>
+                {audioState === 'recording' ? (
+                  <Square className="size-4 fill-current" />
+                ) : audioState === 'requesting' || audioState === 'transcribing' ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Mic className="size-4" />
+                )}
+                <span className="sr-only">
+                  {audioState === 'recording' ? 'Stop dictation' : 'Dictate a request'}
+                </span>
               </Button>
-              {isListening && <span className="text-sm text-accent">Listening…</span>}
+              {audioState !== 'idle' && (
+                <span className="text-xs font-medium text-accent sm:text-sm" role="status">
+                  {audioState === 'requesting' && 'Getting microphone…'}
+                  {audioState === 'recording' && 'Listening… tap to stop'}
+                  {audioState === 'transcribing' && 'Transcribing…'}
+                </span>
+              )}
             </div>
             <Button
               type="button"
               size="icon"
               className="size-12 shrink-0"
               onClick={() => void sendMessage()}
-              disabled={isSending || (!input.trim() && !photo)}
+              disabled={isSending || audioState !== 'idle' || (!input.trim() && !photo)}
             >
               {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               <span className="sr-only">Send</span>
             </Button>
           </div>
+          {speechError && (
+            <p className="text-sm leading-5 text-destructive" role="alert">
+              {speechError}
+            </p>
+          )}
         </div>
       </div>}
     </div>

@@ -5,8 +5,10 @@
 -- apply_assistant_proposal function with a backwards-compatible extension.
 -- Local verification: 2026-08-31, parsed as SQL and PL/pgSQL and exercised in
 -- isolated PGlite with an exact sale followed by its captured-state undo.
--- Production dry run: not yet performed.
--- Production applied: not yet applied.
+-- Production dry run: 2026-08-31, all 7 statements succeeded and rolled back.
+-- Production applied: 2026-08-31, all 7 statements committed. Post-apply
+-- verification passed for the column, foreign key, index, function security,
+-- fixed search path, and role grants.
 
 ALTER TABLE assistant_proposals
     ADD COLUMN IF NOT EXISTS reverts_proposal_id UUID

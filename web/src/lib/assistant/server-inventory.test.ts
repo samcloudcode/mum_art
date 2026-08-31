@@ -6,6 +6,7 @@ import {
   draftUndoProposal,
   findArtworks,
   findDistributors,
+  getAssistantCatalogueReference,
   getRecentActivity,
   resolveInventoryEntries,
 } from './server-inventory'
@@ -206,6 +207,35 @@ async function draft(database: FakeDatabase, actions: InventoryAction[]) {
     canWrite: true,
   })
 }
+
+test('loads a minimal live reference of active artworks and locations', async () => {
+  const database = new FakeDatabase()
+  database.prints.push({
+    id: 6,
+    name: 'Inactive artwork',
+    short_name: 'Inactive',
+    total_editions: 10,
+    is_active: false,
+    is_favorite: false,
+  })
+  database.distributors.push({
+    id: 4,
+    name: 'Closed gallery',
+    commission_percentage: 30,
+    is_active: false,
+    is_favorite: false,
+  })
+
+  const reference = await getAssistantCatalogueReference(database.client())
+
+  assert.ok(Number.isFinite(Date.parse(reference.loaded_at)))
+  assert.deepEqual(reference.artworks, [{ id: 5, name: 'Bembridge', short_name: 'Bemb' }])
+  assert.deepEqual(reference.locations, [
+    { id: 1, name: 'Direct', commission_percentage: 0 },
+    { id: 2, name: 'Kendalls', commission_percentage: 40 },
+    { id: 3, name: 'Unknown', commission_percentage: null },
+  ])
+})
 
 test('read tools return canonical app paths for resolved inventory and history', async () => {
   const database = new FakeDatabase()

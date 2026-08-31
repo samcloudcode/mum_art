@@ -28,6 +28,20 @@ type DistributorLookup = {
   is_favorite: boolean | null
 }
 
+export type AssistantCatalogueReference = {
+  loaded_at: string
+  artworks: Array<{
+    id: number
+    name: string
+    short_name: string | null
+  }>
+  locations: Array<{
+    id: number
+    name: string
+    commission_percentage: number | null
+  }>
+}
+
 type EditionRecord = {
   id: number
   print_id: number
@@ -192,6 +206,33 @@ async function loadDistributors(supabase: SupabaseClient): Promise<DistributorLo
 
   if (error) throw new Error('Could not search inventory locations')
   return (data ?? []) as unknown as DistributorLookup[]
+}
+
+export async function getAssistantCatalogueReference(
+  supabase: SupabaseClient
+): Promise<AssistantCatalogueReference> {
+  const [artworks, locations] = await Promise.all([
+    loadArtworks(supabase),
+    loadDistributors(supabase),
+  ])
+
+  return {
+    loaded_at: new Date().toISOString(),
+    artworks: artworks
+      .filter((artwork) => artwork.is_active !== false)
+      .map((artwork) => ({
+        id: artwork.id,
+        name: artwork.name,
+        short_name: artwork.short_name,
+      })),
+    locations: locations
+      .filter((location) => location.is_active !== false)
+      .map((location) => ({
+        id: location.id,
+        name: location.name,
+        commission_percentage: location.commission_percentage,
+      })),
+  }
 }
 
 function publicEdition(edition: EditionRecord) {

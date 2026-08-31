@@ -36,6 +36,11 @@ test('agent investigates database facts and uses the proposal as confirmation', 
     timeZone: 'Europe/London',
     role: 'editor',
     pendingPreview: null,
+    catalogueReference: {
+      loaded_at: '2026-08-31T10:00:00.000Z',
+      artworks: [{ id: 5, name: 'Bembridge', short_name: 'Bemb' }],
+      locations: [{ id: 2, name: 'Kendalls', commission_percentage: 40 }],
+    },
     hasImage: false,
   })
 
@@ -48,4 +53,11 @@ test('agent investigates database facts and uses the proposal as confirmation', 
   assert.match(prompt, /These are application navigation routes, not database links/)
   assert.match(prompt, /Trusted application navigation:/)
   assert.match(prompt, /Activity log: \/changelog/)
+  assert.match(prompt, /exact unique name or short_name match/)
+  assert.match(prompt, /skip find_artworks\/find_locations/)
+  assert.match(prompt, /"id":5,"name":"Bembridge","short_name":"Bemb"/)
+  assert.match(prompt, /Move:.*find the exact current edition.*draft_inventory_actions with move_stock/)
+  assert.match(prompt, /Gallery stock:.*get_gallery_stock/)
+  assert.match(prompt, /Recent sales:.*action=sell/)
+  assert.match(prompt, /Record a sale:.*draft_inventory_actions with mark_sold/)
 })

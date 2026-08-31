@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { runProposalAgent, type AgentImage } from '@/lib/assistant/server-agent'
 import { assistantErrorDetails, assistantErrorResponse } from '@/lib/assistant/server-errors'
-import { toAssistantProposal } from '@/lib/assistant/server-inventory'
+import {
+  getAssistantCatalogueReference,
+  toAssistantProposal,
+} from '@/lib/assistant/server-inventory'
 import type {
   AssistantConversationResponse,
   AssistantMessage,
@@ -213,7 +216,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Could not save the message' }, { status: 500 })
   }
 
-  const [{ data: historyRows }, { data: profile }, pendingProposal] = await Promise.all([
+  const [{ data: historyRows }, { data: profile }, pendingProposal, catalogueReference] = await Promise.all([
     supabase
       .from('assistant_messages')
       .select('role,content,created_at')
@@ -223,6 +226,7 @@ export async function POST(request: NextRequest) {
       .limit(20),
     supabase.from('profiles').select('full_name,role').eq('id', user.id).maybeSingle(),
     readProposal(supabase, conversationId, user.id),
+    getAssistantCatalogueReference(supabase).catch(() => null),
   ])
 
   const history = ((historyRows ?? []) as unknown as Array<{
@@ -241,6 +245,7 @@ export async function POST(request: NextRequest) {
       displayName: (profile as { full_name?: string | null } | null)?.full_name,
       role: (profile as { role?: string | null } | null)?.role,
       pendingPreview: pendingProposal?.status === 'pending' ? pendingProposal.preview : null,
+      catalogueReference,
     })
 
     const { data: assistantMessage, error: assistantMessageError } = await supabase

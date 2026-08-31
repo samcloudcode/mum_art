@@ -16,9 +16,13 @@ assistant button on desktop). It opens over the current page so you can ask:
 - `I sold Bembridge 12 for £425 on 30 August 2026.`
 - `Bembridge 9 is not at the gallery where it is recorded.`
 
-The assistant searches the current database rather than relying on a fixed list.
-It can also review the app's activity history. Older imported changes may have no
-activity record, so no history is not proof that an edition never changed.
+At the start of every request, the assistant loads the active artwork and gallery
+names and IDs from the current database. An exact name or abbreviation can
+therefore bypass an extra search, while approximate or ambiguous wording still
+uses the search tools. It always inspects current edition records before
+proposing a change. It can also review the app's activity history. Older
+imported changes may have no activity record, so no history is not proof that an
+edition never changed.
 Artwork, edition, gallery and activity names in its replies can link directly to
 the corresponding page in the app. These links use the same routes as the app's
 navigation; the assistant cannot create links to database or admin endpoints.

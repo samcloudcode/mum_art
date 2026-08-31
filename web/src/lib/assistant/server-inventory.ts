@@ -6,6 +6,7 @@ import type {
   ProposalFieldChange,
   ProposalPreview,
 } from './types'
+import { appPath } from '@/lib/app-navigation'
 
 const MAX_TOOL_RESULTS = 100
 const MAX_PROPOSAL_EDITIONS = 100
@@ -198,17 +199,17 @@ function publicEdition(edition: EditionRecord) {
   const distributor = one(edition.distributors)
   return {
     id: edition.id,
-    app_path: `/editions/${edition.id}`,
+    app_path: appPath.edition(edition.id),
     artwork_id: edition.print_id,
     artwork_name: artwork?.name ?? 'Unknown artwork',
     artwork_short_name: artwork?.short_name ?? null,
-    artwork_app_path: `/artworks/${edition.print_id}`,
+    artwork_app_path: appPath.artwork(edition.print_id),
     edition_number: edition.edition_number,
     edition_type: edition.edition_type ?? 'numbered',
     edition_name: edition.edition_display_name,
     location_id: edition.distributor_id,
     location_name: distributor?.name ?? null,
-    location_app_path: edition.distributor_id ? `/galleries/${edition.distributor_id}` : null,
+    location_app_path: edition.distributor_id ? appPath.gallery(edition.distributor_id) : null,
     is_printed: Boolean(edition.is_printed),
     is_sold: Boolean(edition.is_sold),
     is_settled: Boolean(edition.is_settled),
@@ -256,7 +257,7 @@ export async function findArtworks(
       id: artwork.id,
       name: artwork.name,
       short_name: artwork.short_name,
-      app_path: `/artworks/${artwork.id}`,
+      app_path: appPath.artwork(artwork.id),
       total_numbered_editions: artwork.total_editions,
       match_score: score,
     })),
@@ -286,7 +287,7 @@ export async function findDistributors(
     matches: matches.map(({ distributor, score }) => ({
       id: distributor.id,
       name: distributor.name,
-      app_path: `/galleries/${distributor.id}`,
+      app_path: appPath.gallery(distributor.id),
       commission_percentage: distributor.commission_percentage,
       match_score: score,
     })),
@@ -402,7 +403,7 @@ export async function resolveInventoryEntries(
             id: artwork.id,
             name: artwork.name,
             short_name: artwork.short_name,
-            app_path: `/artworks/${artwork.id}`,
+            app_path: appPath.artwork(artwork.id),
             match_score: score,
           })),
           editions: [],
@@ -422,7 +423,7 @@ export async function resolveInventoryEntries(
         artwork: {
           id: resolvedArtwork.id,
           name: resolvedArtwork.name,
-          app_path: `/artworks/${resolvedArtwork.id}`,
+          app_path: appPath.artwork(resolvedArtwork.id),
         },
         editions: matches.map(publicEdition),
       }
@@ -495,8 +496,8 @@ export async function getRecentActivity(
     .slice(0, limit)
 
   return {
-    history_app_path: '/changelog',
-    location_app_path: distributor ? `/galleries/${distributor.id}` : null,
+    history_app_path: appPath.changelog,
+    location_app_path: distributor ? appPath.gallery(distributor.id) : null,
     activities: rows.map((activity) => ({
       id: activity.id,
       when: activity.created_at,
@@ -504,7 +505,7 @@ export async function getRecentActivity(
       edition_id: activity.entity_type === 'edition' ? activity.entity_id : null,
       edition_app_path:
         activity.entity_type === 'edition' && activity.entity_id
-          ? `/editions/${activity.entity_id}`
+          ? appPath.edition(activity.entity_id)
           : null,
       edition_name: activity.entity_name,
       field: activity.field_name,

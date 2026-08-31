@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -14,14 +14,17 @@ import {
   ChevronUp,
   ClipboardCheck,
   Clock3,
+  History,
   ImagePlus,
   Loader2,
   MessageSquarePlus,
+  Mic,
   PoundSterling,
   Printer,
   RotateCcw,
   Send,
   ShieldCheck,
+  Square,
   X,
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -34,9 +37,11 @@ import { useInventory } from '@/lib/hooks/use-inventory'
 import type {
   ApplyProposalResult,
   AssistantConversationResponse,
+  AssistantConversationSummary,
   AssistantMessage,
   AssistantProposal,
 } from '@/lib/assistant/types'
+import { appPath, isAppPath } from '@/lib/app-navigation'
 
 const CONVERSATION_STORAGE_KEY = 'inventory-assistant-conversation'
 const DEFAULT_PHOTO_REQUEST =
@@ -83,6 +88,61 @@ function apiError(value: unknown, fallback: string): string {
   return fallback
 }
 
+async function responseData(response: Response): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
+export function assistantSpeechPhrases(
+  artworks: Array<{ name: string; short_name?: string | null }>,
+  locations: Array<{ name: string }>
+): string[] {
+  return [...new Set([
+    'artist proof',
+    'edition',
+    'gallery',
+    'stock check',
+    ...artworks.flatMap((artwork) => [artwork.name, artwork.short_name ?? '']),
+    ...locations.map((location) => location.name),
+  ].filter(Boolean))].slice(0, 500)
+}
+
+type SpeechRecognitionResultEvent = Event & {
+  results: ArrayLike<{ 0: { transcript: string } }>
+}
+
+type SpeechRecognitionError = Event & { error: string }
+
+type SpeechRecognitionInstance = {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  maxAlternatives: number
+  phrases?: unknown[]
+  start: () => void
+  stop: () => void
+  abort: () => void
+  onresult: ((event: SpeechRecognitionResultEvent) => void) | null
+  onerror: ((event: SpeechRecognitionError) => void) | null
+  onend: (() => void) | null
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
+type SpeechRecognitionPhraseConstructor = new (phrase: string, boost: number) => unknown
+
+type SpeechWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor
+  webkitSpeechRecognition?: SpeechRecognitionConstructor
+  SpeechRecognitionPhrase?: SpeechRecognitionPhraseConstructor
+}
+
+function speechWindow(): SpeechWindow {
+  return window as SpeechWindow
+}
+
 const assistantMarkdownComponents: Components = {
   h1: ({ children }) => <h1 className="mb-2 mt-4 text-lg font-semibold first:mt-0">{children}</h1>,
   h2: ({ children }) => <h2 className="mb-2 mt-4 text-base font-semibold first:mt-0">{children}</h2>,
@@ -97,18 +157,6 @@ const assistantMarkdownComponents: Components = {
       {children}
     </blockquote>
   ),
-  a: ({ children, href }) => {
-    const className =
-      'text-accent underline decoration-accent/40 underline-offset-2 [overflow-wrap:anywhere]'
-    if (href?.startsWith('/') && !href.startsWith('//')) {
-      return <Link href={href} className={className}>{children}</Link>
-    }
-    return (
-      <a href={href} target="_blank" rel="noreferrer" className={className}>
-        {children}
-      </a>
-    )
-  },
   code: ({ children, className }) => (
     <code className={cn('rounded bg-muted px-1.5 py-0.5 font-mono text-xs [overflow-wrap:anywhere]', className)}>
       {children}
@@ -137,10 +185,33 @@ const assistantMarkdownComponents: Components = {
   hr: () => <hr className="my-4 border-border" />,
 }
 
-export function AssistantMessageContent({ content }: { content: string }) {
+export function AssistantMessageContent({
+  content,
+  onNavigate,
+}: {
+  content: string
+  onNavigate?: () => void
+}) {
+  const components: Components = {
+    ...assistantMarkdownComponents,
+    a: ({ children, href }) => {
+      const className =
+        'text-accent underline decoration-accent/40 underline-offset-2 [overflow-wrap:anywhere]'
+      if (href && isAppPath(href)) {
+        return <Link href={href} className={className} onClick={onNavigate}>{children}</Link>
+      }
+      if (href?.startsWith('/')) return <span>{children}</span>
+      return (
+        <a href={href} target="_blank" rel="noreferrer" className={className}>
+          {children}
+        </a>
+      )
+    },
+  }
+
   return (
     <div className="min-w-0 [overflow-wrap:anywhere]">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={assistantMarkdownComponents}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}
       </ReactMarkdown>
     </div>
@@ -188,12 +259,14 @@ export function ProposalCard({
   onConfirm,
   onDismiss,
   onUndo,
+  onNavigate,
 }: {
   proposal: AssistantProposal
   isApplying: boolean
   onConfirm: () => void
   onDismiss: () => void
   onUndo?: () => void
+  onNavigate?: () => void
 }) {
   const [expanded, setExpanded] = useState(true)
   const pending = proposal.status === 'pending'
@@ -234,12 +307,16 @@ export function ProposalCard({
           <div className="mobile-scroll max-h-[45dvh] space-y-3 overflow-y-auto pr-1">
             {proposal.preview.editions.map((edition) => (
               <div key={edition.editionId} className="rounded-lg border bg-background/70 p-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="font-medium">{edition.artworkName}</p>
+                <Link
+                  href={appPath.edition(edition.editionId)}
+                  onClick={onNavigate}
+                  className="inline-touch flex flex-wrap items-baseline justify-between gap-2 text-accent underline decoration-accent/40 underline-offset-2"
+                >
+                  <span className="font-medium">{edition.artworkName}</span>
                   <span className="font-mono text-xs text-muted-foreground">
                     {edition.editionLabel}
                   </span>
-                </div>
+                </Link>
                 <dl className="mt-2 space-y-1.5 text-sm">
                   {edition.changes.map((change) => (
                     <div
@@ -326,9 +403,81 @@ export function ProposalCard({
   )
 }
 
-export function AssistantClient() {
-  const { refresh } = useInventory()
+export function ConversationHistory({
+  conversations,
+  currentId,
+  isLoading,
+  error,
+  onSelect,
+}: {
+  conversations: AssistantConversationSummary[]
+  currentId: string | null
+  isLoading: boolean
+  error?: string | null
+  onSelect: (id: string) => void
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16 text-muted-foreground">
+        <Loader2 className="mr-2 size-5 animate-spin" /> Loading conversations…
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription className="mt-0">{error}</AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (conversations.length === 0) {
+    return <p className="py-16 text-center text-sm text-muted-foreground">No previous conversations yet.</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        Recent conversations
+      </p>
+      {conversations.map((conversation) => (
+        <button
+          key={conversation.id}
+          type="button"
+          className={cn(
+            'w-full rounded-xl border p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5',
+            conversation.id === currentId && 'border-accent/40 bg-accent/5'
+          )}
+          onClick={() => onSelect(conversation.id)}
+        >
+          <span className="block truncate text-sm font-medium">{conversation.title}</span>
+          <span className="mt-1 block text-xs text-muted-foreground">
+            {new Date(conversation.updatedAt).toLocaleString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function AssistantClient({
+  variant = 'page',
+  onNavigate,
+}: {
+  variant?: 'page' | 'panel'
+  onNavigate?: () => void
+}) {
+  const panel = variant === 'panel'
+  const { refresh, prints, distributors } = useInventory()
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [conversations, setConversations] = useState<AssistantConversationSummary[]>([])
   const [messages, setMessages] = useState<AssistantMessage[]>([])
   const [proposal, setProposal] = useState<AssistantProposal | null>(null)
   const [input, setInput] = useState('')
@@ -337,10 +486,64 @@ export function AssistantClient() {
   const [isSending, setIsSending] = useState(false)
   const [isApplying, setIsApplying] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true)
+  const [conversationListError, setConversationListError] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const [isListening, setIsListening] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const refocusAfterDictationRef = useRef(true)
+  const speechPhrases = useMemo(
+    () => assistantSpeechPhrases(prints, distributors),
+    [prints, distributors]
+  )
+
+  const loadConversations = useCallback(async () => {
+    setIsLoadingConversations(true)
+    setConversationListError(null)
+    try {
+      const response = await fetch('/api/assistant/conversations')
+      const data = await responseData(response)
+      if (!response.ok) throw new Error(apiError(data, 'Could not load conversations'))
+      setConversations((data as { conversations: AssistantConversationSummary[] }).conversations)
+    } catch (historyError) {
+      setConversationListError(
+        historyError instanceof Error ? historyError.message : 'Could not load conversations'
+      )
+    } finally {
+      setIsLoadingConversations(false)
+    }
+  }, [])
+
+  const loadConversation = useCallback(async (id: string) => {
+    setIsLoadingHistory(true)
+    setError(null)
+    try {
+      const response = await fetch(
+        `/api/assistant/messages?conversationId=${encodeURIComponent(id)}`
+      )
+      const data = await responseData(response)
+      if (!response.ok) throw new Error(apiError(data, 'Could not load this conversation'))
+      const conversation = data as AssistantConversationResponse
+      setConversationId(conversation.conversationId)
+      setMessages(conversation.messages)
+      setProposal(conversation.proposal)
+      window.localStorage.setItem(CONVERSATION_STORAGE_KEY, conversation.conversationId)
+      setShowHistory(false)
+    } catch (historyError) {
+      if (window.localStorage.getItem(CONVERSATION_STORAGE_KEY) === id) {
+        window.localStorage.removeItem(CONVERSATION_STORAGE_KEY)
+      }
+      setError(historyError instanceof Error ? historyError.message : 'Could not load this conversation')
+      setShowHistory(false)
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -358,41 +561,31 @@ export function AssistantClient() {
     textarea.style.height = 'auto'
     const borderHeight = textarea.offsetHeight - textarea.clientHeight
     const contentHeight = textarea.scrollHeight + borderHeight
-    textarea.style.height = `${Math.min(contentHeight, 144)}px`
-    textarea.style.overflowY = contentHeight > 144 ? 'auto' : 'hidden'
+    textarea.style.height = `${Math.max(52, Math.min(contentHeight, 192))}px`
+    textarea.style.overflowY = contentHeight > 192 ? 'auto' : 'hidden'
+    if (contentHeight > 192) {
+      const lineHeight = Number.parseFloat(window.getComputedStyle(textarea).lineHeight)
+      if (Number.isFinite(lineHeight) && lineHeight > 0) {
+        textarea.scrollTop = Math.round(textarea.scrollTop / lineHeight) * lineHeight
+      }
+    }
   }, [input])
 
   useEffect(() => {
     const savedConversation = window.localStorage.getItem(CONVERSATION_STORAGE_KEY)
     if (!savedConversation) {
       setIsLoadingHistory(false)
-      return
+    } else {
+      void loadConversation(savedConversation)
     }
+    void loadConversations()
+  }, [loadConversation, loadConversations])
 
-    let cancelled = false
-    const load = async () => {
-      try {
-        const response = await fetch(
-          `/api/assistant/messages?conversationId=${encodeURIComponent(savedConversation)}`
-        )
-        if (!response.ok) {
-          window.localStorage.removeItem(CONVERSATION_STORAGE_KEY)
-          return
-        }
-        const data = (await response.json()) as AssistantConversationResponse
-        if (cancelled) return
-        setConversationId(data.conversationId)
-        setMessages(data.messages)
-        setProposal(data.proposal)
-      } catch {
-        if (!cancelled) setError('The previous assistant conversation could not be restored.')
-      } finally {
-        if (!cancelled) setIsLoadingHistory(false)
-      }
-    }
-    void load()
+  useEffect(() => {
+    const speech = speechWindow()
+    setSpeechSupported(Boolean(speech.SpeechRecognition || speech.webkitSpeechRecognition))
     return () => {
-      cancelled = true
+      recognitionRef.current?.abort()
     }
   }, [])
 
@@ -429,6 +622,74 @@ export function AssistantClient() {
     })
   }, [])
 
+  const toggleListening = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      return
+    }
+
+    const speech = speechWindow()
+    const Recognition = speech.SpeechRecognition || speech.webkitSpeechRecognition
+    if (!Recognition) {
+      setError('Voice dictation is not supported by this browser. You can still type your request.')
+      return
+    }
+
+    const recognition = new Recognition()
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.lang = 'en-GB'
+    recognition.maxAlternatives = 3
+
+    const SpeechPhrase = speech.SpeechRecognitionPhrase
+    if (SpeechPhrase && 'phrases' in recognition) {
+      try {
+        recognition.phrases = speechPhrases.map(
+          (phrase) => new SpeechPhrase(phrase, 8)
+        )
+      } catch {
+        // Contextual biasing is experimental; recognition still works without it.
+      }
+    }
+
+    const existingInput = input.trim()
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0]?.transcript ?? '')
+        .join(' ')
+        .trim()
+      setInput([existingInput, transcript].filter(Boolean).join(' '))
+    }
+    recognition.onerror = (event) => {
+      if (event.error === 'aborted') return
+      setError(
+        event.error === 'not-allowed'
+          ? 'Microphone access was not allowed. Enable it in your browser settings to dictate a request.'
+          : 'I could not transcribe that. Please try again or type your request.'
+      )
+    }
+    recognition.onend = () => {
+      recognitionRef.current = null
+      setIsListening(false)
+      if (refocusAfterDictationRef.current) {
+        window.requestAnimationFrame(() => textareaRef.current?.focus())
+      }
+      refocusAfterDictationRef.current = true
+    }
+
+    recognitionRef.current = recognition
+    refocusAfterDictationRef.current = true
+    setError(null)
+    setIsListening(true)
+    try {
+      recognition.start()
+    } catch {
+      recognitionRef.current = null
+      setIsListening(false)
+      setError('Voice dictation could not start. Please try again.')
+    }
+  }, [input, speechPhrases])
+
   const sendMessage = useCallback(async (suggestedText?: string) => {
     const text = (suggestedText ?? input).trim()
     if ((!text && !photo) || isSending) return
@@ -444,6 +705,8 @@ export function AssistantClient() {
     setInput('')
     setError(null)
     setIsSending(true)
+    refocusAfterDictationRef.current = false
+    recognitionRef.current?.stop()
 
     const form = new FormData()
     form.set('message', effectiveText)
@@ -452,7 +715,7 @@ export function AssistantClient() {
 
     try {
       const response = await fetch('/api/assistant/messages', { method: 'POST', body: form })
-      const data = await response.json()
+      const data = await responseData(response)
       if (!response.ok) throw new Error(apiError(data, 'The assistant could not complete the request'))
 
       const turn = data as TurnResponse
@@ -461,12 +724,13 @@ export function AssistantClient() {
       setMessages((current) => [...current, turn.assistantMessage])
       setProposal(turn.proposal)
       clearPhoto()
+      void loadConversations()
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'The assistant could not complete the request')
     } finally {
       setIsSending(false)
     }
-  }, [clearPhoto, conversationId, input, isSending, photo])
+  }, [clearPhoto, conversationId, input, isSending, loadConversations, photo])
 
   const confirmProposal = useCallback(async () => {
     if (!proposal || proposal.status !== 'pending') return
@@ -474,7 +738,8 @@ export function AssistantClient() {
     setError(null)
     try {
       const response = await fetch(`/api/assistant/proposals/${proposal.id}/confirm`, { method: 'POST' })
-      const data = (await response.json()) as ApplyProposalResult & { error?: string }
+      const data = (await responseData(response)) as (ApplyProposalResult & { error?: string }) | null
+      if (!data) throw new Error('The proposal response could not be read. No inventory was changed.')
       if (!response.ok || !data.ok) {
         setProposal((current) => current ? { ...current, status: data.status ?? 'stale' } : current)
         throw new Error(data.message || data.error || 'The proposal could not be applied')
@@ -508,7 +773,7 @@ export function AssistantClient() {
     setError(null)
     try {
       const response = await fetch(`/api/assistant/proposals/${proposal.id}`, { method: 'DELETE' })
-      const data = await response.json()
+      const data = await responseData(response)
       if (!response.ok) throw new Error(apiError(data, 'The proposal could not be dismissed'))
       setProposal((current) => current ? { ...current, status: 'rejected' } : current)
     } catch (dismissError) {
@@ -519,51 +784,98 @@ export function AssistantClient() {
   }, [proposal])
 
   const newConversation = useCallback(() => {
+    refocusAfterDictationRef.current = false
+    recognitionRef.current?.abort()
     window.localStorage.removeItem(CONVERSATION_STORAGE_KEY)
     setConversationId(null)
     setMessages([])
     setProposal(null)
     setInput('')
+    setShowHistory(false)
     clearPhoto()
     setError(null)
   }, [clearPhoto])
 
   return (
-    <div className="assistant-page mx-auto -mt-4 flex w-full min-w-0 max-w-4xl flex-col gap-5 md:mt-0 md:gap-6">
-      <header className="border-b border-border pb-4 sm:pb-6">
-        <div className="flex min-w-0 items-start justify-between gap-3">
+    <div
+      className={cn(
+        'assistant-page flex w-full min-w-0 flex-col overflow-hidden bg-background',
+        panel ? '!h-[100dvh]' : 'mx-auto -mt-4 max-w-4xl md:mt-0'
+      )}
+    >
+      <header
+        className={cn(
+          'shrink-0 border-b border-border',
+          panel ? 'px-4 py-3 pr-16' : 'pb-4 sm:pb-6'
+        )}
+      >
+        <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="mb-1.5 flex items-center gap-2 text-accent">
+            <div className={cn('flex items-center gap-2 text-accent', !panel && 'mb-1.5')}>
               <Bot className="h-5 w-5 shrink-0" />
-              <span className="text-xs font-medium uppercase tracking-widest">Safe inventory updates</span>
+              {panel ? (
+                <h1 className="truncate text-lg text-foreground">Inventory Assistant</h1>
+              ) : (
+                <span className="text-xs font-medium uppercase tracking-widest">Safe inventory updates</span>
+              )}
             </div>
-            <h1 className="text-[1.75rem] sm:text-4xl md:text-[2.5rem]">Inventory Assistant</h1>
+            {!panel && (
+              <h1 className="text-[1.75rem] sm:text-4xl md:text-[2.5rem]">Inventory Assistant</h1>
+            )}
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-11 px-2.5 sm:px-3"
-            onClick={newConversation}
-            aria-label="Start a new conversation"
-          >
-            <MessageSquarePlus className="h-4 w-4" />
-            <span>New</span>
-          </Button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button
+              type="button"
+              variant={showHistory ? 'secondary' : 'outline'}
+              size="sm"
+              className="h-11 px-2.5 sm:px-3"
+              onClick={() => setShowHistory((current) => !current)}
+              aria-label="Show previous conversations"
+            >
+              <History className="size-4" />
+              <span className={cn(panel && 'sr-only sm:not-sr-only')}>History</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-11 px-2.5 sm:px-3"
+              onClick={newConversation}
+              aria-label="Start a new conversation"
+            >
+              <MessageSquarePlus className="h-4 w-4" />
+              <span>New</span>
+            </Button>
+          </div>
         </div>
-        <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground sm:text-base sm:leading-6">
-          Ask about stock or describe a change. You review an exact proposal before anything is
-          updated.
-        </p>
+        {!panel && (
+          <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground sm:text-base sm:leading-6">
+            Ask about stock or describe a change. You review an exact proposal before anything is
+            updated.
+          </p>
+        )}
       </header>
 
-      <div className="min-w-0 flex-1 space-y-4">
-        {isLoadingHistory ? (
+      <div
+        className={cn(
+          'mobile-scroll min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto',
+          panel ? 'px-4 py-4' : 'py-4 pr-1'
+        )}
+      >
+        {showHistory ? (
+          <ConversationHistory
+            conversations={conversations}
+            currentId={conversationId}
+            isLoading={isLoadingConversations}
+            error={conversationListError}
+            onSelect={(id) => void loadConversation(id)}
+          />
+        ) : isLoadingHistory ? (
           <div className="flex justify-center py-16 text-muted-foreground">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading conversation…
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex h-full min-h-[18rem] flex-col justify-center space-y-3 text-center sm:space-y-6 sm:py-6">
+          <div className="flex min-h-full flex-col justify-center space-y-3 text-center sm:space-y-6 sm:py-6">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 sm:h-14 sm:w-14">
               <Bot className="h-6 w-6 text-accent sm:h-7 sm:w-7" />
             </div>
@@ -614,14 +926,14 @@ export function AssistantClient() {
                 )}
               >
                 {message.role === 'assistant'
-                  ? <AssistantMessageContent content={message.content} />
+                  ? <AssistantMessageContent content={message.content} onNavigate={onNavigate} />
                   : message.content}
               </div>
             </div>
           ))
         )}
 
-        {isSending && (
+        {!showHistory && isSending && (
           <div className="flex min-w-0 flex-col items-start gap-1">
             <span className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               Assistant
@@ -632,19 +944,20 @@ export function AssistantClient() {
           </div>
         )}
 
-        {proposal && (
+        {!showHistory && proposal && (
           <ProposalCard
             proposal={proposal}
             isApplying={isApplying}
             onConfirm={() => void confirmProposal()}
             onDismiss={() => void dismissProposal()}
+            onNavigate={onNavigate}
             onUndo={() => void sendMessage(
               'Undo the most recent applied change in this conversation. Prepare an exact reversal proposal for me to review before anything changes.'
             )}
           />
         )}
 
-        {error && (
+        {!showHistory && error && (
           <Alert variant="destructive">
             <AlertDescription className="mt-0">{error}</AlertDescription>
           </Alert>
@@ -652,10 +965,10 @@ export function AssistantClient() {
         <div ref={bottomRef} />
       </div>
 
-      <div
+      {!showHistory && <div
         className={cn(
-          'z-10 min-w-0 rounded-2xl border bg-background/95 p-3 shadow-lg backdrop-blur',
-          messages.length === 0 ? 'assistant-composer-start relative' : 'assistant-composer sticky'
+          'assistant-composer z-10 min-w-0 shrink-0 border-t bg-background/95 p-3 backdrop-blur',
+          panel ? 'pb-safe' : 'rounded-2xl border shadow-lg'
         )}
       >
         {photoPreview && (
@@ -687,7 +1000,7 @@ export function AssistantClient() {
           </div>
         )}
 
-        <div className="flex min-w-0 items-end gap-2">
+        <div className="min-w-0 space-y-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -696,18 +1009,6 @@ export function AssistantClient() {
             className="hidden"
             onChange={(event) => void handlePhoto(event.target.files?.[0] ?? null)}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-11"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isSending}
-            title="Photograph or attach an inventory note"
-          >
-            {photo ? <ImagePlus className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-            <span className="sr-only">Attach inventory photo</span>
-          </Button>
           <Textarea
             ref={textareaRef}
             value={input}
@@ -722,21 +1023,51 @@ export function AssistantClient() {
             aria-label="Message the inventory assistant"
             enterKeyHint="send"
             rows={1}
-            className="min-h-11 w-auto min-w-0 flex-1 resize-none overflow-y-hidden text-base md:text-sm"
+            className="box-border h-[52px] min-h-[52px] w-full resize-none overflow-y-hidden py-3 text-base leading-6 [scroll-padding-block:0.75rem] md:text-sm"
             disabled={isSending}
           />
-          <Button
-            type="button"
-            size="icon"
-            className="size-11"
-            onClick={() => void sendMessage()}
-            disabled={isSending || (!input.trim() && !photo)}
-          >
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            <span className="sr-only">Send</span>
-          </Button>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-12 shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isSending}
+                title="Photograph or attach an inventory note"
+              >
+                {photo ? <ImagePlus className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+                <span className="sr-only">Attach inventory photo</span>
+              </Button>
+              <Button
+                type="button"
+                variant={isListening ? 'default' : 'outline'}
+                size="icon"
+                className="size-12 shrink-0"
+                onClick={toggleListening}
+                disabled={isSending || !speechSupported}
+                aria-pressed={isListening}
+                title={speechSupported ? 'Dictate a request' : 'Voice dictation is not supported in this browser'}
+              >
+                {isListening ? <Square className="size-4 fill-current" /> : <Mic className="size-4" />}
+                <span className="sr-only">{isListening ? 'Stop dictation' : 'Dictate a request'}</span>
+              </Button>
+              {isListening && <span className="text-sm text-accent">Listening…</span>}
+            </div>
+            <Button
+              type="button"
+              size="icon"
+              className="size-12 shrink-0"
+              onClick={() => void sendMessage()}
+              disabled={isSending || (!input.trim() && !photo)}
+            >
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              <span className="sr-only">Send</span>
+            </Button>
+          </div>
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

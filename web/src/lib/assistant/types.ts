@@ -94,6 +94,13 @@ export type AssistantConversationResponse = {
   proposal: AssistantProposal | null
 }
 
+export type AssistantConversationSummary = {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type ApplyProposalResult = {
   ok: boolean
   status: AssistantProposalStatus

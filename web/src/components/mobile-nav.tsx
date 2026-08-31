@@ -22,20 +22,21 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import { appPath, OPEN_ASSISTANT_EVENT } from '@/lib/app-navigation'
 
 const mainNavItems = [
-  { name: 'Home', href: '/', icon: Home },
-  { name: 'Assistant', href: '/assistant', icon: Bot },
-  { name: 'Editions', href: '/editions', icon: Layers },
-  { name: 'Galleries', href: '/galleries', icon: Building2 },
+  { name: 'Home', href: appPath.home, icon: Home },
+  { name: 'Assistant', href: appPath.assistant, icon: Bot },
+  { name: 'Editions', href: appPath.editions, icon: Layers },
+  { name: 'Galleries', href: appPath.galleries, icon: Building2 },
 ]
 
 const moreNavItems = [
-  { name: 'Artworks', href: '/artworks', icon: Image },
-  { name: 'Sales', href: '/sales', icon: PoundSterling },
-  { name: 'Analytics', href: '/analytics', icon: TrendingUp },
-  { name: 'Change History', href: '/changelog', icon: History },
-  { name: 'Guides', href: '/guide', icon: BookOpen },
+  { name: 'Artworks', href: appPath.artworks, icon: Image },
+  { name: 'Sales', href: appPath.sales, icon: PoundSterling },
+  { name: 'Analytics', href: appPath.analytics, icon: TrendingUp },
+  { name: 'Change History', href: appPath.changelog, icon: History },
+  { name: 'Guides', href: appPath.guides, icon: BookOpen },
 ]
 
 export function MobileNav() {
@@ -56,19 +57,39 @@ export function MobileNav() {
           {mainNavItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item.href)
+            const className = cn(
+              'flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg transition-colors touch-manipulation',
+              active
+                ? 'text-accent'
+                : 'text-muted-foreground active:bg-secondary/50'
+            )
+            const content = (
+              <>
+                <Icon className={cn('h-5 w-5', active && 'stroke-[2.5]')} />
+                <span className="text-[10px] font-medium">{item.name}</span>
+              </>
+            )
+
+            if (item.href === appPath.assistant && pathname !== appPath.assistant) {
+              return (
+                <button
+                  key={item.name}
+                  type="button"
+                  onClick={() => window.dispatchEvent(new Event(OPEN_ASSISTANT_EVENT))}
+                  className={className}
+                >
+                  {content}
+                </button>
+              )
+            }
+
             return (
               <Link
                 key={item.name}
                 href={item.href}
-                className={cn(
-                  'flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg transition-colors touch-manipulation',
-                  active
-                    ? 'text-accent'
-                    : 'text-muted-foreground active:bg-secondary/50'
-                )}
+                className={className}
               >
-                <Icon className={cn('h-5 w-5', active && 'stroke-[2.5]')} />
-                <span className="text-[10px] font-medium">{item.name}</span>
+                {content}
               </Link>
             )
           })}

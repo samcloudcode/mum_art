@@ -7,6 +7,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AssistantProposal, InventoryAction, ProposalPreview } from './types'
+import { appPath } from '@/lib/app-navigation'
 import {
   draftInventoryProposal,
   draftUndoProposal,
@@ -506,9 +507,17 @@ Conversation policy:
 - If essential non-derivable information is missing, ask for all of it in one short, focused question rather than a sequence of confirmations.
 - Do not ask the user to confirm your interpretation or ask whether to prepare a proposal. Once the exact action is safe, create the proposal immediately; the proposal card is the confirmation step.
 - Do not narrate routine searches. Return the result or the one question needed to continue.
-- When useful, make the first mention of a resolved artwork, edition, or location a descriptive Markdown link using the exact app_path or related *_app_path returned by a tool. Link the activity log from history_app_path when summarising history. Never construct, alter, or guess an internal path, and do not link every repeated mention.
+- When useful, make the first mention of a resolved artwork, edition, or location a descriptive Markdown link using the exact app navigation path returned by a tool in app_path or a related *_app_path. Link the activity log from history_app_path when summarising history. These are application navigation routes, not database links. Never construct, alter, or guess a path, and do not link every repeated mention.
 
 Today is ${localDate(params.timeZone)} in ${params.timeZone}.
+
+Trusted application navigation:
+- Editions: ${appPath.editions}
+- Artworks: ${appPath.artworks}
+- Galleries: ${appPath.galleries}
+- Sales: ${appPath.sales}
+- Activity log: ${appPath.changelog}
+- Guides: ${appPath.guides}
 
 Domain rules:
 - An artwork/print is a design. An edition is one physical numbered copy. All numbered edition rows are created before physical printing, so marking something printed updates an existing edition and never creates one.

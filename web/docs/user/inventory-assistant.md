@@ -6,7 +6,8 @@ its interpretation, but it cannot change live inventory by itself.
 
 ## Asking about inventory
 
-Open **Assistant** from the main navigation and ask questions such as:
+Open **Assistant** from the navigation on any inventory page (or use the floating
+assistant button on desktop). It opens over the current page so you can ask:
 
 - `What changed recently?`
 - `How did Bembridge 12 end up at Kendalls?`
@@ -19,7 +20,25 @@ The assistant searches the current database rather than relying on a fixed list.
 It can also review the app's activity history. Older imported changes may have no
 activity record, so no history is not proof that an edition never changed.
 Artwork, edition, gallery and activity names in its replies can link directly to
-the corresponding page in the app.
+the corresponding page in the app. These links use the same routes as the app's
+navigation; the assistant cannot create links to database or admin endpoints.
+
+The assistant keeps its header and message box visible while the conversation
+itself scrolls. Choose **New** at any time to begin a new topic. Choose
+**History** to reopen one of your previous conversations.
+
+## Dictating a request
+
+Where the browser supports speech recognition, use the microphone beside the
+message box to dictate a request in British English. The app supplies current
+artwork names, artwork abbreviations and gallery names as recognition hints on
+browsers that support contextual biasing. The transcript appears in the message
+box first so you can correct it before sending; dictation never submits or
+changes inventory by itself.
+
+Speech recognition is provided by the browser and may use the browser vendor's
+online speech service. If it is unavailable, the microphone is disabled and all
+typed and photographed assistant features continue to work.
 
 ## Reviewing proposed changes
 

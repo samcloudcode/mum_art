@@ -4,18 +4,20 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { InventoryProvider } from './inventory-provider'
 import { MobileNav } from '@/components/mobile-nav'
+import { AssistantWidget } from './assistant/assistant-widget'
+import { appPath } from '@/lib/app-navigation'
 
 const navigation = [
-  { name: 'Overview', href: '/' },
-  { name: 'Assistant', href: '/assistant' },
-  { name: 'Editions', href: '/editions' },
-  { name: 'Artworks', href: '/artworks' },
-  { name: 'Galleries', href: '/galleries' },
-  { name: 'Sales', href: '/sales' },
-  { name: 'Analytics', href: '/analytics' },
-  { name: 'Tax Report', href: '/reports/uk-tax-year' },
-  { name: 'Change History', href: '/changelog' },
-  { name: 'Guides', href: '/guide' },
+  { name: 'Overview', href: appPath.home },
+  { name: 'Assistant', href: appPath.assistant },
+  { name: 'Editions', href: appPath.editions },
+  { name: 'Artworks', href: appPath.artworks },
+  { name: 'Galleries', href: appPath.galleries },
+  { name: 'Sales', href: appPath.sales },
+  { name: 'Analytics', href: appPath.analytics },
+  { name: 'Tax Report', href: appPath.taxReport },
+  { name: 'Change History', href: appPath.changelog },
+  { name: 'Guides', href: appPath.guides },
 ]
 
 export default async function DashboardLayout({
@@ -95,6 +97,7 @@ export default async function DashboardLayout({
 
       {/* Mobile bottom nav */}
       <MobileNav />
+      <AssistantWidget />
 
       {/* Main content area */}
       <main className="pt-nav pb-24 md:pb-12">

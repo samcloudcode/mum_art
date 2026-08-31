@@ -50,6 +50,50 @@ test('proposal card renders exact before and after values with an explicit confi
   assert.match(html, /Dismiss/)
 })
 
+test('an applied reversible proposal offers to prepare an undo', () => {
+  const proposal: AssistantProposal = {
+    id: '10000000-0000-4000-8000-000000000002',
+    status: 'applied',
+    expiresAt: '2026-08-30T12:00:00.000Z',
+    appliedAt: '2026-08-30T11:45:00.000Z',
+    undoable: true,
+    preview: {
+      summary: '1 edition: mark as sold',
+      warnings: [],
+      editions: [
+        {
+          editionId: 10,
+          editionName: 'Bembridge 12',
+          artworkName: 'Bembridge',
+          editionLabel: 'Edition 12',
+          changes: [
+            {
+              field: 'is_sold',
+              label: 'Sale status',
+              before: 'Unsold',
+              after: 'Sold',
+            },
+          ],
+        },
+      ],
+    },
+  }
+
+  const html = renderToStaticMarkup(
+    <ProposalCard
+      proposal={proposal}
+      isApplying={false}
+      onConfirm={() => undefined}
+      onDismiss={() => undefined}
+      onUndo={() => undefined}
+    />
+  )
+
+  assert.match(html, /Applied/)
+  assert.match(html, /Undo this change/)
+  assert.doesNotMatch(html, /Confirm 1 edition/)
+})
+
 test('assistant replies render GFM structure for readable mobile content', () => {
   const html = renderToStaticMarkup(
     <AssistantMessageContent

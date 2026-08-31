@@ -13,11 +13,12 @@ import {
   ChevronUp,
   ClipboardCheck,
   Clock3,
-  History,
   ImagePlus,
   Loader2,
   MessageSquarePlus,
+  PoundSterling,
   Printer,
+  RotateCcw,
   Send,
   ShieldCheck,
   X,
@@ -60,10 +61,10 @@ const suggestions = [
     icon: Printer,
   },
   {
-    title: 'Recent changes',
-    description: 'See what happened to stock',
-    prompt: 'What inventory changes were made recently?',
-    icon: History,
+    title: 'Record a sale',
+    description: 'Mark one edition as sold',
+    prompt: 'I need to record a sale. Help me identify the edition and ask me for the exact price and sale date before preparing a proposal.',
+    icon: PoundSterling,
   },
 ]
 
@@ -183,11 +184,13 @@ export function ProposalCard({
   isApplying,
   onConfirm,
   onDismiss,
+  onUndo,
 }: {
   proposal: AssistantProposal
   isApplying: boolean
   onConfirm: () => void
   onDismiss: () => void
+  onUndo?: () => void
 }) {
   const [expanded, setExpanded] = useState(true)
   const pending = proposal.status === 'pending'
@@ -298,6 +301,21 @@ export function ProposalCard({
                 </Button>
               </div>
             </>
+          )}
+
+          {proposal.status === 'applied' && proposal.undoable && onUndo && (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={onUndo}
+                disabled={isApplying}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Undo this change
+              </Button>
+            </div>
           )}
         </CardContent>
       )}
@@ -599,6 +617,9 @@ export function AssistantClient() {
             isApplying={isApplying}
             onConfirm={() => void confirmProposal()}
             onDismiss={() => void dismissProposal()}
+            onUndo={() => void sendMessage(
+              'Undo the most recent applied change in this conversation. Prepare an exact reversal proposal for me to review before anything changes.'
+            )}
           />
         )}
 

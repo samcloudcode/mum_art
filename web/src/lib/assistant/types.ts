@@ -11,6 +11,12 @@ export type InventoryAction =
       edition_ids: number[]
     }
   | {
+      type: 'mark_sold'
+      edition_ids: number[]
+      retail_price: number
+      date_sold: string
+    }
+  | {
       type: 'move_stock'
       edition_ids: number[]
       distributor_id: number
@@ -34,7 +40,16 @@ export type InventoryAction =
     }
 
 export type ProposalFieldChange = {
-  field: 'is_printed' | 'location' | 'date_in_gallery' | 'is_stock_checked'
+  field:
+    | 'is_printed'
+    | 'is_sold'
+    | 'is_settled'
+    | 'retail_price'
+    | 'date_sold'
+    | 'commission_percentage'
+    | 'location'
+    | 'date_in_gallery'
+    | 'is_stock_checked'
   label: string
   before: string
   after: string
@@ -69,6 +84,8 @@ export type AssistantProposal = {
   expiresAt: string
   appliedAt: string | null
   result?: Record<string, unknown> | null
+  undoable?: boolean
+  revertsProposalId?: string | null
 }
 
 export type AssistantConversationResponse = {

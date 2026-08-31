@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AssistantProposal, InventoryAction, ProposalPreview } from './types'
 import {
   draftInventoryProposal,
+  draftUndoProposal,
   findArtworks,
   findDistributors,
   findEditions,
@@ -143,7 +144,7 @@ export const ASSISTANT_TOOLS: Tool[] = ([
       properties: {
         edition_id: { type: 'integer' },
         distributor_id: { type: 'integer' },
-        action: { type: 'string', enum: ['update', 'move', 'sell', 'settle', 'create', 'delete'] },
+        action: { type: 'string', enum: ['update', 'move', 'sell', 'settle', 'undo', 'create', 'delete'] },
         since: { type: 'string', description: 'ISO date or timestamp lower bound.' },
         limit: { type: 'integer', description: 'Optional result limit from 1 to 50.' },
       },
@@ -168,6 +169,7 @@ export const ASSISTANT_TOOLS: Tool[] = ([
                 type: 'string',
                 enum: [
                   'mark_printed',
+                  'mark_sold',
                   'move_stock',
                   'confirm_stock_present',
                   'report_stock_missing',
@@ -182,6 +184,8 @@ export const ASSISTANT_TOOLS: Tool[] = ([
               },
               distributor_id: { type: 'integer' },
               date_in_gallery: { type: 'string', description: 'Exact YYYY-MM-DD date.' },
+              retail_price: { type: 'number', description: 'Exact gross sale price in GBP.' },
+              date_sold: { type: 'string', description: 'Exact YYYY-MM-DD sale date.' },
             },
             required: ['type', 'edition_ids'],
             additionalProperties: false,
@@ -189,6 +193,18 @@ export const ASSISTANT_TOOLS: Tool[] = ([
         },
       },
       required: ['actions'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'draft_proposal_undo',
+    description:
+      'Create a pending proposal that exactly reverses a previously applied assistant proposal. This does NOT change inventory. Use proposal_id when undoing a change found in history; omit it only for the latest undoable applied proposal in this conversation. Refuses older changes without before-values and records whose relevant fields changed afterwards.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        proposal_id: { type: 'string', description: 'Optional exact assistant proposal UUID.' },
+      },
       additionalProperties: false,
     },
   },
@@ -231,6 +247,14 @@ function integer(input: Record<string, unknown>, key: string, required = false):
   return value as number
 }
 
+function requiredNumber(input: Record<string, unknown>, key: string): number {
+  const value = input[key]
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new ToolInputError(`${key} must be a finite number`)
+  }
+  return value
+}
+
 function optionalBoolean(input: Record<string, unknown>, key: string): boolean | undefined {
   const value = input[key]
   if (value === undefined) return undefined
@@ -258,6 +282,14 @@ function parseActions(input: unknown): InventoryAction[] {
     const editionIds = integerArray(action.edition_ids, 'edition_ids')
 
     if (type === 'mark_printed') return { type, edition_ids: editionIds }
+    if (type === 'mark_sold') {
+      return {
+        type,
+        edition_ids: editionIds,
+        retail_price: requiredNumber(action, 'retail_price'),
+        date_sold: requiredString(action, 'date_sold'),
+      }
+    }
     if (
       type !== 'move_stock' &&
       type !== 'confirm_stock_present' &&
@@ -394,6 +426,27 @@ async function executeTool(
       proposal: result.proposal,
     }
   }
+  if (name === 'draft_proposal_undo') {
+    if (proposalAlreadyCreated) {
+      throw new ToolInputError('Only one proposal may be drafted in a turn')
+    }
+    const result = await draftUndoProposal(context.supabase, {
+      conversationId: context.conversationId,
+      userId: context.userId,
+      requestText: context.requestText,
+      proposalId: optionalString(values, 'proposal_id'),
+      model: context.model,
+      canWrite: context.canWrite,
+    })
+    return {
+      content: JSONResult(
+        result.proposal
+          ? { ok: true, proposal_id: result.proposal.id, preview: result.proposal.preview }
+          : result
+      ),
+      proposal: result.proposal,
+    }
+  }
   if (name === 'withdraw_pending_proposal') {
     const { data, error } = await context.supabase
       .from('assistant_proposals')
@@ -455,13 +508,17 @@ Domain rules:
 - Direct usually represents artist-held stock; Unknown represents genuinely unknown location. Resolve both by name when needed.
 - Moving ordinary stock clears the old location confirmation. Receiving stock physically seen at a destination marks it printed, moves it, dates it, and confirms it there.
 - Unreported stock is not automatically missing. Only report missing when the user says it is absent.
-- Do not propose changes to sold records in this first release.
+- A sale needs one exact printed, unsold edition, the exact gross GBP price, and the exact sale date. Never assume a zero price or today's date; ask when either is missing.
+- Marking a sale keeps its recorded location, snapshots that location's current commission percentage, clears stock confirmation, and starts as not settled.
+- Sold records cannot be moved, printed, or stock-checked. They may only be returned to their exact prior state through a safe undo of the proposal that sold them.
 - For broad phrases such as "all" or a range, expand and inspect the exact records. If a result is truncated, do not propose from an incomplete set.
 
 History:
 - Use get_inventory_history for "what changed recently", "who changed this", or "how did it get there".
 - Explain that history only includes changes recorded by this app; absence of history is not proof that no older/imported change occurred.
 - Assistant-applied changes share a proposal_id and source=assistant.
+- For "undo that" or a reversal of an applied assistant change, use draft_proposal_undo. Undo is itself an exact pending proposal and still needs separate confirmation.
+- Only proposals with captured before-values are undoable. If relevant fields changed afterwards or the change predates undo support, explain why automatic undo is unsafe; never reconstruct prior state from descriptive history text.
 
 Photos and handwriting:
 - ${params.hasImage ? 'An inventory photo is attached to the newest user message.' : 'No photo is attached to this turn.'}
@@ -472,7 +529,7 @@ Photos and handwriting:
 
 Proposal behavior:
 - Use named actions, not imagined field updates.
-- A proposal may combine multiple actions and editions and is applied atomically.
+- A proposal may combine multiple actions and editions and is applied atomically. Each sale action identifies exactly one edition, though one proposal may contain several separately priced sales.
 - Before drafting, verify exact current records and destination IDs.
 - If the proposal tool rejects a plan, use the error to investigate or ask the user; do not claim success.
 - If a proposal is created, briefly tell the user what you understood and ask them to review the proposal card. Never say inventory was changed.

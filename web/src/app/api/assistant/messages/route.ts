@@ -36,6 +36,8 @@ type ProposalRow = {
   expires_at: string
   applied_at: string | null
   result: Record<string, unknown> | null
+  compiled_changes: unknown
+  reverts_proposal_id: string | null
 }
 
 function validUuid(value: string): boolean {
@@ -66,7 +68,7 @@ async function readProposal(
 ): Promise<AssistantProposal | null> {
   const { data } = await supabase
     .from('assistant_proposals')
-    .select('id,status,preview,expires_at,applied_at,result')
+    .select('id,status,preview,expires_at,applied_at,result,compiled_changes,reverts_proposal_id')
     .eq('conversation_id', conversationId)
     .eq('user_id', userId)
     .order('created_at', { ascending: false })

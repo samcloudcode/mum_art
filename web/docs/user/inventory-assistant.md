@@ -12,6 +12,7 @@ Open **Assistant** from the main navigation and ask questions such as:
 - `How did Bembridge 12 end up at Kendalls?`
 - `What stock should be at Kendalls?`
 - `I printed Ducie 4 and AP 1.`
+- `I sold Bembridge 12 for £425 on 30 August 2026.`
 - `Bembridge 9 is not at the gallery where it is recorded.`
 
 The assistant searches the current database rather than relying on a fixed list.
@@ -37,6 +38,36 @@ rechecks that the records have not changed since the preview, then applies the
 whole proposal and its history entries together. If any record is now different,
 the proposal becomes stale and must be prepared again; it is never partly
 applied.
+
+This confirmation rule applies to every inventory write the assistant can
+prepare, including sales and undo. Read-only searches and history questions do
+not need confirmation because they do not change inventory.
+
+## Recording a sale
+
+Tell the assistant the exact edition, gross sale price in pounds and sale date.
+It asks for anything missing or ambiguous, then shows the sale fields in the
+proposal card. Confirming the proposal marks the edition sold and unsettled,
+keeps its recorded location, snapshots that location's current commission, and
+clears its stock-check confirmation. The edition must already be printed and
+unsold.
+
+Each named sale refers to one exact edition. You can still request several
+sales in one message; they appear together in one proposal and are applied
+atomically only after confirmation.
+
+## Undoing an assistant change
+
+After a newly applied assistant proposal, choose **Undo this change**. The
+assistant prepares a second proposal showing the exact reverse values. Review
+and confirm it like any other change; pressing Undo never changes inventory
+immediately.
+
+Undo uses the machine-readable before-values captured with the original
+proposal. It refuses the reversal if a relevant field changed afterwards, the
+proposal was already undone, or the original proposal predates undo snapshots.
+An undo cannot itself be automatically undone. Changes made manually elsewhere
+in the app remain visible in history but are not offered as automatic undo.
 
 ## Photographing handwritten inventory
 

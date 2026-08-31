@@ -16,8 +16,11 @@ import {
   findEditions,
   getGalleryStock,
   getRecentActivity,
+  querySales,
   resolveInventoryEntries,
+  SALES_GROUP_DIMENSIONS,
   type AssistantCatalogueReference,
+  type SalesGroupDimension,
 } from './server-inventory'
 
 const MAX_AGENT_STEPS = 10
@@ -138,9 +141,49 @@ export const ASSISTANT_TOOLS: Tool[] = ([
     },
   },
   {
+    name: 'query_sales',
+    description:
+      'Query sold editions from the source-of-truth sale fields. Use for what sold, sales totals, sale values, unsettled sales, and breakdowns by gallery, artwork, month, edition type, or settlement. sold_from is inclusive and sold_before is exclusive; use both for a bounded period such as last month. Totals and groups cover all matched rows when complete=true. This is business sale data; use get_inventory_history instead only for who changed a record or how it changed.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        distributor_ids: {
+          type: 'array',
+          minItems: 1,
+          description: 'Optional resolved gallery/location IDs, at most 100.',
+          items: { type: 'integer' },
+        },
+        print_ids: {
+          type: 'array',
+          minItems: 1,
+          description: 'Optional resolved artwork IDs, at most 100.',
+          items: { type: 'integer' },
+        },
+        sold_from: { type: 'string', description: 'Optional inclusive YYYY-MM-DD sale-date boundary.' },
+        sold_before: { type: 'string', description: 'Optional exclusive YYYY-MM-DD sale-date boundary.' },
+        is_settled: { type: 'boolean', description: 'Optionally filter settled or unsettled sales.' },
+        edition_type: { type: 'string', enum: ['numbered', 'ap'] },
+        group_by: {
+          type: 'array',
+          description: 'Optional one or two dimensions for deterministic totals and cross-breakdowns.',
+          items: { type: 'string', enum: [...SALES_GROUP_DIMENSIONS] },
+        },
+        include_editions: {
+          type: 'boolean',
+          description: 'Include matching edition rows; defaults to true. Set false for totals-only questions.',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Maximum edition detail rows from 1 to 100; does not limit totals or groups.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_inventory_history',
     description:
-      'Read recent audited inventory changes. Use an edition_id to explain how one edition reached its current state, a distributor_id for changes involving a gallery, or no IDs for recent activity globally. History only covers changes logged by this app/import history may be absent.',
+      'Read recent audited inventory changes. Use an edition_id to explain how one edition reached its current state, a distributor_id for changes involving a gallery, or no IDs for recent activity globally. Do not use for sales lists or totals; query_sales reads business sale data. History only covers changes logged by this app/import history may be absent.',
     input_schema: {
       type: 'object',
       properties: {
@@ -272,6 +315,23 @@ function integerArray(value: unknown, key: string): number[] {
   return value as number[]
 }
 
+function optionalEnumArray<T extends string>(
+  input: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+  maximum: number
+): T[] | undefined {
+  const value = input[key]
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length > maximum) {
+    throw new ToolInputError(`${key} must be an array with at most ${maximum} values`)
+  }
+  if (value.some((item) => typeof item !== 'string' || !allowed.includes(item as T))) {
+    throw new ToolInputError(`${key} contains an unsupported value`)
+  }
+  return [...new Set(value)] as T[]
+}
+
 function parseActions(input: unknown): InventoryAction[] {
   const values = record(input).actions
   if (!Array.isArray(values) || values.length === 0 || values.length > 20) {
@@ -393,6 +453,36 @@ async function executeTool(
       }
     })
     return { content: JSONResult(await resolveInventoryEntries(context.supabase, entries)) }
+  }
+  if (name === 'query_sales') {
+    const editionType = optionalString(values, 'edition_type')
+    if (editionType && editionType !== 'numbered' && editionType !== 'ap') {
+      throw new ToolInputError('edition_type must be numbered or ap')
+    }
+    return {
+      content: JSONResult(
+        await querySales(context.supabase, {
+          distributor_ids: values.distributor_ids === undefined
+            ? undefined
+            : integerArray(values.distributor_ids, 'distributor_ids'),
+          print_ids: values.print_ids === undefined
+            ? undefined
+            : integerArray(values.print_ids, 'print_ids'),
+          sold_from: optionalString(values, 'sold_from'),
+          sold_before: optionalString(values, 'sold_before'),
+          is_settled: optionalBoolean(values, 'is_settled'),
+          edition_type: editionType as 'numbered' | 'ap' | undefined,
+          group_by: optionalEnumArray(
+            values,
+            'group_by',
+            SALES_GROUP_DIMENSIONS,
+            2
+          ) as SalesGroupDimension[] | undefined,
+          include_editions: optionalBoolean(values, 'include_editions'),
+          limit: integer(values, 'limit'),
+        })
+      ),
+    }
   }
   if (name === 'get_inventory_history') {
     return {
@@ -529,9 +619,14 @@ Fast tool paths:
 - Move: resolve IDs from the catalogue and find the exact current edition, then call draft_inventory_actions with move_stock (and mark_printed too if an edition recorded as unprinted was physically moved). Use today's date for a present-tense move.
 - Print: resolve the artwork and find the exact unsold, unprinted edition, then call draft_inventory_actions with mark_printed.
 - Gallery stock: resolve the location, then call get_gallery_stock; do not enumerate editions another way.
-- Recent sales: call get_inventory_history with action=sell and the requested since/limit.
+- Sales and sales totals: call query_sales against date_sold. For a calendar period such as last month, calculate its first day as sold_from and the following period's first day as sold_before. Include editions for "what sold"; use group_by and include_editions=false for totals or breakdowns.
 - Stock check or photographed list: resolve_inventory_entries in one batch, compare with get_gallery_stock, then draft only explicit unambiguous differences.
 - Record a sale: find one exact printed unsold edition, then call draft_inventory_actions with mark_sold, the user-supplied gross price, and the sale date.
+
+Query examples:
+- "What sold at Seaview last month?" Resolve Seaview, then query_sales for that distributor with the exact bounded calendar-month dates and edition details.
+- "Show total sales by gallery and artwork this year." query_sales with the year's bounded dates, group_by gallery and artwork, and no edition details.
+- "Who marked this edition sold?" get_inventory_history for that edition; this is audit causality rather than a sales report.
 
 Domain rules:
 - An artwork/print is a design. An edition is one physical numbered copy. All numbered edition rows are created before physical printing, so marking something printed updates an existing edition and never creates one.
@@ -549,6 +644,7 @@ Domain rules:
 
 History:
 - Use get_inventory_history for "what changed recently", "who changed this", or "how did it get there".
+- Never use inventory history for what sold, sales totals, or sales breakdowns; use query_sales because it filters the business sale date and recorded sale location.
 - Explain that history only includes changes recorded by this app; absence of history is not proof that no older/imported change occurred.
 - Assistant-applied changes share a proposal_id and source=assistant.
 - For "undo that" or a reversal of an applied assistant change, use draft_proposal_undo. Undo is itself an exact pending proposal and still needs separate confirmation.

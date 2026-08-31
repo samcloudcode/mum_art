@@ -10,6 +10,18 @@ import { appPath } from '@/lib/app-navigation'
 
 const MAX_TOOL_RESULTS = 100
 const MAX_PROPOSAL_EDITIONS = 100
+const SALES_PAGE_SIZE = 1_000
+const MAX_SALES_ANALYSIS_ROWS = 20_000
+
+export const SALES_GROUP_DIMENSIONS = [
+  'gallery',
+  'artwork',
+  'month',
+  'edition_type',
+  'settlement',
+] as const
+
+export type SalesGroupDimension = (typeof SALES_GROUP_DIMENSIONS)[number]
 
 type ArtworkLookup = {
   id: number
@@ -393,6 +405,250 @@ export async function getGalleryStock(
     is_sold: false,
     limit,
   })
+}
+
+type SalesTotals = {
+  sale_count: number
+  priced_sale_count: number
+  gross_value: number
+  average_price: number | null
+  commission_value: number
+  net_value: number
+  settled_sale_count: number
+  unsettled_sale_count: number
+  missing_price_count: number
+  missing_commission_count: number
+}
+
+function saleMoney(edition: EditionRecord) {
+  if (edition.retail_price === null || !Number.isFinite(edition.retail_price)) {
+    return { grossCents: null, commissionCents: null, netCents: null }
+  }
+  const grossCents = Math.round(edition.retail_price * 100)
+  if (edition.commission_percentage === null || !Number.isFinite(edition.commission_percentage)) {
+    return { grossCents, commissionCents: null, netCents: null }
+  }
+  const commissionCents = Math.round(grossCents * edition.commission_percentage / 100)
+  return {
+    grossCents,
+    commissionCents,
+    netCents: grossCents - commissionCents,
+  }
+}
+
+function salesTotals(editions: EditionRecord[]): SalesTotals {
+  let grossCents = 0
+  let commissionCents = 0
+  let netCents = 0
+  let pricedSaleCount = 0
+  let missingCommissionCount = 0
+
+  for (const edition of editions) {
+    const money = saleMoney(edition)
+    if (money.grossCents === null) continue
+    pricedSaleCount += 1
+    grossCents += money.grossCents
+    if (money.commissionCents === null || money.netCents === null) {
+      missingCommissionCount += 1
+      continue
+    }
+    commissionCents += money.commissionCents
+    netCents += money.netCents
+  }
+
+  return {
+    sale_count: editions.length,
+    priced_sale_count: pricedSaleCount,
+    gross_value: grossCents / 100,
+    average_price: pricedSaleCount > 0 ? Math.round(grossCents / pricedSaleCount) / 100 : null,
+    commission_value: commissionCents / 100,
+    net_value: netCents / 100,
+    settled_sale_count: editions.filter((edition) => edition.is_settled).length,
+    unsettled_sale_count: editions.filter((edition) => !edition.is_settled).length,
+    missing_price_count: editions.length - pricedSaleCount,
+    missing_commission_count: missingCommissionCount,
+  }
+}
+
+function salesGroupValue(edition: EditionRecord, dimension: SalesGroupDimension) {
+  const artwork = one(edition.prints)
+  const distributor = one(edition.distributors)
+  if (dimension === 'gallery') {
+    return {
+      key: `gallery:${edition.distributor_id ?? 'none'}`,
+      value: edition.distributor_id
+        ? {
+            id: edition.distributor_id,
+            name: distributor?.name ?? 'Unknown gallery',
+            app_path: appPath.gallery(edition.distributor_id),
+          }
+        : { id: null, name: 'No recorded location', app_path: null },
+    }
+  }
+  if (dimension === 'artwork') {
+    return {
+      key: `artwork:${edition.print_id}`,
+      value: {
+        id: edition.print_id,
+        name: artwork?.name ?? 'Unknown artwork',
+        app_path: appPath.artwork(edition.print_id),
+      },
+    }
+  }
+  if (dimension === 'month') {
+    const month = edition.date_sold?.slice(0, 7) ?? 'Unknown sale date'
+    return { key: `month:${month}`, value: month }
+  }
+  if (dimension === 'edition_type') {
+    const editionType = edition.edition_type ?? 'numbered'
+    return { key: `edition_type:${editionType}`, value: editionType }
+  }
+  const settlement = edition.is_settled ? 'settled' : 'unsettled'
+  return { key: `settlement:${settlement}`, value: settlement }
+}
+
+function publicSale(edition: EditionRecord) {
+  const artwork = one(edition.prints)
+  const distributor = one(edition.distributors)
+  const money = saleMoney(edition)
+  return {
+    edition_id: edition.id,
+    edition_app_path: appPath.edition(edition.id),
+    artwork_id: edition.print_id,
+    artwork_name: artwork?.name ?? 'Unknown artwork',
+    artwork_app_path: appPath.artwork(edition.print_id),
+    edition_number: edition.edition_number,
+    edition_type: edition.edition_type ?? 'numbered',
+    edition_name: edition.edition_display_name,
+    gallery_id: edition.distributor_id,
+    gallery_name: distributor?.name ?? null,
+    gallery_app_path: edition.distributor_id ? appPath.gallery(edition.distributor_id) : null,
+    date_sold: edition.date_sold,
+    gross_price: money.grossCents === null ? null : money.grossCents / 100,
+    commission_percentage: edition.commission_percentage,
+    commission_value: money.commissionCents === null ? null : money.commissionCents / 100,
+    net_value: money.netCents === null ? null : money.netCents / 100,
+    is_settled: Boolean(edition.is_settled),
+  }
+}
+
+export async function querySales(
+  supabase: SupabaseClient,
+  filters: {
+    distributor_ids?: number[]
+    print_ids?: number[]
+    sold_from?: string
+    sold_before?: string
+    is_settled?: boolean
+    edition_type?: 'numbered' | 'ap'
+    group_by?: SalesGroupDimension[]
+    include_editions?: boolean
+    limit?: number
+  }
+) {
+  if (filters.sold_from && !validDate(filters.sold_from)) {
+    return { ok: false as const, error: 'sold_from must be a valid YYYY-MM-DD date' }
+  }
+  if (filters.sold_before && !validDate(filters.sold_before)) {
+    return { ok: false as const, error: 'sold_before must be a valid YYYY-MM-DD date' }
+  }
+  if (filters.sold_from && filters.sold_before && filters.sold_from >= filters.sold_before) {
+    return { ok: false as const, error: 'sold_before must be after sold_from' }
+  }
+
+  const distributorIds = [...new Set(filters.distributor_ids ?? [])]
+  const printIds = [...new Set(filters.print_ids ?? [])]
+  if (distributorIds.length > 100 || printIds.length > 100) {
+    return { ok: false as const, error: 'Sales filters cannot contain more than 100 IDs' }
+  }
+  const groupBy = [...new Set(filters.group_by ?? [])]
+  if (groupBy.length > 2) {
+    return { ok: false as const, error: 'Sales can be grouped by at most two dimensions at once' }
+  }
+  if (groupBy.some((dimension) => !SALES_GROUP_DIMENSIONS.includes(dimension))) {
+    return { ok: false as const, error: 'Unsupported sales grouping dimension' }
+  }
+
+  const rows: EditionRecord[] = []
+  let matchedSaleCount: number | null = null
+  let analysisTruncated = false
+  while (rows.length < MAX_SALES_ANALYSIS_ROWS) {
+    const pageSize = Math.min(SALES_PAGE_SIZE, MAX_SALES_ANALYSIS_ROWS - rows.length)
+    let query = supabase
+      .from('editions')
+      .select(EDITION_SELECT, { count: 'exact' })
+      .eq('is_sold', true)
+      .or('status_confidence.neq.legacy_unknown,status_confidence.is.null')
+      .order('date_sold', { ascending: false, nullsFirst: false })
+      .order('id', { ascending: false })
+      .range(rows.length, rows.length + pageSize - 1)
+
+    if (distributorIds.length > 0) query = query.in('distributor_id', distributorIds)
+    if (printIds.length > 0) query = query.in('print_id', printIds)
+    if (filters.sold_from) query = query.gte('date_sold', filters.sold_from)
+    if (filters.sold_before) query = query.lt('date_sold', filters.sold_before)
+    if (filters.is_settled !== undefined) query = query.eq('is_settled', filters.is_settled)
+    if (filters.edition_type) query = query.eq('edition_type', filters.edition_type)
+
+    const { data, error, count } = await query
+    if (error) throw new Error('Could not query sales')
+    if (matchedSaleCount === null && count !== null) matchedSaleCount = count
+    const page = (data ?? []) as unknown as EditionRecord[]
+    rows.push(...page)
+    if (page.length === 0) break
+    if (matchedSaleCount !== null && rows.length >= matchedSaleCount) break
+    if (matchedSaleCount === null && page.length < pageSize) break
+    if (rows.length >= MAX_SALES_ANALYSIS_ROWS) {
+      analysisTruncated = matchedSaleCount === null || rows.length < matchedSaleCount
+    }
+  }
+
+  rows.sort((left, right) =>
+    (right.date_sold ?? '').localeCompare(left.date_sold ?? '') || right.id - left.id
+  )
+
+  const grouped = new Map<string, { dimensions: Record<string, unknown>; editions: EditionRecord[] }>()
+  for (const edition of rows) {
+    const dimensions: Record<string, unknown> = {}
+    const key = groupBy.map((dimension) => {
+      const group = salesGroupValue(edition, dimension)
+      dimensions[dimension] = group.value
+      return group.key
+    }).join('|')
+    if (!grouped.has(key)) grouped.set(key, { dimensions, editions: [] })
+    grouped.get(key)?.editions.push(edition)
+  }
+
+  const groups = groupBy.length === 0
+    ? []
+    : [...grouped.values()]
+        .map((group) => ({ dimensions: group.dimensions, totals: salesTotals(group.editions) }))
+        .sort((left, right) =>
+          right.totals.gross_value - left.totals.gross_value ||
+          JSON.stringify(left.dimensions).localeCompare(JSON.stringify(right.dimensions))
+        )
+
+  const detailLimit = Math.min(Math.max(filters.limit ?? 50, 1), MAX_TOOL_RESULTS)
+  const includeEditions = filters.include_editions !== false
+  return {
+    ok: true as const,
+    sales_app_path: appPath.sales,
+    filters: {
+      distributor_ids: distributorIds,
+      print_ids: printIds,
+      sold_from: filters.sold_from ?? null,
+      sold_before: filters.sold_before ?? null,
+      is_settled: filters.is_settled ?? null,
+      edition_type: filters.edition_type ?? null,
+      group_by: groupBy,
+    },
+    complete: !analysisTruncated,
+    matched_sale_count: matchedSaleCount ?? rows.length,
+    totals: salesTotals(rows),
+    groups,
+    editions: includeEditions ? rows.slice(0, detailLimit).map(publicSale) : [],
+    editions_truncated: includeEditions && rows.length > detailLimit,
+  }
 }
 
 export async function resolveInventoryEntries(

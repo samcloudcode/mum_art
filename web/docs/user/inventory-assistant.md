@@ -31,6 +31,15 @@ The assistant keeps its header and message box visible while the conversation
 itself scrolls. Choose **New** at any time to begin a new topic. Choose
 **History** to reopen one of your previous conversations.
 
+For sales questions, the assistant reads the editions' recorded sale dates and
+locations rather than inferring sales from the audit log. It can list the exact
+editions, calculate gross, commission and net values, and break results down by
+gallery, artwork, month, edition type or settlement status. Calendar ranges are
+bounded explicitly, so “last month” means the first day of that month up to—but
+not including—the first day of the next month. Missing prices or commission
+rates are reported rather than silently treated as zero. The audit log remains
+the source for questions about who changed a record or how it changed.
+
 ## Dictating a request
 
 Use the microphone beside the message box to dictate a request in British

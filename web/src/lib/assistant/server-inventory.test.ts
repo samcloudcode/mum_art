@@ -8,23 +8,31 @@ import {
   findDistributors,
   getAssistantCatalogueReference,
   getRecentActivity,
+  querySales,
   resolveInventoryEntries,
 } from './server-inventory'
 import type { InventoryAction } from './types'
 
-type QueryResult = { data: unknown; error: null }
+type QueryResult = { data: unknown; error: null; count?: number }
 
 class FakeQuery implements PromiseLike<QueryResult> {
   private operation: 'select' | 'insert' | 'update' = 'select'
   private payload: Record<string, unknown> | null = null
   private filters = new Map<string, unknown>()
+  private lowerBounds = new Map<string, unknown>()
+  private upperBounds = new Map<string, unknown>()
+  private rangeBounds: [number, number] | null = null
+  private maximum: number | null = null
+  private excludeLegacy = false
+  private wantsCount = false
 
   constructor(
     private table: string,
     private database: FakeDatabase
   ) {}
 
-  select(): this {
+  select(_columns?: string, options?: { count?: string }): this {
+    this.wantsCount = options?.count === 'exact'
     return this
   }
 
@@ -50,11 +58,34 @@ class FakeQuery implements PromiseLike<QueryResult> {
     return this
   }
 
+  gte(field: string, value: unknown): this {
+    this.lowerBounds.set(field, value)
+    return this
+  }
+
+  lt(field: string, value: unknown): this {
+    this.upperBounds.set(field, value)
+    return this
+  }
+
+  or(expression: string): this {
+    if (expression === 'status_confidence.neq.legacy_unknown,status_confidence.is.null') {
+      this.excludeLegacy = true
+    }
+    return this
+  }
+
   order(): this {
     return this
   }
 
-  limit(): this {
+  limit(value: number): this {
+    this.maximum = value
+    return this
+  }
+
+  range(from: number, to: number): this {
+    this.rangeBounds = [from, to]
     return this
   }
 
@@ -80,9 +111,24 @@ class FakeQuery implements PromiseLike<QueryResult> {
 
   private execute(single: boolean): QueryResult {
     if (this.table === 'editions') {
-      const ids = this.filters.get('id') as number[] | undefined
-      const rows = ids ? this.database.editions.filter((edition) => ids.includes(edition.id)) : this.database.editions
-      return { data: rows, error: null }
+      let rows = this.database.editions.filter((edition) =>
+        [...this.filters].every(([field, value]) =>
+          Array.isArray(value)
+            ? value.includes(edition[field as keyof typeof edition])
+            : edition[field as keyof typeof edition] === value
+        ) &&
+        [...this.lowerBounds].every(([field, value]) =>
+          String(edition[field as keyof typeof edition] ?? '') >= String(value)
+        ) &&
+        [...this.upperBounds].every(([field, value]) =>
+          String(edition[field as keyof typeof edition] ?? '') < String(value)
+        ) &&
+        (!this.excludeLegacy || edition.status_confidence !== 'legacy_unknown')
+      )
+      const count = rows.length
+      if (this.rangeBounds) rows = rows.slice(this.rangeBounds[0], this.rangeBounds[1] + 1)
+      else if (this.maximum !== null) rows = rows.slice(0, this.maximum)
+      return { data: rows, error: null, count: this.wantsCount ? count : undefined }
     }
     if (this.table === 'distributors') {
       return { data: this.database.distributors, error: null }
@@ -256,6 +302,173 @@ test('read tools return canonical app paths for resolved inventory and history',
   assert.equal(entries.entries[0]?.editions[0]?.location_app_path, '/galleries/1')
   assert.equal(history.history_app_path, '/changelog')
   assert.equal(history.activities[0]?.edition_app_path, '/editions/10')
+})
+
+test('queries sales by business date and gallery with deterministic totals and groups', async () => {
+  const database = new FakeDatabase()
+  const seaview = {
+    id: 4,
+    name: 'Seaview Gallery',
+    commission_percentage: 40,
+    is_active: true,
+    is_favorite: true,
+  }
+  const priory = {
+    id: 6,
+    name: 'Priory',
+    short_name: 'PRIOR',
+    total_editions: 200,
+    is_active: true,
+    is_favorite: false,
+  }
+  const quayRocks = {
+    id: 7,
+    name: 'Quay Rocks Landscape',
+    short_name: 'QRL',
+    total_editions: 100,
+    is_active: true,
+    is_favorite: false,
+  }
+  database.distributors.push(seaview)
+  database.prints.push(priory, quayRocks)
+  const sale = (
+    id: number,
+    artwork: typeof priory,
+    dateSold: string,
+    price: number,
+    overrides: Record<string, unknown> = {}
+  ) => database.edition({
+    id,
+    print_id: artwork.id,
+    distributor_id: seaview.id,
+    edition_number: id,
+    edition_display_name: `${artwork.name} ${id}`,
+    is_printed: true,
+    is_sold: true,
+    retail_price: price,
+    date_sold: dateSold,
+    commission_percentage: 40,
+    prints: artwork,
+    distributors: seaview,
+    ...overrides,
+  })
+  database.editions = [
+    sale(21, quayRocks, '2026-07-11', 235, { is_settled: true }),
+    sale(22, priory, '2026-07-13', 170),
+    sale(23, quayRocks, '2026-07-25', 235),
+    sale(24, priory, '2026-07-30', 170, { is_settled: true }),
+    sale(25, priory, '2026-08-01', 170),
+    sale(26, priory, '2026-07-20', 170, {
+      distributor_id: 2,
+      distributors: database.distributors[1],
+    }),
+    sale(27, priory, '2026-07-21', 170, { status_confidence: 'legacy_unknown' }),
+  ]
+
+  const result = await querySales(database.client(), {
+    distributor_ids: [4],
+    sold_from: '2026-07-01',
+    sold_before: '2026-08-01',
+    group_by: ['artwork'],
+    include_editions: true,
+  })
+
+  assert.equal(result.ok, true)
+  if (!result.ok) return
+  assert.equal(result.complete, true)
+  assert.equal(result.matched_sale_count, 4)
+  assert.deepEqual(result.totals, {
+    sale_count: 4,
+    priced_sale_count: 4,
+    gross_value: 810,
+    average_price: 202.5,
+    commission_value: 324,
+    net_value: 486,
+    settled_sale_count: 2,
+    unsettled_sale_count: 2,
+    missing_price_count: 0,
+    missing_commission_count: 0,
+  })
+  assert.deepEqual(
+    result.groups.map((group) => ({
+      artwork: (group.dimensions.artwork as { name: string }).name,
+      count: group.totals.sale_count,
+      gross: group.totals.gross_value,
+    })),
+    [
+      { artwork: 'Quay Rocks Landscape', count: 2, gross: 470 },
+      { artwork: 'Priory', count: 2, gross: 340 },
+    ]
+  )
+  assert.equal(result.editions.length, 4)
+  assert.equal(result.editions[0].date_sold, '2026-07-30')
+  assert.equal(result.editions[0].edition_app_path, '/editions/24')
+  assert.equal(result.sales_app_path, '/sales')
+  assert.equal(result.editions_truncated, false)
+
+  const crossBreakdown = await querySales(database.client(), {
+    sold_from: '2026-07-01',
+    sold_before: '2026-08-01',
+    group_by: ['gallery', 'artwork'],
+    include_editions: false,
+  })
+  assert.equal(crossBreakdown.ok, true)
+  if (!crossBreakdown.ok) return
+  assert.deepEqual(
+    crossBreakdown.groups.map((group) => ({
+      gallery: (group.dimensions.gallery as { name: string }).name,
+      artwork: (group.dimensions.artwork as { name: string }).name,
+      gross: group.totals.gross_value,
+    })),
+    [
+      { gallery: 'Seaview Gallery', artwork: 'Quay Rocks Landscape', gross: 470 },
+      { gallery: 'Seaview Gallery', artwork: 'Priory', gross: 340 },
+      { gallery: 'Kendalls', artwork: 'Priory', gross: 170 },
+    ]
+  )
+  assert.deepEqual(crossBreakdown.editions, [])
+})
+
+test('rejects an invalid or reversed sales date range', async () => {
+  const database = new FakeDatabase()
+  const invalid = await querySales(database.client(), { sold_from: '31 July 2026' })
+  const reversed = await querySales(database.client(), {
+    sold_from: '2026-08-01',
+    sold_before: '2026-07-01',
+  })
+
+  assert.equal(invalid.ok, false)
+  assert.match(invalid.error ?? '', /valid YYYY-MM-DD/)
+  assert.equal(reversed.ok, false)
+  assert.match(reversed.error ?? '', /must be after/)
+})
+
+test('paginates sales so totals are independent of the edition detail limit', async () => {
+  const database = new FakeDatabase()
+  database.editions = Array.from({ length: 1_005 }, (_, index) => database.edition({
+    id: index + 1,
+    is_printed: true,
+    is_sold: true,
+    retail_price: 100,
+    date_sold: '2026-07-15',
+    commission_percentage: 40,
+  }))
+
+  const result = await querySales(database.client(), {
+    sold_from: '2026-07-01',
+    sold_before: '2026-08-01',
+    include_editions: true,
+    limit: 2,
+  })
+
+  assert.equal(result.ok, true)
+  if (!result.ok) return
+  assert.equal(result.complete, true)
+  assert.equal(result.matched_sale_count, 1_005)
+  assert.equal(result.totals.sale_count, 1_005)
+  assert.equal(result.totals.gross_value, 100_500)
+  assert.equal(result.editions.length, 2)
+  assert.equal(result.editions_truncated, true)
 })
 
 test('compiles printing and moving into one exact edition patch', async () => {

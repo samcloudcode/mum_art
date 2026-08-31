@@ -24,6 +24,9 @@ activity record, so no history is not proof that an edition never changed.
 For a requested update, the assistant first resolves the exact artwork,
 edition type, edition number and location. If a phrase could mean more than one
 record — for example, numbered edition 1 and AP 1 — it asks before continuing.
+It looks up current locations and statuses itself rather than asking you to
+repeat information already in the database. If essential details are missing,
+it asks for them together in one short question.
 
 The proposal card shows every affected edition and each value that would change:
 

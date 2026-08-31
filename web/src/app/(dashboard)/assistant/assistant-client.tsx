@@ -45,25 +45,25 @@ const suggestions = [
   {
     title: 'Move stock',
     description: 'Between galleries or Direct',
-    prompt: 'I need to move some stock. Help me identify the editions and where they should go.',
+    template: 'Move [artwork and edition] to [destination]',
     icon: ArrowRightLeft,
   },
   {
     title: 'Stock check',
     description: 'Compare a gallery with the records',
-    prompt: 'I am doing a stock check at a gallery. Ask me which gallery and help me compare what is there with the records.',
+    template: 'Stock check at [gallery]: I found [editions present or missing]',
     icon: ClipboardCheck,
   },
   {
     title: 'Record printing',
     description: 'Mark newly printed editions',
-    prompt: 'I have printed some editions. Help me identify them and prepare an update.',
+    template: 'Mark [artwork and editions] as printed',
     icon: Printer,
   },
   {
     title: 'Record a sale',
     description: 'Mark one edition as sold',
-    prompt: 'I need to record a sale. Help me identify the edition and ask me for the exact price and sale date before preparing a proposal.',
+    template: 'Record [artwork and edition] sold for £[price] on [date]',
     icon: PoundSterling,
   },
 ]
@@ -411,6 +411,21 @@ export function AssistantClient() {
     }
   }, [])
 
+  const prepareTask = useCallback((template: string) => {
+    setInput(template)
+    setError(null)
+    window.requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.focus()
+      const selectionStart = template.indexOf('[')
+      const selectionEnd = template.indexOf(']', selectionStart) + 1
+      if (selectionStart >= 0 && selectionEnd > selectionStart) {
+        textarea.setSelectionRange(selectionStart, selectionEnd)
+      }
+    })
+  }, [])
+
   const sendMessage = useCallback(async (suggestedText?: string) => {
     const text = (suggestedText ?? input).trim()
     if ((!text && !photo) || isSending) return
@@ -562,7 +577,7 @@ export function AssistantClient() {
                   <button
                     key={suggestion.title}
                     type="button"
-                    onClick={() => void sendMessage(suggestion.prompt)}
+                    onClick={() => prepareTask(suggestion.template)}
                     className="min-w-0 rounded-xl border bg-card p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 sm:p-4"
                   >
                     <Icon className="mb-2 h-4 w-4 text-accent sm:h-5 sm:w-5" />

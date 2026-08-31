@@ -7,6 +7,7 @@ import {
   findArtworks,
   findDistributors,
   getAssistantCatalogueReference,
+  getGalleryStock,
   getRecentActivity,
   querySales,
   resolveInventoryEntries,
@@ -302,6 +303,70 @@ test('read tools return canonical app paths for resolved inventory and history',
   assert.equal(entries.entries[0]?.editions[0]?.location_app_path, '/galleries/1')
   assert.equal(history.history_app_path, '/changelog')
   assert.equal(history.activities[0]?.edition_app_path, '/editions/10')
+})
+
+test('summarises complete gallery stock separately from physical confirmation', async () => {
+  const database = new FakeDatabase()
+  const seaview = {
+    id: 4,
+    name: 'Seaview Gallery',
+    commission_percentage: 40,
+    is_active: true,
+    is_favorite: true,
+  }
+  const priory = {
+    id: 6,
+    name: 'Priory',
+    short_name: 'PRIOR',
+    total_editions: 200,
+    is_active: true,
+    is_favorite: false,
+  }
+  database.distributors.push(seaview)
+  database.prints.push(priory)
+  database.editions = Array.from({ length: 1_005 }, (_, index) => {
+    const artwork = index < 1_000 ? database.prints[0] : priory
+    return database.edition({
+      id: index + 1,
+      print_id: artwork.id,
+      distributor_id: seaview.id,
+      edition_number: index + 1,
+      edition_display_name: `${artwork.name} ${index + 1}`,
+      is_printed: true,
+      is_stock_checked: index % 2 === 0,
+      prints: artwork,
+      distributors: seaview,
+    })
+  })
+  database.editions.push(
+    database.edition({ id: 2_001, distributor_id: seaview.id, is_printed: true, is_sold: true }),
+    database.edition({ id: 2_002, distributor_id: seaview.id, is_printed: true, status_confidence: 'legacy_unknown' })
+  )
+
+  const result = await getGalleryStock(database.client(), seaview.id, {
+    include_editions: true,
+    limit: 10,
+  })
+
+  assert.equal(result.complete, true)
+  assert.equal(result.recorded_stock_count, 1_005)
+  assert.equal(result.confirmed_present_count, 503)
+  assert.equal(result.unconfirmed_count, 502)
+  assert.equal(result.gallery_app_path, '/galleries/4')
+  assert.deepEqual(
+    result.by_artwork.map((group) => ({
+      artwork: group.artwork_name,
+      recorded: group.recorded_stock_count,
+      confirmed: group.confirmed_present_count,
+      unconfirmed: group.unconfirmed_count,
+    })),
+    [
+      { artwork: 'Bembridge', recorded: 1_000, confirmed: 500, unconfirmed: 500 },
+      { artwork: 'Priory', recorded: 5, confirmed: 3, unconfirmed: 2 },
+    ]
+  )
+  assert.equal(result.editions.length, 10)
+  assert.equal(result.editions_truncated, true)
 })
 
 test('queries sales by business date and gallery with deterministic totals and groups', async () => {

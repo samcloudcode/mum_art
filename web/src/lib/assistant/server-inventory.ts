@@ -10,6 +10,8 @@ import { appPath } from '@/lib/app-navigation'
 
 const MAX_TOOL_RESULTS = 100
 const MAX_PROPOSAL_EDITIONS = 100
+const STOCK_PAGE_SIZE = 1_000
+const MAX_STOCK_ANALYSIS_ROWS = 20_000
 const SALES_PAGE_SIZE = 1_000
 const MAX_SALES_ANALYSIS_ROWS = 20_000
 
@@ -395,16 +397,85 @@ export async function findEditions(
 export async function getGalleryStock(
   supabase: SupabaseClient,
   distributorId: number,
-  printId?: number,
-  limit = MAX_TOOL_RESULTS
+  filters: {
+    print_id?: number
+    include_editions?: boolean
+    limit?: number
+  } = {}
 ) {
-  return findEditions(supabase, {
-    distributor_id: distributorId,
-    print_id: printId,
-    is_printed: true,
-    is_sold: false,
-    limit,
-  })
+  const rows: EditionRecord[] = []
+  let matchedStockCount: number | null = null
+  let analysisTruncated = false
+
+  while (rows.length < MAX_STOCK_ANALYSIS_ROWS) {
+    const pageSize = Math.min(STOCK_PAGE_SIZE, MAX_STOCK_ANALYSIS_ROWS - rows.length)
+    let query = supabase
+      .from('editions')
+      .select(EDITION_SELECT, { count: 'exact' })
+      .eq('distributor_id', distributorId)
+      .eq('is_printed', true)
+      .eq('is_sold', false)
+      .or('status_confidence.neq.legacy_unknown,status_confidence.is.null')
+      .order('id')
+      .range(rows.length, rows.length + pageSize - 1)
+
+    if (filters.print_id) query = query.eq('print_id', filters.print_id)
+
+    const { data, error, count } = await query
+    if (error) throw new Error('Could not query gallery stock')
+    if (matchedStockCount === null && count !== null) matchedStockCount = count
+    const page = (data ?? []) as unknown as EditionRecord[]
+    rows.push(...page)
+    if (page.length === 0) break
+    if (matchedStockCount !== null && rows.length >= matchedStockCount) break
+    if (matchedStockCount === null && page.length < pageSize) break
+    if (rows.length >= MAX_STOCK_ANALYSIS_ROWS) {
+      analysisTruncated = matchedStockCount === null || rows.length < matchedStockCount
+    }
+  }
+
+  const grouped = new Map<number, EditionRecord[]>()
+  for (const edition of rows) {
+    if (!grouped.has(edition.print_id)) grouped.set(edition.print_id, [])
+    grouped.get(edition.print_id)?.push(edition)
+  }
+
+  const byArtwork = [...grouped.values()]
+    .map((editions) => {
+      const first = editions[0]
+      const artwork = one(first.prints)
+      const confirmed = editions.filter((edition) => edition.is_stock_checked).length
+      return {
+        artwork_id: first.print_id,
+        artwork_name: artwork?.name ?? 'Unknown artwork',
+        artwork_app_path: appPath.artwork(first.print_id),
+        recorded_stock_count: editions.length,
+        confirmed_present_count: confirmed,
+        unconfirmed_count: editions.length - confirmed,
+      }
+    })
+    .sort((left, right) =>
+      right.recorded_stock_count - left.recorded_stock_count ||
+      left.artwork_name.localeCompare(right.artwork_name)
+    )
+
+  const confirmedPresentCount = rows.filter((edition) => edition.is_stock_checked).length
+  const recordedStockCount = matchedStockCount ?? rows.length
+  const detailLimit = Math.min(Math.max(filters.limit ?? 50, 1), MAX_TOOL_RESULTS)
+  const includeEditions = filters.include_editions === true
+
+  return {
+    gallery_id: distributorId,
+    gallery_app_path: appPath.gallery(distributorId),
+    artwork_id: filters.print_id ?? null,
+    complete: !analysisTruncated,
+    recorded_stock_count: recordedStockCount,
+    confirmed_present_count: confirmedPresentCount,
+    unconfirmed_count: rows.length - confirmedPresentCount,
+    by_artwork: byArtwork,
+    editions: includeEditions ? rows.slice(0, detailLimit).map(publicEdition) : [],
+    editions_truncated: includeEditions && recordedStockCount > detailLimit,
+  }
 }
 
 type SalesTotals = {

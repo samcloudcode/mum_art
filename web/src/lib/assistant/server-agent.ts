@@ -107,13 +107,20 @@ export const ASSISTANT_TOOLS: Tool[] = ([
   {
     name: 'get_gallery_stock',
     description:
-      'List printed, unsold, non-legacy stock currently recorded at one gallery/location. Optionally narrow to one artwork. Useful for stock checks and phrases such as all Bembridges here.',
+      'Summarise all printed, unsold, non-legacy stock recorded at one gallery/location, with exact recorded, confirmed-present and unconfirmed totals plus an artwork breakdown. A recorded location is not proof of physical presence. Optionally narrow to one artwork. Set include_editions only when exact edition rows are needed for a stock check or list.',
     input_schema: {
       type: 'object',
       properties: {
         distributor_id: { type: 'integer' },
         print_id: { type: 'integer' },
-        limit: { type: 'integer', description: 'Optional result limit from 1 to 100.' },
+        include_editions: {
+          type: 'boolean',
+          description: 'Include edition detail rows; defaults to false because totals and artwork groups are returned separately.',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Maximum edition detail rows from 1 to 100; does not limit totals or artwork groups.',
+        },
       },
       required: ['distributor_id'],
       additionalProperties: false,
@@ -438,8 +445,11 @@ async function executeTool(
         await getGalleryStock(
           context.supabase,
           integer(values, 'distributor_id', true) as number,
-          integer(values, 'print_id'),
-          integer(values, 'limit') ?? 100
+          {
+            print_id: integer(values, 'print_id'),
+            include_editions: optionalBoolean(values, 'include_editions'),
+            limit: integer(values, 'limit'),
+          }
         )
       ),
     }
@@ -626,9 +636,9 @@ Trusted application navigation:
 Fast tool paths:
 - Move: resolve IDs from the catalogue and find the exact current edition, then call draft_inventory_actions with move_stock (and mark_printed too if an edition recorded as unprinted was physically moved). Use today's date for a present-tense move.
 - Print: resolve the artwork and find the exact unsold, unprinted edition, then call draft_inventory_actions with mark_printed.
-- Gallery stock: resolve the location, then call get_gallery_stock; do not enumerate editions another way.
+- Gallery stock: resolve the location, then call get_gallery_stock. Report the exact recorded total and split confirmed-present from unconfirmed stock; do not equate a recorded location with physical confirmation. Request edition details only when the user needs the list.
 - Sales and sales totals: call query_sales against date_sold. For a calendar period such as last month, calculate its first day as sold_from and the following period's first day as sold_before. Include editions for "what sold"; use group_by and include_editions=false for totals or breakdowns.
-- Stock check or photographed list: resolve_inventory_entries in one batch, compare with get_gallery_stock, then draft only explicit unambiguous differences.
+- Stock check or photographed list: resolve_inventory_entries in one batch, compare with get_gallery_stock using edition details when needed, then draft only explicit unambiguous differences.
 - Record a sale: find one exact printed unsold edition, then call draft_inventory_actions with mark_sold, the user-supplied gross price, and the sale date.
 
 Query examples:
@@ -643,6 +653,7 @@ Domain rules:
 - A null size means unmeasured; never guess a size.
 - Resolve artwork and location IDs through the live catalogue or read tools, and every edition ID through read tools. Never invent an ID.
 - Direct usually represents artist-held stock; Unknown represents genuinely unknown location. Resolve both by name when needed.
+- Recorded gallery stock means printed, unsold editions assigned to that location. Only is_stock_checked records are confirmed physically present. Always distinguish confirmed and unconfirmed counts, and never say a gallery definitely holds unconfirmed stock.
 - Moving ordinary stock clears the old location confirmation. Receiving stock physically seen at a destination marks it printed, moves it, dates it, and confirms it there.
 - Unreported stock is not automatically missing. Only report missing when the user says it is absent.
 - A sale needs one exact printed, unsold edition, the exact gross GBP price, and the exact sale date. Never assume a zero price or today's date; ask when either is missing.

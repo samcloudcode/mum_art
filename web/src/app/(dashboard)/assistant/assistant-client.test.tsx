@@ -45,6 +45,7 @@ test('proposal card renders exact before and after values with an explicit confi
   assert.match(html, /Bembridge/)
   assert.match(html, /Direct/)
   assert.match(html, /Kendalls/)
+  assert.match(html, /Nothing has changed yet/)
   assert.match(html, /Confirm 1 edition/)
   assert.match(html, /Dismiss/)
 })

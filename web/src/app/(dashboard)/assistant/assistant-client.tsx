@@ -5,15 +5,19 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
+  ArrowRightLeft,
   Bot,
   Camera,
   Check,
   ChevronDown,
   ChevronUp,
+  ClipboardCheck,
   Clock3,
+  History,
   ImagePlus,
   Loader2,
   MessageSquarePlus,
+  Printer,
   Send,
   ShieldCheck,
   X,
@@ -37,10 +41,30 @@ const DEFAULT_PHOTO_REQUEST =
   'Read this handwritten inventory note, check each legible entry against the current records, and tell me about discrepancies or possible changes.'
 
 const suggestions = [
-  'What inventory changes were made recently?',
-  'Help me record some editions I have printed.',
-  'I am doing a stock check at a gallery.',
-  'How did an edition end up at its current location?',
+  {
+    title: 'Move stock',
+    description: 'Between galleries or Direct',
+    prompt: 'I need to move some stock. Help me identify the editions and where they should go.',
+    icon: ArrowRightLeft,
+  },
+  {
+    title: 'Stock check',
+    description: 'Compare a gallery with the records',
+    prompt: 'I am doing a stock check at a gallery. Ask me which gallery and help me compare what is there with the records.',
+    icon: ClipboardCheck,
+  },
+  {
+    title: 'Record printing',
+    description: 'Mark newly printed editions',
+    prompt: 'I have printed some editions. Help me identify them and prepare an update.',
+    icon: Printer,
+  },
+  {
+    title: 'Recent changes',
+    description: 'See what happened to stock',
+    prompt: 'What inventory changes were made recently?',
+    icon: History,
+  },
 ]
 
 type TurnResponse = {
@@ -174,20 +198,23 @@ export function ProposalCard({
       : proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)
 
   return (
-    <Card className={cn('border-2', pending ? 'border-accent/40' : 'border-border')}>
-      <CardHeader className="pb-3">
+    <Card className={cn('min-w-0 gap-5 overflow-hidden border-2 py-5 sm:gap-6 sm:py-6', pending ? 'border-accent/40' : 'border-border')}>
+      <CardHeader className="px-4 pb-2 sm:px-6 sm:pb-3">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <Badge variant={proposal.status === 'applied' ? 'default' : 'secondary'}>
               {proposal.status === 'applied' && <Check className="mr-1 h-3 w-3" />}
               {statusLabel}
             </Badge>
-            <CardTitle className="mt-2 text-lg">{proposal.preview.summary}</CardTitle>
+            <CardTitle className="mt-2 [overflow-wrap:anywhere] text-lg leading-snug">
+              {proposal.preview.summary}
+            </CardTitle>
           </div>
           <Button
             type="button"
             variant="ghost"
             size="icon"
+            className="size-11"
             onClick={() => setExpanded((value) => !value)}
             aria-label={expanded ? 'Collapse proposal' : 'Expand proposal'}
           >
@@ -197,8 +224,8 @@ export function ProposalCard({
       </CardHeader>
 
       {expanded && (
-        <CardContent className="space-y-4">
-          <div className="max-h-[45vh] space-y-3 overflow-y-auto pr-1">
+        <CardContent className="space-y-4 px-4 sm:px-6">
+          <div className="mobile-scroll max-h-[45dvh] space-y-3 overflow-y-auto pr-1">
             {proposal.preview.editions.map((edition) => (
               <div key={edition.editionId} className="rounded-lg border bg-background/70 p-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -209,9 +236,12 @@ export function ProposalCard({
                 </div>
                 <dl className="mt-2 space-y-1.5 text-sm">
                   {edition.changes.map((change) => (
-                    <div key={change.field} className="grid grid-cols-[7rem_1fr] gap-2">
+                    <div
+                      key={change.field}
+                      className="grid min-w-0 grid-cols-1 gap-0.5 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-2"
+                    >
                       <dt className="text-muted-foreground">{change.label}</dt>
-                      <dd className="min-w-0">
+                      <dd className="min-w-0 [overflow-wrap:anywhere]">
                         <span className="text-muted-foreground line-through">{change.before}</span>
                         <span className="px-1.5 text-muted-foreground">→</span>
                         <span className="font-medium text-foreground">{change.after}</span>
@@ -229,18 +259,35 @@ export function ProposalCard({
 
           {pending && (
             <>
-              <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock3 className="h-3.5 w-3.5" />
-                Expires {new Date(proposal.expiresAt).toLocaleTimeString('en-GB', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </p>
+              <div className="space-y-2 rounded-lg bg-accent/5 p-3 text-sm">
+                <p className="flex items-start gap-2 font-medium">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                  Review these changes before confirming. Nothing has changed yet.
+                </p>
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock3 className="h-3.5 w-3.5" />
+                  Expires {new Date(proposal.expiresAt).toLocaleTimeString('en-GB', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <Button type="button" variant="outline" onClick={onDismiss} disabled={isApplying}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={onDismiss}
+                  disabled={isApplying}
+                >
                   Dismiss
                 </Button>
-                <Button type="button" onClick={onConfirm} disabled={isApplying}>
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  onClick={onConfirm}
+                  disabled={isApplying}
+                >
                   {isApplying ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
@@ -271,6 +318,7 @@ export function AssistantClient() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -281,7 +329,14 @@ export function AssistantClient() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [messages, proposal, isSending])
+  }, [error, messages, proposal, isSending])
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = '0px'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`
+  }, [input])
 
   useEffect(() => {
     const savedConversation = window.localStorage.getItem(CONVERSATION_STORAGE_KEY)
@@ -435,66 +490,88 @@ export function AssistantClient() {
   }, [clearPhoto])
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <header className="flex items-start justify-between gap-4 border-b border-border pb-6">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-accent">
-            <Bot className="h-5 w-5" />
-            <span className="text-xs font-medium uppercase tracking-widest">Proposal agent</span>
+    <div className="assistant-page mx-auto -mt-4 flex w-full min-w-0 max-w-4xl flex-col gap-5 md:mt-0 md:gap-6">
+      <header className="border-b border-border pb-4 sm:pb-6">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="mb-1.5 flex items-center gap-2 text-accent">
+              <Bot className="h-5 w-5 shrink-0" />
+              <span className="text-xs font-medium uppercase tracking-widest">Safe inventory updates</span>
+            </div>
+            <h1 className="text-[1.75rem] sm:text-4xl md:text-[2.5rem]">Inventory Assistant</h1>
           </div>
-          <h1>Inventory Assistant</h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Ask about stock, recent changes, printing or gallery movements. Nothing changes until
-            you review and confirm an exact proposal.
-          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-11 px-2.5 sm:px-3"
+            onClick={newConversation}
+            aria-label="Start a new conversation"
+          >
+            <MessageSquarePlus className="h-4 w-4" />
+            <span>New</span>
+          </Button>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={newConversation}>
-          <MessageSquarePlus className="mr-2 h-4 w-4" />
-          New
-        </Button>
+        <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground sm:text-base sm:leading-6">
+          Ask about stock or describe a change. You review an exact proposal before anything is
+          updated.
+        </p>
       </header>
 
-      <div className="min-h-[24rem] space-y-4">
+      <div className="min-w-0 flex-1 space-y-4">
         {isLoadingHistory ? (
           <div className="flex justify-center py-16 text-muted-foreground">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading conversation…
           </div>
         ) : messages.length === 0 ? (
-          <div className="space-y-6 py-8 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent/10">
-              <Bot className="h-7 w-7 text-accent" />
+          <div className="flex h-full min-h-[18rem] flex-col justify-center space-y-3 text-center sm:space-y-6 sm:py-6">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 sm:h-14 sm:w-14">
+              <Bot className="h-6 w-6 text-accent sm:h-7 sm:w-7" />
             </div>
             <div>
-              <h2 className="text-xl">What would you like to check or update?</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                You can also photograph a handwritten inventory list.
+              <h2 className="text-xl sm:text-2xl">What would you like to do?</h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                Choose a task, type your own request, or attach a handwritten list.
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => void sendMessage(suggestion)}
-                  className="rounded-xl border bg-card p-4 text-left text-sm transition-colors hover:border-accent/40 hover:bg-accent/5"
-                >
-                  {suggestion}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 gap-2 text-left">
+              {suggestions.map((suggestion) => {
+                const Icon = suggestion.icon
+                return (
+                  <button
+                    key={suggestion.title}
+                    type="button"
+                    onClick={() => void sendMessage(suggestion.prompt)}
+                    className="min-w-0 rounded-xl border bg-card p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 sm:p-4"
+                  >
+                    <Icon className="mb-2 h-4 w-4 text-accent sm:h-5 sm:w-5" />
+                    <span className="block text-sm font-medium">{suggestion.title}</span>
+                    <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
+                      {suggestion.description}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         ) : (
           messages.map((message) => (
             <div
               key={message.id}
-              className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}
+              className={cn(
+                'flex min-w-0 flex-col gap-1',
+                message.role === 'user' ? 'items-end' : 'items-start'
+              )}
             >
+              <span className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {message.role === 'user' ? 'You' : 'Assistant'}
+              </span>
               <div
                 className={cn(
-                  'min-w-0 rounded-2xl px-4 py-3 text-sm',
+                  'min-w-0 rounded-2xl px-4 py-3 text-[15px] sm:text-sm',
                   message.role === 'user'
-                    ? 'max-w-[90%] whitespace-pre-wrap bg-accent text-accent-foreground sm:max-w-[78%]'
-                    : 'max-w-[96%] border bg-card text-card-foreground sm:max-w-[85%]'
+                    ? 'max-w-[90%] whitespace-pre-wrap bg-accent text-accent-foreground sm:max-w-[78%] [overflow-wrap:anywhere]'
+                    : 'w-full border bg-card text-card-foreground sm:w-auto sm:max-w-[88%]'
                 )}
               >
                 {message.role === 'assistant'
@@ -506,8 +583,11 @@ export function AssistantClient() {
         )}
 
         {isSending && (
-          <div className="flex justify-start">
-            <div className="flex items-center rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground">
+          <div className="flex min-w-0 flex-col items-start gap-1">
+            <span className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Assistant
+            </span>
+            <div className="flex items-center rounded-2xl border bg-card px-4 py-3 text-[15px] text-muted-foreground sm:text-sm">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking the records…
             </div>
           </div>
@@ -521,40 +601,51 @@ export function AssistantClient() {
             onDismiss={() => void dismissProposal()}
           />
         )}
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription className="mt-0">{error}</AlertDescription>
+          </Alert>
+        )}
         <div ref={bottomRef} />
       </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="sticky bottom-20 z-10 rounded-2xl border bg-background/95 p-3 shadow-lg backdrop-blur md:bottom-4">
+      <div
+        className={cn(
+          'z-10 min-w-0 rounded-2xl border bg-background/95 p-3 shadow-lg backdrop-blur',
+          messages.length === 0 ? 'assistant-composer-start relative' : 'assistant-composer sticky'
+        )}
+      >
         {photoPreview && (
-          <div className="mb-3 flex items-start gap-3 rounded-xl border bg-muted/30 p-2">
+          <div className="mb-3 flex min-w-0 items-start gap-3 rounded-xl border bg-muted/30 p-2">
             <Image
               src={photoPreview}
               alt="Selected inventory note"
-              width={96}
-              height={72}
+              width={80}
+              height={64}
               unoptimized
-              className="h-16 w-24 rounded-md object-cover"
+              className="h-16 w-20 shrink-0 rounded-md object-cover sm:w-24"
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">Inventory photo ready</p>
-              <p className="text-xs text-muted-foreground">
-                Sent for this turn and not stored in the application database.
+              <p className="text-xs leading-4 text-muted-foreground">
+                Used for this message only and not stored in the app.
               </p>
             </div>
-            <Button type="button" variant="ghost" size="icon" onClick={clearPhoto}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-11"
+              onClick={clearPhoto}
+            >
               <X className="h-4 w-4" />
               <span className="sr-only">Remove photo</span>
             </Button>
           </div>
         )}
 
-        <div className="flex items-end gap-2">
+        <div className="flex min-w-0 items-end gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -567,6 +658,7 @@ export function AssistantClient() {
             type="button"
             variant="outline"
             size="icon"
+            className="size-11"
             onClick={() => fileInputRef.current?.click()}
             disabled={isSending}
             title="Photograph or attach an inventory note"
@@ -575,22 +667,26 @@ export function AssistantClient() {
             <span className="sr-only">Attach inventory photo</span>
           </Button>
           <Textarea
+            ref={textareaRef}
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
+              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault()
                 void sendMessage()
               }
             }}
             placeholder="Ask about stock or describe a change…"
-            rows={2}
-            className="min-h-12 max-h-36 resize-none"
+            aria-label="Message the inventory assistant"
+            enterKeyHint="send"
+            rows={1}
+            className="min-h-11 w-auto min-w-0 flex-1 resize-none overflow-y-auto text-base md:text-sm"
             disabled={isSending}
           />
           <Button
             type="button"
             size="icon"
+            className="size-11"
             onClick={() => void sendMessage()}
             disabled={isSending || (!input.trim() && !photo)}
           >

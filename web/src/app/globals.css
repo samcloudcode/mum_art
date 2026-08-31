@@ -330,6 +330,28 @@
     padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
   }
 
+  /* Keep the assistant's short states and composer within the usable viewport.
+     Mobile reserves room for both fixed navigation bars and their safe areas. */
+  .assistant-page {
+    min-height: calc(
+      100dvh - 10.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
+    );
+  }
+
+  .assistant-composer {
+    bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 48rem) {
+    .assistant-page {
+      min-height: calc(100dvh - 7.5rem - env(safe-area-inset-top, 0px));
+    }
+
+    .assistant-composer {
+      bottom: 1rem;
+    }
+  }
+
   /* Mobile-friendly scrolling containers */
   .mobile-scroll {
     -webkit-overflow-scrolling: touch;
@@ -351,6 +373,21 @@
 
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@media (max-width: 47.999rem) {
+  /* The software keyboard leaves little vertical room. While composing,
+     replace the app navigation with the message controls. */
+  body:has(.assistant-composer:focus-within) .mobile-nav,
+  body:has(.assistant-composer-start:focus-within) .mobile-nav {
+    display: none;
+  }
+
+  .assistant-composer:focus-within,
+  .assistant-composer-start:focus-within {
+    position: sticky;
+    bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
   }
 }
 

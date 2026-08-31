@@ -40,7 +40,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <div className="fixed bottom-4 right-4 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded border border-border/50 flex items-center gap-2">
+      <div className="fixed bottom-4 right-4 hidden items-center gap-2 rounded border border-border/50 bg-background/80 px-2 py-1 text-xs text-muted-foreground md:flex">
         {isLoading ? (
           <>
             <div className="animate-spin w-3 h-3 border border-accent border-t-transparent rounded-full" />

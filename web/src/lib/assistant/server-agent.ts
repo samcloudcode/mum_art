@@ -46,6 +46,12 @@ type AgentContext = {
 
 class ToolInputError extends Error {}
 
+const STRICT_ASSISTANT_TOOL_NAMES = new Set([
+  'draft_inventory_actions',
+  'draft_proposal_undo',
+  'withdraw_pending_proposal',
+])
+
 export const ASSISTANT_TOOLS: Tool[] = ([
   {
     name: 'find_artworks',
@@ -263,7 +269,9 @@ export const ASSISTANT_TOOLS: Tool[] = ([
       additionalProperties: false,
     },
   },
-] satisfies Tool[]).map((tool) => ({ ...tool, strict: true }))
+] satisfies Tool[]).map((tool) =>
+  STRICT_ASSISTANT_TOOL_NAMES.has(tool.name) ? { ...tool, strict: true } : tool
+)
 
 function record(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {

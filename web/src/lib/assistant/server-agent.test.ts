@@ -23,12 +23,43 @@ function findUnsupportedKeys(value: unknown, path = 'schema'): string[] {
   ])
 }
 
-test('strict assistant tools use Anthropic-supported JSON Schema constraints', () => {
-  const unsupported = ASSISTANT_TOOLS.flatMap((tool) =>
-    findUnsupportedKeys(tool.input_schema, tool.name)
+function countOptionalParameters(value: unknown): number {
+  if (Array.isArray(value)) {
+    return value.reduce((total, item) => total + countOptionalParameters(item), 0)
+  }
+  if (!value || typeof value !== 'object') return 0
+
+  const schema = value as Record<string, unknown>
+  const properties = schema.properties
+  const required = new Set(Array.isArray(schema.required) ? schema.required : [])
+  const optionalHere = schema.type === 'object' && properties && typeof properties === 'object'
+    ? Object.keys(properties).filter((key) => !required.has(key)).length
+    : 0
+
+  return optionalHere + Object.values(schema).reduce(
+    (total: number, child) => total + countOptionalParameters(child),
+    0
+  )
+}
+
+test('only inventory-writing assistant tools use strict schemas', () => {
+  const strictTools = ASSISTANT_TOOLS.filter((tool) => tool.strict === true)
+
+  assert.deepEqual(
+    strictTools.map((tool) => tool.name).sort(),
+    ['draft_inventory_actions', 'draft_proposal_undo', 'withdraw_pending_proposal']
   )
 
+  const unsupported = strictTools.flatMap((tool) =>
+    findUnsupportedKeys(tool.input_schema, tool.name)
+  )
   assert.deepEqual(unsupported, [])
+
+  const optionalParameters = strictTools.reduce(
+    (total, tool) => total + countOptionalParameters(tool.input_schema),
+    0
+  )
+  assert.ok(optionalParameters <= 24, `strict schemas have ${optionalParameters} optional parameters`)
 })
 
 test('agent investigates database facts and uses the proposal as confirmation', () => {

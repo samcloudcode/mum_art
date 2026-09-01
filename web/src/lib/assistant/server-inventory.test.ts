@@ -562,14 +562,16 @@ test('compiles printing and moving into one exact edition patch', async () => {
         is_printed: true,
         distributor_id: 2,
         date_in_gallery: '2026-08-30',
+        is_stock_checked: true,
       },
       before: {
         is_printed: false,
         distributor_id: 1,
         date_in_gallery: null,
+        is_stock_checked: false,
       },
       action: 'move',
-      description: 'Moved to Kendalls and marked as printed',
+      description: 'Moved to Kendalls, marked as printed, and confirmed present',
     },
   ])
 })
@@ -650,7 +652,7 @@ test('rejects conflicting physical detail instructions', async () => {
   assert.equal(database.insertedProposal, null)
 })
 
-test('moving between locations clears the previous stock confirmation', async () => {
+test('moving between locations preserves an existing stock confirmation', async () => {
   const database = new FakeDatabase()
   database.editions = [database.edition({ is_printed: true, is_stock_checked: true })]
 
@@ -664,8 +666,12 @@ test('moving between locations clears the previous stock confirmation', async ()
   ])
 
   assert.equal(result.ok, true)
-  const stored = database.insertedProposal?.compiled_changes as Array<{ patch: Record<string, unknown> }>
-  assert.equal(stored[0].patch.is_stock_checked, false)
+  const stored = database.insertedProposal?.compiled_changes as Array<{
+    patch: Record<string, unknown>
+    description: string
+  }>
+  assert.equal(Object.hasOwn(stored[0].patch, 'is_stock_checked'), false)
+  assert.equal(stored[0].description, 'Moved to Kendalls and confirmed present')
 })
 
 test('compiles an exact sale with gallery commission and reversible before-values', async () => {

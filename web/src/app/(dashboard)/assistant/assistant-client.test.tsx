@@ -14,8 +14,9 @@ test('assistant suggestions are real requests without placeholder fields', () =>
   assert.deepEqual(
     ASSISTANT_SUGGESTIONS.map((suggestion) => suggestion.template),
     [
-      'What is my confirmed stock at Kendalls?',
-      'Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed?',
+      'List confirmed stock at Kendals including sizes',
+      'Review unconfirmed stock at Kendalls, oldest records first, so I can decide what to confirm or move to Unknown.',
+      'Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed, with sizes and frames.',
       'What were my best-selling prints year to date versus the same period last year, taking current availability and seasonality into account?',
       'I’ve just printed Seagrove Landscape editions 112, 113 and 114. They’re all large and framed.',
       'I’ve moved Osborne edition 159 from Kendalls to Seaview Gallery.',

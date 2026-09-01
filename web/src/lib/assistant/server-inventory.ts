@@ -1031,9 +1031,17 @@ function actionDescription(working: WorkingEdition, distributors: Map<number, Di
     return { action: 'sell', description: 'Marked as sold' }
   }
   if (working.intents.has('move_stock')) {
-    const alsoPrinted = working.intents.has('mark_printed') ? ' and marked as printed' : ''
-    const details = working.intents.has('update_physical_details') ? ' and updated physical details' : ''
-    return { action: 'move', description: `Moved to ${destination ?? 'the location'}${alsoPrinted}${details}` }
+    const additionalChanges = [
+      ...(working.intents.has('mark_printed') ? ['marked as printed'] : []),
+      ...(working.intents.has('update_physical_details') ? ['updated physical details'] : []),
+    ]
+    const additionalDescription = additionalChanges.length > 0
+      ? `, ${additionalChanges.join(', ')}, and`
+      : ' and'
+    return {
+      action: 'move',
+      description: `Moved to ${destination ?? 'the location'}${additionalDescription} confirmed present`,
+    }
   }
   if (working.intents.has('confirm_stock_present')) {
     const details = working.intents.has('update_physical_details') ? ' and updated physical details' : ''
@@ -1235,11 +1243,10 @@ export async function draftInventoryProposal(
         target.patch.is_stock_checked = false
       } else if (action.type === 'move_stock') {
         target.destinations.add(action.distributor_id)
+        target.confirmationLocations.add(action.distributor_id)
         target.patch.distributor_id = action.distributor_id
         target.patch.date_in_gallery = action.date_in_gallery
-        if (target.row.distributor_id !== action.distributor_id) {
-          target.patch.is_stock_checked = false
-        }
+        target.patch.is_stock_checked = true
       } else if (action.type === 'confirm_stock_present') {
         target.confirmationLocations.add(action.distributor_id)
         target.patch.is_stock_checked = true

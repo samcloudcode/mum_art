@@ -52,16 +52,24 @@ const DEFAULT_PHOTO_REQUEST =
 export const ASSISTANT_SUGGESTIONS = [
   {
     title: 'Confirmed stock',
-    description: 'What is my confirmed stock at Kendalls?',
-    template: 'What is my confirmed stock at Kendalls?',
+    description: 'List confirmed stock at Kendals including sizes',
+    template: 'List confirmed stock at Kendals including sizes',
     icon: ClipboardCheck,
+  },
+  {
+    title: 'Review unconfirmed stock',
+    description:
+      'Review unconfirmed stock at Kendalls, oldest records first, so I can decide what to confirm or move to Unknown.',
+    template:
+      'Review unconfirmed stock at Kendalls, oldest records first, so I can decide what to confirm or move to Unknown.',
+    icon: Clock3,
   },
   {
     title: 'Find artwork stock',
     description:
-      'Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed?',
+      'Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed, with sizes and frames.',
     template:
-      'Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed?',
+      'Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed, with sizes and frames.',
     icon: ClipboardCheck,
   },
   {

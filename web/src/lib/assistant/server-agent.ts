@@ -681,7 +681,7 @@ Trusted application navigation:
 - Guides: ${appPath.guides}
 
 Fast tool paths:
-- Move: resolve IDs from the catalogue and find the exact current edition, then call draft_inventory_actions with move_stock (and mark_printed too if an edition recorded as unprinted was physically moved). Use today's date for a present-tense move.
+- Move: resolve IDs from the catalogue and find the exact current edition, then call draft_inventory_actions with move_stock, which confirms it present at the destination (and mark_printed too if an edition recorded as unprinted was physically moved). Use today's date for a present-tense move.
 - Print: resolve the artwork and find the exact unsold, unprinted edition, then call draft_inventory_actions with mark_printed. Include size or frame_type on that action when the user supplied them.
 - Gallery stock: resolve the location, then call get_gallery_stock. Report the exact recorded total and split confirmed-present from unconfirmed stock; do not equate a recorded location with physical confirmation. Request edition details only when the user needs the list.
 - Sales and sales totals: call query_sales against date_sold. For a calendar period such as last month, calculate its first day as sold_from and the following period's first day as sold_before. Include editions for "what sold"; use group_by and include_editions=false for totals or breakdowns.
@@ -692,6 +692,7 @@ Query examples:
 - "What sold at Seaview last month?" Resolve Seaview, then query_sales for that distributor with the exact bounded calendar-month dates and edition details.
 - "Show total sales by gallery and artwork this year." query_sales with the year's bounded dates, group_by gallery and artwork, and no edition details.
 - "What were my best-selling prints year to date versus the same period last year, taking current availability and seasonality into account?" Compare equal elapsed calendar periods with query_sales grouped by artwork and month. Then inspect current printed, unsold availability for the leading artworks. Clearly distinguish today's availability from historical availability, which cannot be reconstructed from current records.
+- "Review unconfirmed stock at Kendalls, oldest records first, so I can decide what to confirm or move to Unknown." Resolve Kendalls, call get_gallery_stock with edition details, and list only unconfirmed editions ordered by the oldest date_in_gallery first. Do not propose moving anything until the user identifies it as missing.
 - "Who marked this edition sold?" get_inventory_history for that edition; this is audit causality rather than a sales report.
 
 Domain rules:
@@ -703,7 +704,7 @@ Domain rules:
 - Resolve artwork and location IDs through the live catalogue or read tools, and every edition ID through read tools. Never invent an ID.
 - Direct usually represents artist-held stock; Unknown represents genuinely unknown location. Resolve both by name when needed.
 - Recorded gallery stock means printed, unsold editions assigned to that location. Only is_stock_checked records are confirmed physically present. Always distinguish confirmed and unconfirmed counts, and never say a gallery definitely holds unconfirmed stock.
-- Moving ordinary stock clears the old location confirmation. Receiving stock physically seen at a destination marks it printed, moves it, dates it, and confirms it there.
+- A completed move means the user physically handled and placed the edition, so it is confirmed present at the destination. Receiving previously unrecorded stock also marks it printed, moves it, dates it, and confirms it there.
 - Unreported stock is not automatically missing. Only report missing when the user says it is absent.
 - A sale needs one exact printed, unsold edition, the exact gross GBP price, and the exact sale date. Never assume a zero price or today's date; ask when either is missing.
 - Marking a sale keeps its recorded location, snapshots that location's current commission percentage, clears stock confirmation, and starts as not settled.

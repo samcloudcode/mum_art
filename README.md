@@ -116,11 +116,13 @@ not run database migrations or other production data writes.
 The repository contains historical migrations, but no tooling records which
 ones production has applied. The application expects current fields including
 `editions.edition_type` and `editions.status_confidence`; inspect the live schema
-instead of relying on an old status note. The inventory assistant additionally
-requires the additive `010_add_inventory_assistant.sql` migration and a
-server-only `ANTHROPIC_API_KEY`. Its optional voice transcription requires a
-server-only `OPENAI_API_KEY`. Coordinate that individual production migration
-with the frontend release rather than replaying migration history.
+instead of relying on an old status note. The current inventory assistant
+requires the individually reviewed `010_add_inventory_assistant.sql`,
+`011_add_assistant_sales_and_undo.sql`, and
+`012_add_assistant_physical_details.sql` sequence plus a server-only
+`ANTHROPIC_API_KEY`. Its optional voice transcription requires a server-only
+`OPENAI_API_KEY`. Coordinate each required production migration with compatible
+frontend code rather than replaying migration history.
 
 Never run every migration in a loop. There are three historical `003` files,
 some migrations are data-specific, and not all are safe to replay. See

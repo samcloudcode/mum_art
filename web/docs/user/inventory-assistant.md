@@ -11,9 +11,12 @@ assistant button on desktop). It opens over the current page so you can ask:
 
 - `What changed recently?`
 - `How did Bembridge 12 end up at Kendalls?`
-- `What stock should be at Kendalls?`
-- `I printed Ducie 4 and AP 1.`
-- `I sold Bembridge 12 for £425 on 30 August 2026.`
+- `List confirmed stock at Kendalls, including sizes.`
+- `Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed, with sizes and frames?`
+- `What were my best-selling prints year to date versus the same period last year, taking current availability and seasonality into account?`
+- `I printed Seagrove Landscape editions 112, 113 and 114. They are all large and framed.`
+- `I moved Osborne edition 159 from Kendalls to Seaview Gallery.`
+- `Bembridge Lifeboat Station Landscape edition 18 sold for £235 today.`
 - `Bembridge 9 is not at the gallery where it is recorded.`
 
 At the start of every request, the assistant loads the active artwork and gallery
@@ -30,6 +33,21 @@ navigation; the assistant cannot create links to database or admin endpoints.
 The assistant keeps its header and message box visible while the conversation
 itself scrolls. Choose **New** at any time to begin a new topic. Choose
 **History** to reopen one of your previous conversations.
+
+## While the assistant is working
+
+One temporary assistant message shows what the assistant is currently checking.
+Depending on the request, it may say that it is checking the catalogue, sales,
+current stock, edition details or recent changes. A comparison can take several
+steps, so the message updates in place rather than adding separate messages to
+the conversation.
+
+These labels describe real activity at a high level; they do not expose private
+reasoning or technical database details. **Preparing proposed changes—nothing
+has changed yet…** means the assistant is building the review card only. Live
+inventory still cannot change until you press **Confirm**. The temporary status
+disappears when the final answer or proposal is ready and is not saved in the
+conversation history.
 
 For sales questions, the assistant reads the editions' recorded sale dates and
 locations rather than inferring sales from the audit log. It can list the exact
@@ -85,6 +103,19 @@ This confirmation rule applies to every inventory write the assistant can
 prepare, including sales and undo. Read-only searches and history questions do
 not need confirmation because they do not change inventory.
 
+## Printing and moving stock
+
+When recording printing, include the exact editions and any known physical
+details. The assistant can prepare **Small**, **Large** or **Extra Large** sizes
+and **Framed**, **Mounted** or **Tube only** presentation. It changes only the
+details you supplied and never guesses an unmeasured size.
+
+For a move, give the destination and any earlier date when the move was not
+today. The assistant checks the edition's current recorded location itself.
+Confirming a move means you physically handled and placed the edition, so it is
+recorded as physically present at the destination as well as being assigned
+there.
+
 ## Recording a sale
 
 Tell the assistant the exact edition, gross sale price in pounds and sale date.
@@ -136,6 +167,12 @@ or missing. Unreported stock is not automatically considered missing. The
 assistant can propose confirmations for editions you saw, move explicitly
 missing stock to **Unknown**, or receive unexpectedly found stock into the
 gallery.
+
+A recorded gallery location is not automatically proof that the edition is
+physically there. Stock answers therefore distinguish **confirmed** editions
+from older **unconfirmed** location records. Review unconfirmed records before
+deciding what is present or genuinely missing; the assistant will not move them
+to **Unknown** merely because they have not been checked recently.
 
 For the existing tap-by-tap workflow, continue to use the gallery's dedicated
 **Stock Check** screen.

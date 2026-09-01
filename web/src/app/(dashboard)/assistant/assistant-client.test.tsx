@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import {
   ASSISTANT_SUGGESTIONS,
   AssistantMessageContent,
+  AssistantProgressStatus,
   ConversationHistory,
   microphoneErrorMessage,
   ProposalCard,
@@ -155,6 +156,29 @@ test('assistant replies navigate app links in-app and reject other relative link
   assert.doesNotMatch(html, /href="\/editions\/10"[^>]*target=/)
   assert.doesNotMatch(html, /href="\/rest\/v1\/editions"/)
   assert.match(html, /href="https:\/\/example.com\/guide" target="_blank" rel="noreferrer"/)
+})
+
+test('assistant progress is one understated polite live status with explicit proposal safety', () => {
+  const html = renderToStaticMarkup(<AssistantProgressStatus progress="proposal" />)
+  const dismissalHtml = renderToStaticMarkup(
+    <AssistantProgressStatus progress="proposalDismissal" />
+  )
+
+  assert.equal((html.match(/role="status"/g) ?? []).length, 1)
+  assert.match(html, /aria-live="polite"/)
+  assert.match(html, /aria-atomic="true"/)
+  assert.match(html, /Preparing proposed changes—nothing has changed yet…/)
+  assert.match(dismissalHtml, /Dismissing the proposal—inventory has not changed…/)
+  assert.match(html, /min-h-\[4\.25rem\]/)
+  assert.match(html, /motion-reduce:animate-none/)
+  assert.doesNotMatch(`${html}${dismissalHtml}`, /draft_inventory_actions|tool_use|proposal_id/)
+})
+
+test('assistant renders an immediate transient request placeholder before backend progress', () => {
+  const html = renderToStaticMarkup(<AssistantProgressStatus progress={null} />)
+
+  assert.match(html, /Sending your request…/)
+  assert.equal((html.match(/role="status"/g) ?? []).length, 1)
 })
 
 test('conversation history shows prior threads and identifies the current one', () => {

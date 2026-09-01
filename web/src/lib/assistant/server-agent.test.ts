@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ASSISTANT_TOOLS, systemPrompt } from './server-agent'
+import {
+  ASSISTANT_TOOLS,
+  assistantProgressForTool,
+  createAgentProgressReporter,
+  systemPrompt,
+  withAutomaticPromptCaching,
+} from './server-agent'
 
 const UNSUPPORTED_STRICT_SCHEMA_KEYS = new Set([
   'maximum',
@@ -67,6 +73,57 @@ test('only inventory-writing assistant tools use strict schemas', () => {
   assert.match(inventorySchema, /update_physical_details/)
   assert.match(inventorySchema, /"size".*"Small","Large","Extra Large"/)
   assert.match(inventorySchema, /"frame_type".*"Framed","Tube only","Mounted"/)
+})
+
+test('every assistant tool maps to bounded user-facing progress', () => {
+  const progress = Object.fromEntries(
+    ASSISTANT_TOOLS.map((tool) => [tool.name, assistantProgressForTool(tool.name)])
+  )
+
+  assert.deepEqual(progress, {
+    find_artworks: 'catalogue',
+    find_locations: 'catalogue',
+    find_editions: 'editionDetails',
+    get_gallery_stock: 'stock',
+    resolve_inventory_entries: 'editionDetails',
+    query_sales: 'sales',
+    get_inventory_history: 'history',
+    draft_inventory_actions: 'proposal',
+    draft_proposal_undo: 'proposal',
+    withdraw_pending_proposal: 'proposalDismissal',
+  })
+  assert.equal(assistantProgressForTool('query_sales', 1), 'salesComparison')
+  assert.equal(assistantProgressForTool('untrusted_tool_name'), 'understanding')
+})
+
+test('agent progress deduplicates consecutive categories', () => {
+  const seen: string[] = []
+  const progress = createAgentProgressReporter((value) => seen.push(value))
+
+  progress('understanding')
+  progress('understanding')
+  progress('stock')
+  progress('stock')
+  progress('answer')
+
+  assert.deepEqual(seen, ['understanding', 'stock', 'answer'])
+})
+
+test('all model requests receive top-level ephemeral automatic prompt caching', () => {
+  const normal = withAutomaticPromptCaching({
+    model: 'claude-sonnet-5',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: 'Request' }],
+    tools: ASSISTANT_TOOLS,
+  })
+  const emptyResponseRetry = withAutomaticPromptCaching({
+    model: 'claude-sonnet-5',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: 'Retry' }],
+  })
+
+  assert.deepEqual(normal.cache_control, { type: 'ephemeral' })
+  assert.deepEqual(emptyResponseRetry.cache_control, { type: 'ephemeral' })
 })
 
 test('agent investigates database facts and uses the proposal as confirmation', () => {

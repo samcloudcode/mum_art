@@ -1,6 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { randomUUID } from 'node:crypto'
 import type {
   ContentBlockParam,
+  Message,
+  MessageCreateParamsNonStreaming,
   MessageParam,
   Tool,
   ToolResultBlockParam,
@@ -30,8 +33,10 @@ import {
   type AssistantCatalogueReference,
   type SalesGroupDimension,
 } from './server-inventory'
+import type { AssistantProgress } from './assistant-stream'
 
 const MAX_AGENT_STEPS = 10
+const MAX_LOGGED_TOOL_TIMINGS = 50
 
 export type AgentImage = {
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
@@ -308,6 +313,39 @@ export const ASSISTANT_TOOLS: Tool[] = ([
 ] satisfies Tool[]).map((tool) =>
   STRICT_ASSISTANT_TOOL_NAMES.has(tool.name) ? { ...tool, strict: true } : tool
 )
+const ASSISTANT_TOOL_NAMES = new Set(ASSISTANT_TOOLS.map((tool) => tool.name))
+
+const TOOL_PROGRESS: Record<string, AssistantProgress> = {
+  find_artworks: 'catalogue',
+  find_locations: 'catalogue',
+  find_editions: 'editionDetails',
+  get_gallery_stock: 'stock',
+  resolve_inventory_entries: 'editionDetails',
+  query_sales: 'sales',
+  get_inventory_history: 'history',
+  draft_inventory_actions: 'proposal',
+  draft_proposal_undo: 'proposal',
+  withdraw_pending_proposal: 'proposalDismissal',
+}
+
+export function assistantProgressForTool(
+  name: string,
+  previousSalesQueries = 0
+): AssistantProgress {
+  if (name === 'query_sales' && previousSalesQueries > 0) return 'salesComparison'
+  return TOOL_PROGRESS[name] ?? 'understanding'
+}
+
+export function createAgentProgressReporter(
+  onProgress?: (progress: AssistantProgress) => void
+): (progress: AssistantProgress) => void {
+  let previous: AssistantProgress | null = null
+  return (progress) => {
+    if (progress === previous) return
+    previous = progress
+    onProgress?.(progress)
+  }
+}
 
 function record(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -781,6 +819,19 @@ function responseContent(content: Anthropic.Messages.ContentBlock[]): ContentBlo
   })
 }
 
+export function withAutomaticPromptCaching(
+  request: MessageCreateParamsNonStreaming
+): MessageCreateParamsNonStreaming {
+  return { ...request, cache_control: { type: 'ephemeral' } }
+}
+
+async function createAnthropicMessage(
+  anthropic: Anthropic,
+  request: MessageCreateParamsNonStreaming
+): Promise<Message> {
+  return anthropic.messages.create(withAutomaticPromptCaching(request))
+}
+
 export async function runProposalAgent(params: {
   supabase: SupabaseClient
   conversationId: string
@@ -793,136 +844,240 @@ export async function runProposalAgent(params: {
   pendingPreview?: ProposalPreview | null
   catalogueReference?: AssistantCatalogueReference | null
   timeZone?: string
+  runId?: string
+  onProgress?: (progress: AssistantProgress) => void
 }): Promise<{ text: string; proposal: AssistantProposal | null; model: string }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('The assistant is not configured yet')
+  const runId = params.runId ?? randomUUID()
+  const runStartedAt = performance.now()
+  const modelSteps: Array<{
+    step: number
+    phase: 'agent' | 'empty_response_retry'
+    durationMs: number
+    stopReason: Message['stop_reason']
+    inputTokens: number
+    outputTokens: number
+    cacheCreationInputTokens: number
+    cacheReadInputTokens: number
+  }> = []
+  const toolTimings: Array<{
+    step: number
+    name: string
+    category: AssistantProgress
+    durationMs: number
+    outcome: 'success' | 'error'
+  }> = []
+  let modelDurationMs = 0
+  let toolDurationMs = 0
+  let toolExecutionCount = 0
 
-  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
-  const timeZone = params.timeZone || process.env.ASSISTANT_TIME_ZONE || 'Europe/London'
-  const anthropic = new Anthropic({ apiKey })
-  const messages: MessageParam[] = params.messages.map((message) => ({
-    role: message.role,
-    content: message.content,
-  }))
-
-  if (params.image && messages.length > 0) {
-    const latest = messages[messages.length - 1]
-    latest.content = [
-      {
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: params.image.mediaType,
-          data: params.image.data,
-        },
-      },
-      { type: 'text', text: params.requestText },
-    ]
+  const logTiming = (outcome: 'success' | 'error') => {
+    console.info(JSON.stringify({
+      event: 'assistant_agent_timing',
+      runId,
+      outcome,
+      totalMs: Math.round(performance.now() - runStartedAt),
+      modelMs: Math.round(modelDurationMs),
+      toolMs: Math.round(toolDurationMs),
+      modelSteps,
+      tools: toolTimings,
+      toolExecutionCount,
+      toolTimingsTruncated: toolExecutionCount > toolTimings.length,
+    }))
   }
 
-  const context: AgentContext = {
-    supabase: params.supabase,
-    conversationId: params.conversationId,
-    userId: params.userId,
-    requestText: params.requestText,
-    model,
-    canWrite: params.role?.toLowerCase() !== 'viewer',
-  }
-  let proposal: AssistantProposal | null = null
-  const system = systemPrompt({
-    timeZone,
-    displayName: params.displayName,
-    role: params.role,
-    pendingPreview: params.pendingPreview,
-    catalogueReference: params.catalogueReference,
-    hasImage: Boolean(params.image),
-  })
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) throw new Error('The assistant is not configured yet')
 
-  for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
-    const response = await anthropic.messages.create({
-      model,
-      max_tokens: 4000,
-      system,
-      messages,
-      tools: ASSISTANT_TOOLS,
-      metadata: { user_id: params.userId },
-    })
+    const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
+    const timeZone = params.timeZone || process.env.ASSISTANT_TIME_ZONE || 'Europe/London'
+    const anthropic = new Anthropic({ apiKey })
+    const messages: MessageParam[] = params.messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))
+    const progress = createAgentProgressReporter(params.onProgress)
 
-    const assistantBlocks = responseContent(response.content)
-    const toolUses = response.content.filter((block) => block.type === 'tool_use')
-
-    if (toolUses.length === 0) {
-      const text = response.content
-        .filter((block) => block.type === 'text')
-        .map((block) => block.text)
-        .join('\n')
-        .trim()
-      if (!text) {
-        console.warn('Assistant returned empty final content', {
-          model,
+    const callModel = async (
+      step: number,
+      phase: 'agent' | 'empty_response_retry',
+      request: MessageCreateParamsNonStreaming
+    ): Promise<Message> => {
+      const startedAt = performance.now()
+      try {
+        const response = await createAnthropicMessage(anthropic, request)
+        const durationMs = performance.now() - startedAt
+        modelDurationMs += durationMs
+        modelSteps.push({
+          step,
+          phase,
+          durationMs: Math.round(durationMs),
           stopReason: response.stop_reason,
-          contentTypes: response.content.map((block) => block.type),
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,
+          cacheCreationInputTokens: response.usage.cache_creation_input_tokens ?? 0,
+          cacheReadInputTokens: response.usage.cache_read_input_tokens ?? 0,
         })
-        const retry = await anthropic.messages.create({
-          model,
-          max_tokens: 4000,
-          system,
-          messages: [
-            ...messages,
-            {
-              role: 'user',
-              content: 'Give the concise, complete final answer now using the tool results already provided. Do not describe internal steps.',
-            },
-          ],
-          metadata: { user_id: params.userId },
+        return response
+      } catch (error) {
+        const durationMs = performance.now() - startedAt
+        modelDurationMs += durationMs
+        modelSteps.push({
+          step,
+          phase,
+          durationMs: Math.round(durationMs),
+          stopReason: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
         })
-        const retryText = retry.content
+        throw error
+      }
+    }
+
+    if (params.image && messages.length > 0) {
+      const latest = messages[messages.length - 1]
+      latest.content = [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: params.image.mediaType,
+            data: params.image.data,
+          },
+        },
+        { type: 'text', text: params.requestText },
+      ]
+    }
+
+    const context: AgentContext = {
+      supabase: params.supabase,
+      conversationId: params.conversationId,
+      userId: params.userId,
+      requestText: params.requestText,
+      model,
+      canWrite: params.role?.toLowerCase() !== 'viewer',
+    }
+    let proposal: AssistantProposal | null = null
+    let salesQueries = 0
+    const system = systemPrompt({
+      timeZone,
+      displayName: params.displayName,
+      role: params.role,
+      pendingPreview: params.pendingPreview,
+      catalogueReference: params.catalogueReference,
+      hasImage: Boolean(params.image),
+    })
+
+    progress('understanding')
+    for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
+      const response = await callModel(step + 1, 'agent', {
+        model,
+        max_tokens: 4000,
+        system,
+        messages,
+        tools: ASSISTANT_TOOLS,
+        metadata: { user_id: params.userId },
+      })
+
+      const assistantBlocks = responseContent(response.content)
+      const toolUses = response.content.filter((block) => block.type === 'tool_use')
+
+      if (toolUses.length === 0) {
+        progress('answer')
+        const text = response.content
           .filter((block) => block.type === 'text')
           .map((block) => block.text)
           .join('\n')
           .trim()
+        if (!text) {
+          const retry = await callModel(modelSteps.length + 1, 'empty_response_retry', {
+            model,
+            max_tokens: 4000,
+            system,
+            messages: [
+              ...messages,
+              {
+                role: 'user',
+                content: 'Give the concise, complete final answer now using the tool results already provided. Do not describe internal steps.',
+              },
+            ],
+            metadata: { user_id: params.userId },
+          })
+          const retryText = retry.content
+            .filter((block) => block.type === 'text')
+            .map((block) => block.text)
+            .join('\n')
+            .trim()
+          logTiming('success')
+          return {
+            text: retryText || 'I found the records but could not format a complete response. Please try again.',
+            proposal,
+            model,
+          }
+        }
+        logTiming('success')
         return {
-          text: retryText || 'I found the records but could not format a complete response. Please try again.',
+          text,
           proposal,
           model,
         }
       }
-      return {
-        text,
-        proposal,
-        model,
+
+      messages.push({ role: 'assistant', content: assistantBlocks })
+      const toolResults: ToolResultBlockParam[] = []
+      for (const toolUse of toolUses) {
+        const category = assistantProgressForTool(toolUse.name, salesQueries)
+        if (toolUse.name === 'query_sales') salesQueries += 1
+        progress(category)
+
+        const toolStartedAt = performance.now()
+        let toolOutcome: 'success' | 'error' = 'success'
+        try {
+          const result = await executeTool(toolUse.name, toolUse.input, context, Boolean(proposal))
+          if (result.proposal) proposal = result.proposal
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: result.content,
+          })
+        } catch (error) {
+          toolOutcome = 'error'
+          const message = error instanceof ToolInputError ? error.message : 'The tool could not complete that request'
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: JSONResult({ ok: false, error: message }),
+            is_error: true,
+          })
+        } finally {
+          const durationMs = performance.now() - toolStartedAt
+          toolDurationMs += durationMs
+          toolExecutionCount += 1
+          if (toolTimings.length < MAX_LOGGED_TOOL_TIMINGS) {
+            toolTimings.push({
+              step: step + 1,
+              name: ASSISTANT_TOOL_NAMES.has(toolUse.name) ? toolUse.name : 'unknown',
+              category,
+              durationMs: Math.round(durationMs),
+              outcome: toolOutcome,
+            })
+          }
+        }
       }
+      messages.push({ role: 'user', content: toolResults })
     }
 
-    messages.push({ role: 'assistant', content: assistantBlocks })
-    const toolResults: ToolResultBlockParam[] = []
-    for (const toolUse of toolUses) {
-      try {
-        const result = await executeTool(toolUse.name, toolUse.input, context, Boolean(proposal))
-        if (result.proposal) proposal = result.proposal
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: toolUse.id,
-          content: result.content,
-        })
-      } catch (error) {
-        const message = error instanceof ToolInputError ? error.message : 'The tool could not complete that request'
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: toolUse.id,
-          content: JSONResult({ ok: false, error: message }),
-          is_error: true,
-        })
-      }
+    progress('answer')
+    logTiming('success')
+    return {
+      text: 'I could not safely finish resolving that request within one turn. Please narrow it down or try again.',
+      proposal,
+      model,
     }
-    messages.push({ role: 'user', content: toolResults })
-  }
-
-  return {
-    text: 'I could not safely finish resolving that request within one turn. Please narrow it down or try again.',
-    proposal,
-    model,
+  } catch (error) {
+    logTiming('error')
+    throw error
   }
 }

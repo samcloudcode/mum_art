@@ -44,6 +44,11 @@ import type {
 } from '@/lib/assistant/types'
 import { appPath, isAppPath } from '@/lib/app-navigation'
 import { transcriptionFileName } from '@/lib/assistant/transcription'
+import {
+  ASSISTANT_PROGRESS_TEXT,
+  readAssistantStream,
+  type AssistantProgress,
+} from '@/lib/assistant/assistant-stream'
 
 const CONVERSATION_STORAGE_KEY = 'inventory-assistant-conversation'
 const DEFAULT_PHOTO_REQUEST =
@@ -99,13 +104,6 @@ export const ASSISTANT_SUGGESTIONS = [
     icon: PoundSterling,
   },
 ]
-
-type TurnResponse = {
-  conversationId: string
-  userMessage: AssistantMessage
-  assistantMessage: AssistantMessage
-  proposal: AssistantProposal | null
-}
 
 function apiError(value: unknown, fallback: string): string {
   if (value && typeof value === 'object' && 'error' in value && typeof value.error === 'string') {
@@ -222,6 +220,32 @@ export function AssistantMessageContent({
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}
       </ReactMarkdown>
+    </div>
+  )
+}
+
+export function AssistantProgressStatus({
+  progress,
+}: {
+  progress: AssistantProgress | null
+}) {
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-1">
+      <span className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Assistant
+      </span>
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="flex min-h-[4.25rem] w-full max-w-md items-center rounded-2xl border bg-card px-4 py-3 text-[15px] text-muted-foreground sm:min-h-12 sm:text-sm"
+      >
+        <Loader2
+          aria-hidden="true"
+          className="mr-2 h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+        />
+        <span>{progress ? ASSISTANT_PROGRESS_TEXT[progress] : 'Sending your request…'}</span>
+      </div>
     </div>
   )
 }
@@ -492,6 +516,7 @@ export function AssistantClient({
   const [photo, setPhoto] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
+  const [progress, setProgress] = useState<AssistantProgress | null>(null)
   const [isApplying, setIsApplying] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [isLoadingConversations, setIsLoadingConversations] = useState(true)
@@ -774,6 +799,7 @@ export function AssistantClient({
     setMessages((current) => [...current, optimistic])
     setInput('')
     setError(null)
+    setProgress(null)
     setIsSending(true)
 
     const form = new FormData()
@@ -783,10 +809,15 @@ export function AssistantClient({
 
     try {
       const response = await fetch('/api/assistant/messages', { method: 'POST', body: form })
-      const data = await responseData(response)
-      if (!response.ok) throw new Error(apiError(data, 'The assistant could not complete the request'))
+      if (!response.ok) {
+        const data = await responseData(response)
+        throw new Error(apiError(data, 'The assistant could not complete the request'))
+      }
+      if (!response.headers.get('content-type')?.includes('application/x-ndjson')) {
+        throw new Error('The assistant response could not be read. No inventory was changed. Please try again.')
+      }
 
-      const turn = data as TurnResponse
+      const turn = await readAssistantStream(response.body, setProgress)
       setConversationId(turn.conversationId)
       window.localStorage.setItem(CONVERSATION_STORAGE_KEY, turn.conversationId)
       setMessages((current) => [...current, turn.assistantMessage])
@@ -796,6 +827,7 @@ export function AssistantClient({
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'The assistant could not complete the request')
     } finally {
+      setProgress(null)
       setIsSending(false)
     }
   }, [audioState, clearPhoto, conversationId, input, isSending, loadConversations, photo])
@@ -857,6 +889,7 @@ export function AssistantClient({
     setMessages([])
     setProposal(null)
     setInput('')
+    setProgress(null)
     setShowHistory(false)
     clearPhoto()
     setError(null)
@@ -917,7 +950,7 @@ export function AssistantClient({
               size="sm"
               className="h-11 px-2.5 sm:px-3"
               onClick={() => setShowHistory((current) => !current)}
-              disabled={audioState !== 'idle'}
+              disabled={isSending || audioState !== 'idle'}
               aria-label="Show previous conversations"
             >
               <History className="size-4" />
@@ -929,7 +962,7 @@ export function AssistantClient({
               size="sm"
               className="h-11 px-2.5 sm:px-3"
               onClick={newConversation}
-              disabled={audioState !== 'idle'}
+              disabled={isSending || audioState !== 'idle'}
               aria-label="Start a new conversation"
             >
               <MessageSquarePlus className="h-4 w-4" />
@@ -1030,14 +1063,7 @@ export function AssistantClient({
         )}
 
         {!showHistory && isSending && (
-          <div className="flex min-w-0 flex-col items-start gap-1">
-            <span className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Assistant
-            </span>
-            <div className="flex items-center rounded-2xl border bg-card px-4 py-3 text-[15px] text-muted-foreground sm:text-sm">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking the records…
-            </div>
-          </div>
+          <AssistantProgressStatus progress={progress} />
         )}
 
         {!showHistory && proposal && (

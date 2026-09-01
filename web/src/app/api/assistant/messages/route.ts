@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import { createClient } from '@/lib/supabase/server'
 import { runProposalAgent, type AgentImage } from '@/lib/assistant/server-agent'
 import { assistantErrorDetails, assistantErrorResponse } from '@/lib/assistant/server-errors'
+import {
+  encodeAssistantStreamEvent,
+  type AssistantStreamEvent,
+} from '@/lib/assistant/assistant-stream'
 import {
   getAssistantCatalogueReference,
   toAssistantProposal,
@@ -234,63 +239,116 @@ export async function POST(request: NextRequest) {
     content: string
   }>).reverse()
 
-  try {
-    const result = await runProposalAgent({
-      supabase,
-      conversationId,
-      userId: user.id,
-      messages: history,
-      requestText: parsed.message,
-      image: parsed.image,
-      displayName: (profile as { full_name?: string | null } | null)?.full_name,
-      role: (profile as { role?: string | null } | null)?.role,
-      pendingPreview: pendingProposal?.status === 'pending' ? pendingProposal.preview : null,
-      catalogueReference,
-    })
-
-    const { data: assistantMessage, error: assistantMessageError } = await supabase
-      .from('assistant_messages')
-      .insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        role: 'assistant',
-        content: result.text,
-      })
-      .select('id,role,content,created_at')
-      .single()
-    if (assistantMessageError || !assistantMessage) {
-      return NextResponse.json({ error: 'The response could not be saved' }, { status: 500 })
-    }
-
-    await supabase
-      .from('assistant_conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', conversationId)
-      .eq('user_id', user.id)
-
-    const latestProposal = await readProposal(supabase, conversationId, user.id)
-    return NextResponse.json({
-      conversationId,
-      userMessage: messageFromRow(userMessage as unknown as MessageRow),
-      assistantMessage: messageFromRow(assistantMessage as unknown as MessageRow),
-      proposal: latestProposal,
-    })
-  } catch (error) {
-    if (error instanceof Error && error.message === 'The assistant is not configured yet') {
-      return NextResponse.json(
-        {
-          error: 'The assistant is not configured yet. No inventory was changed. Please ask an administrator to check its settings.',
-          code: 'assistant_not_configured',
-        },
-        { status: 503 }
-      )
-    }
-    const details = assistantErrorDetails(error)
-    const response = assistantErrorResponse(error)
-    console.error('Assistant request failed', details)
+  if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
-      { error: response.error, code: response.code, reference: details.requestId },
-      { status: response.status }
+      {
+        error: 'The assistant is not configured yet. No inventory was changed. Please ask an administrator to check its settings.',
+        code: 'assistant_not_configured',
+      },
+      { status: 503 }
     )
   }
+
+  const runId = randomUUID()
+  const activeConversationId = conversationId
+  let streamOpen = true
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = (event: AssistantStreamEvent) => {
+        if (!streamOpen) return
+        try {
+          controller.enqueue(encodeAssistantStreamEvent(event))
+        } catch {
+          streamOpen = false
+        }
+      }
+
+      void (async () => {
+        try {
+          const result = await runProposalAgent({
+            supabase,
+            conversationId: activeConversationId,
+            userId: user.id,
+            messages: history,
+            requestText: parsed.message,
+            image: parsed.image,
+            displayName: (profile as { full_name?: string | null } | null)?.full_name,
+            role: (profile as { role?: string | null } | null)?.role,
+            pendingPreview: pendingProposal?.status === 'pending' ? pendingProposal.preview : null,
+            catalogueReference,
+            runId,
+            onProgress: (progress) => send({ type: 'progress', progress }),
+          })
+
+          const { data: assistantMessage, error: assistantMessageError } = await supabase
+            .from('assistant_messages')
+            .insert({
+              conversation_id: activeConversationId,
+              user_id: user.id,
+              role: 'assistant',
+              content: result.text,
+            })
+            .select('id,role,content,created_at')
+            .single()
+          if (assistantMessageError || !assistantMessage) {
+            throw new Error('The response could not be saved')
+          }
+
+          await supabase
+            .from('assistant_conversations')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', activeConversationId)
+            .eq('user_id', user.id)
+
+          const latestProposal = await readProposal(supabase, activeConversationId, user.id)
+          send({
+            type: 'complete',
+            turn: {
+              conversationId: activeConversationId,
+              userMessage: messageFromRow(userMessage as unknown as MessageRow),
+              assistantMessage: messageFromRow(assistantMessage as unknown as MessageRow),
+              proposal: latestProposal,
+            },
+          })
+        } catch (error) {
+          const response = error instanceof Error && error.message === 'The assistant is not configured yet'
+            ? {
+                code: 'assistant_not_configured',
+                error: 'The assistant is not configured yet. No inventory was changed. Please ask an administrator to check its settings.',
+              }
+            : assistantErrorResponse(error)
+          const details = assistantErrorDetails(error)
+          console.error(JSON.stringify({
+            event: 'assistant_request_failed',
+            runId,
+            code: response.code,
+            providerErrorName: details.name.slice(0, 100),
+            providerStatus: details.status,
+            providerRequestId: details.requestId?.slice(0, 200),
+          }))
+          send({ type: 'error', error: response.error, code: response.code })
+        } finally {
+          if (streamOpen) {
+            try {
+              controller.close()
+            } catch {
+              streamOpen = false
+            }
+          }
+        }
+      })()
+    },
+    cancel() {
+      streamOpen = false
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Cache-Control': 'no-cache, no-store',
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'X-Accel-Buffering': 'no',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
 }

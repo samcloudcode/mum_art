@@ -6,7 +6,15 @@ import type {
   ToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/messages'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { AssistantProposal, InventoryAction, ProposalPreview } from './types'
+import {
+  ASSISTANT_EDITION_FRAME_TYPES,
+  ASSISTANT_EDITION_SIZES,
+  type AssistantEditionFrameType,
+  type AssistantEditionSize,
+  type AssistantProposal,
+  type InventoryAction,
+  type ProposalPreview,
+} from './types'
 import { appPath } from '@/lib/app-navigation'
 import {
   draftInventoryProposal,
@@ -212,7 +220,7 @@ export const ASSISTANT_TOOLS: Tool[] = ([
   {
     name: 'draft_inventory_actions',
     description:
-      'Create a pending, exact, human-reviewable inventory proposal. This does NOT change inventory. Call only after resolving every edition and location to database IDs and clarifying material ambiguity. May combine actions into one atomic proposal. A new proposal supersedes an older pending proposal in this conversation.',
+      'Create a pending, exact, human-reviewable inventory proposal. This does NOT change inventory. Call only after resolving every edition and location to database IDs and clarifying material ambiguity. mark_printed may include supplied size and frame_type; update_physical_details changes them without marking an edition printed. A new proposal supersedes an older pending proposal in this conversation.',
     input_schema: {
       type: 'object',
       properties: {
@@ -227,6 +235,7 @@ export const ASSISTANT_TOOLS: Tool[] = ([
                 type: 'string',
                 enum: [
                   'mark_printed',
+                  'update_physical_details',
                   'mark_sold',
                   'move_stock',
                   'confirm_stock_present',
@@ -244,6 +253,16 @@ export const ASSISTANT_TOOLS: Tool[] = ([
               date_in_gallery: { type: 'string', description: 'Exact YYYY-MM-DD date.' },
               retail_price: { type: 'number', description: 'Exact gross sale price in GBP.' },
               date_sold: { type: 'string', description: 'Exact YYYY-MM-DD sale date.' },
+              size: {
+                type: 'string',
+                enum: [...ASSISTANT_EDITION_SIZES],
+                description: 'Physical print size supplied by the user.',
+              },
+              frame_type: {
+                type: 'string',
+                enum: [...ASSISTANT_EDITION_FRAME_TYPES],
+                description: 'Physical presentation supplied by the user.',
+              },
             },
             required: ['type', 'edition_ids'],
             additionalProperties: false,
@@ -347,6 +366,24 @@ function optionalEnumArray<T extends string>(
   return [...new Set(value)] as T[]
 }
 
+function parsePhysicalDetails(action: Record<string, unknown>): {
+  size?: AssistantEditionSize
+  frame_type?: AssistantEditionFrameType
+} {
+  const size = optionalString(action, 'size')
+  const frameType = optionalString(action, 'frame_type')
+  if (size && !ASSISTANT_EDITION_SIZES.includes(size as AssistantEditionSize)) {
+    throw new ToolInputError('size contains an unsupported value')
+  }
+  if (frameType && !ASSISTANT_EDITION_FRAME_TYPES.includes(frameType as AssistantEditionFrameType)) {
+    throw new ToolInputError('frame_type contains an unsupported value')
+  }
+  return {
+    ...(size ? { size: size as AssistantEditionSize } : {}),
+    ...(frameType ? { frame_type: frameType as AssistantEditionFrameType } : {}),
+  }
+}
+
 function parseActions(input: unknown): InventoryAction[] {
   const values = record(input).actions
   if (!Array.isArray(values) || values.length === 0 || values.length > 20) {
@@ -357,8 +394,18 @@ function parseActions(input: unknown): InventoryAction[] {
     const action = record(value)
     const type = requiredString(action, 'type')
     const editionIds = integerArray(action.edition_ids, 'edition_ids')
+    const physicalDetails = parsePhysicalDetails(action)
 
-    if (type === 'mark_printed') return { type, edition_ids: editionIds }
+    if (type === 'mark_printed') return { type, edition_ids: editionIds, ...physicalDetails }
+    if (type === 'update_physical_details') {
+      if (!physicalDetails.size && !physicalDetails.frame_type) {
+        throw new ToolInputError('update_physical_details needs a size or frame_type')
+      }
+      return { type, edition_ids: editionIds, ...physicalDetails }
+    }
+    if (physicalDetails.size || physicalDetails.frame_type) {
+      throw new ToolInputError(`${type} cannot include size or frame_type`)
+    }
     if (type === 'mark_sold') {
       return {
         type,
@@ -635,7 +682,7 @@ Trusted application navigation:
 
 Fast tool paths:
 - Move: resolve IDs from the catalogue and find the exact current edition, then call draft_inventory_actions with move_stock (and mark_printed too if an edition recorded as unprinted was physically moved). Use today's date for a present-tense move.
-- Print: resolve the artwork and find the exact unsold, unprinted edition, then call draft_inventory_actions with mark_printed.
+- Print: resolve the artwork and find the exact unsold, unprinted edition, then call draft_inventory_actions with mark_printed. Include size or frame_type on that action when the user supplied them.
 - Gallery stock: resolve the location, then call get_gallery_stock. Report the exact recorded total and split confirmed-present from unconfirmed stock; do not equate a recorded location with physical confirmation. Request edition details only when the user needs the list.
 - Sales and sales totals: call query_sales against date_sold. For a calendar period such as last month, calculate its first day as sold_from and the following period's first day as sold_before. Include editions for "what sold"; use group_by and include_editions=false for totals or breakdowns.
 - Stock check or photographed list: resolve_inventory_entries in one batch, compare with get_gallery_stock using edition details when needed, then draft only explicit unambiguous differences.
@@ -644,6 +691,7 @@ Fast tool paths:
 Query examples:
 - "What sold at Seaview last month?" Resolve Seaview, then query_sales for that distributor with the exact bounded calendar-month dates and edition details.
 - "Show total sales by gallery and artwork this year." query_sales with the year's bounded dates, group_by gallery and artwork, and no edition details.
+- "What were my best-selling prints year to date versus the same period last year, taking current availability and seasonality into account?" Compare equal elapsed calendar periods with query_sales grouped by artwork and month. Then inspect current printed, unsold availability for the leading artworks. Clearly distinguish today's availability from historical availability, which cannot be reconstructed from current records.
 - "Who marked this edition sold?" get_inventory_history for that edition; this is audit causality rather than a sales report.
 
 Domain rules:
@@ -651,6 +699,7 @@ Domain rules:
 - Numbered edition 1 and AP 1 can coexist. APs are outside the numbered run. If the user did not distinguish them and both match, ask.
 - legacy_unknown editions are excluded from ordinary work and must not be proposed.
 - A null size means unmeasured; never guess a size.
+- Physical details use only these live application values: size is Small, Large, or Extra Large; frame type is Framed, Mounted, or Tube only. Update only details the user supplied.
 - Resolve artwork and location IDs through the live catalogue or read tools, and every edition ID through read tools. Never invent an ID.
 - Direct usually represents artist-held stock; Unknown represents genuinely unknown location. Resolve both by name when needed.
 - Recorded gallery stock means printed, unsold editions assigned to that location. Only is_stock_checked records are confirmed physically present. Always distinguish confirmed and unconfirmed counts, and never say a gallery definitely holds unconfirmed stock.

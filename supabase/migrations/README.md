@@ -38,10 +38,14 @@ not lexical globbing, distinguish them. The historical repository order is:
 13. `011_add_assistant_sales_and_undo.sql` — adds exact assistant sale fields
     and captured-state proposal reversal; expects 010 and must be applied before
     deploying application code that reads `reverts_proposal_id`
+14. `012_add_assistant_physical_details.sql` — extends bounded assistant
+    proposals and undo to the existing constrained `size` and `frame_type`
+    edition fields; expects 011 and must be applied before deploying code that
+    proposes those physical details
 
 Migrations 004–007 entered the repository in PR #44, 008 in PR #45, and 009 in
 PR #46. That records Git history only; verify current production state directly.
 
-Continue with `012` rather than renumbering historical files. Include
+Continue with `013` rather than renumbering historical files. Include
 dependencies, compatibility requirements, dry-run evidence, and the production
 result in the migration header or release record.

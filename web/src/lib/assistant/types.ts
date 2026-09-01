@@ -5,10 +5,24 @@ export type AssistantMessage = {
   createdAt: string
 }
 
+export const ASSISTANT_EDITION_SIZES = ['Small', 'Large', 'Extra Large'] as const
+export const ASSISTANT_EDITION_FRAME_TYPES = ['Framed', 'Tube only', 'Mounted'] as const
+
+export type AssistantEditionSize = (typeof ASSISTANT_EDITION_SIZES)[number]
+export type AssistantEditionFrameType = (typeof ASSISTANT_EDITION_FRAME_TYPES)[number]
+
 export type InventoryAction =
   | {
       type: 'mark_printed'
       edition_ids: number[]
+      size?: AssistantEditionSize
+      frame_type?: AssistantEditionFrameType
+    }
+  | {
+      type: 'update_physical_details'
+      edition_ids: number[]
+      size?: AssistantEditionSize
+      frame_type?: AssistantEditionFrameType
     }
   | {
       type: 'mark_sold'
@@ -50,6 +64,8 @@ export type ProposalFieldChange = {
     | 'location'
     | 'date_in_gallery'
     | 'is_stock_checked'
+    | 'size'
+    | 'frame_type'
   label: string
   before: string
   after: string

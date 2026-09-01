@@ -574,6 +574,82 @@ test('compiles printing and moving into one exact edition patch', async () => {
   ])
 })
 
+test('combines printing with exact size and frame details', async () => {
+  const database = new FakeDatabase()
+  const result = await draft(database, [{
+    type: 'mark_printed',
+    edition_ids: [10],
+    size: 'Large',
+    frame_type: 'Framed',
+  }])
+
+  assert.equal(result.ok, true)
+  const stored = database.insertedProposal?.compiled_changes as Array<{
+    patch: Record<string, unknown>
+    before: Record<string, unknown>
+    description: string
+  }>
+  assert.deepEqual(stored[0].patch, {
+    is_printed: true,
+    size: 'Large',
+    frame_type: 'Framed',
+  })
+  assert.deepEqual(stored[0].before, {
+    is_printed: false,
+    size: null,
+    frame_type: null,
+  })
+  assert.equal(stored[0].description, 'Marked as printed and updated physical details')
+  assert.deepEqual(
+    result.proposal?.preview.editions[0].changes.map((change) => ({
+      field: change.field,
+      before: change.before,
+      after: change.after,
+    })),
+    [
+      { field: 'is_printed', before: 'Not printed', after: 'Printed' },
+      { field: 'size', before: 'Not set', after: 'Large' },
+      { field: 'frame_type', before: 'Not set', after: 'Framed' },
+    ]
+  )
+})
+
+test('updates physical details on an already printed edition', async () => {
+  const database = new FakeDatabase()
+  database.editions = [database.edition({
+    is_printed: true,
+    size: 'Small',
+    frame_type: 'Mounted',
+  })]
+
+  const result = await draft(database, [{
+    type: 'update_physical_details',
+    edition_ids: [10],
+    size: 'Large',
+    frame_type: 'Framed',
+  }])
+
+  assert.equal(result.ok, true)
+  const stored = database.insertedProposal?.compiled_changes as Array<{
+    patch: Record<string, unknown>
+    before: Record<string, unknown>
+  }>
+  assert.deepEqual(stored[0].patch, { size: 'Large', frame_type: 'Framed' })
+  assert.deepEqual(stored[0].before, { size: 'Small', frame_type: 'Mounted' })
+})
+
+test('rejects conflicting physical detail instructions', async () => {
+  const database = new FakeDatabase()
+  const result = await draft(database, [
+    { type: 'update_physical_details', edition_ids: [10], size: 'Small' },
+    { type: 'update_physical_details', edition_ids: [10], size: 'Large' },
+  ])
+
+  assert.equal(result.ok, false)
+  assert.match(result.error ?? '', /conflicting size instructions/)
+  assert.equal(database.insertedProposal, null)
+})
+
 test('moving between locations clears the previous stock confirmation', async () => {
   const database = new FakeDatabase()
   database.editions = [database.edition({ is_printed: true, is_stock_checked: true })]
@@ -782,6 +858,50 @@ test('drafts an undo proposal from captured before-values', async () => {
     is_stock_checked: false,
   })
   assert.equal(stored[0].action, 'undo')
+})
+
+test('drafts an undo that restores physical details', async () => {
+  const database = new FakeDatabase()
+  database.appliedProposals = [{
+    id: '40000000-0000-4000-8000-000000000001',
+    user_id: '30000000-0000-4000-8000-000000000001',
+    conversation_id: '20000000-0000-4000-8000-000000000001',
+    status: 'applied',
+    preview: { summary: '1 edition: update physical details', editions: [], warnings: [] },
+    compiled_changes: [{
+      edition_id: 10,
+      expected_updated_at: '2026-08-30T09:00:00.000Z',
+      patch: { size: 'Large', frame_type: 'Framed' },
+      before: { size: null, frame_type: null },
+      action: 'update',
+      description: 'Updated physical details',
+    }],
+    reverts_proposal_id: null,
+    result: null,
+  }]
+  database.editions = [database.edition({
+    is_printed: true,
+    size: 'Large',
+    frame_type: 'Framed',
+    updated_at: '2026-08-30T10:00:00.000Z',
+  })]
+
+  const result = await draftUndoProposal(database.client(), {
+    conversationId: '20000000-0000-4000-8000-000000000001',
+    userId: '30000000-0000-4000-8000-000000000001',
+    requestText: 'undo that',
+    model: 'test-model',
+    canWrite: true,
+  })
+
+  assert.equal(result.ok, true)
+  const insertedUndo = database.insertedProposal as unknown as Record<string, unknown>
+  const stored = insertedUndo.compiled_changes as Array<{
+    patch: Record<string, unknown>
+    before: Record<string, unknown>
+  }>
+  assert.deepEqual(stored[0].patch, { size: null, frame_type: null })
+  assert.deepEqual(stored[0].before, { size: 'Large', frame_type: 'Framed' })
 })
 
 test('refuses undo when a relevant field changed afterwards', async () => {

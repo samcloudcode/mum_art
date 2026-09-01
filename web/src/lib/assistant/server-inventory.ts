@@ -6,6 +6,7 @@ import type {
   ProposalFieldChange,
   ProposalPreview,
 } from './types'
+import { ASSISTANT_EDITION_FRAME_TYPES, ASSISTANT_EDITION_SIZES } from './types'
 import { appPath } from '@/lib/app-navigation'
 
 const MAX_TOOL_RESULTS = 100
@@ -96,6 +97,8 @@ type AllowedPatch = {
   distributor_id?: number | null
   date_in_gallery?: string | null
   is_stock_checked?: boolean
+  size?: string | null
+  frame_type?: string | null
 }
 
 type CompiledChange = {
@@ -137,6 +140,8 @@ const PATCH_FIELDS = [
   'distributor_id',
   'date_in_gallery',
   'is_stock_checked',
+  'size',
+  'frame_type',
 ] as const satisfies ReadonlyArray<keyof AllowedPatch>
 
 const FIELD_LABELS: Record<keyof AllowedPatch, string> = {
@@ -149,6 +154,8 @@ const FIELD_LABELS: Record<keyof AllowedPatch, string> = {
   distributor_id: 'Location',
   date_in_gallery: 'In gallery from',
   is_stock_checked: 'Stock confirmation',
+  size: 'Size',
+  frame_type: 'Frame',
 }
 
 function one<T>(value: T | T[] | null): T | null {
@@ -922,6 +929,16 @@ function validPatchValue(field: keyof AllowedPatch, value: unknown): boolean {
     return value === null || (typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100)
   }
   if (field === 'distributor_id') return value === null || Number.isSafeInteger(value)
+  if (field === 'size') {
+    return value === null || (
+      typeof value === 'string' && ASSISTANT_EDITION_SIZES.includes(value as (typeof ASSISTANT_EDITION_SIZES)[number])
+    )
+  }
+  if (field === 'frame_type') {
+    return value === null || (
+      typeof value === 'string' && ASSISTANT_EDITION_FRAME_TYPES.includes(value as (typeof ASSISTANT_EDITION_FRAME_TYPES)[number])
+    )
+  }
   return value === null || (typeof value === 'string' && validDate(value))
 }
 
@@ -938,6 +955,8 @@ function validateResultingState(
   const retailPrice = resultingValue(row, patch, 'retail_price') as number | null
   const dateSold = resultingValue(row, patch, 'date_sold') as string | null
   const commission = resultingValue(row, patch, 'commission_percentage') as number | null
+  const size = resultingValue(row, patch, 'size')
+  const frameType = resultingValue(row, patch, 'frame_type')
 
   if (hasField(patch, 'distributor_id') && distributorId !== null) {
     const distributor = distributors.get(distributorId)
@@ -959,6 +978,8 @@ function validateResultingState(
   if (commission !== null && (!Number.isFinite(commission) || commission < 0 || commission > 100)) {
     return `${row.edition_display_name} has an invalid commission percentage`
   }
+  if (!validPatchValue('size', size)) return `${row.edition_display_name} has an invalid size`
+  if (!validPatchValue('frame_type', frameType)) return `${row.edition_display_name} has an invalid frame type`
   if (sold && !printed) return `${row.edition_display_name} must be printed before it can be marked sold`
   if (sold && (retailPrice === null || dateSold === null)) {
     return `${row.edition_display_name} needs an exact price and date before it can be marked sold`
@@ -1003,19 +1024,26 @@ function actionDescription(working: WorkingEdition, distributors: Map<number, Di
     }
   }
   if (working.intents.has('receive_stock_at_gallery')) {
-    return { action: 'move', description: `Received into ${destination ?? 'the location'} and confirmed present` }
+    const details = working.intents.has('update_physical_details') ? ' and updated physical details' : ''
+    return { action: 'move', description: `Received into ${destination ?? 'the location'} and confirmed present${details}` }
   }
   if (working.intents.has('mark_sold')) {
     return { action: 'sell', description: 'Marked as sold' }
   }
   if (working.intents.has('move_stock')) {
     const alsoPrinted = working.intents.has('mark_printed') ? ' and marked as printed' : ''
-    return { action: 'move', description: `Moved to ${destination ?? 'the location'}${alsoPrinted}` }
+    const details = working.intents.has('update_physical_details') ? ' and updated physical details' : ''
+    return { action: 'move', description: `Moved to ${destination ?? 'the location'}${alsoPrinted}${details}` }
   }
   if (working.intents.has('confirm_stock_present')) {
-    return { action: 'update', description: 'Confirmed present at the recorded location' }
+    const details = working.intents.has('update_physical_details') ? ' and updated physical details' : ''
+    return { action: 'update', description: `Confirmed present at the recorded location${details}` }
   }
-  return { action: 'update', description: 'Marked as printed' }
+  if (working.intents.has('mark_printed')) {
+    const details = working.intents.has('update_physical_details') ? ' and updated physical details' : ''
+    return { action: 'update', description: `Marked as printed${details}` }
+  }
+  return { action: 'update', description: 'Updated physical details' }
 }
 
 function hasUndoSnapshot(value: unknown): boolean {
@@ -1176,9 +1204,27 @@ export async function draftInventoryProposal(
         return { ok: false, error: `${target.row.edition_display_name} has more than one sale instruction` }
       }
       target.intents.add(action.type)
+      if (action.type === 'mark_printed' || action.type === 'update_physical_details') {
+        if (action.size !== undefined) {
+          if (target.patch.size !== undefined && target.patch.size !== action.size) {
+            return { ok: false, error: `${target.row.edition_display_name} has conflicting size instructions` }
+          }
+          target.patch.size = action.size
+        }
+        if (action.frame_type !== undefined) {
+          if (target.patch.frame_type !== undefined && target.patch.frame_type !== action.frame_type) {
+            return { ok: false, error: `${target.row.edition_display_name} has conflicting frame instructions` }
+          }
+          target.patch.frame_type = action.frame_type
+        }
+        if (action.size !== undefined || action.frame_type !== undefined) {
+          target.intents.add('update_physical_details')
+        }
+      }
       if (action.type === 'mark_printed') {
         target.patch.is_printed = true
-      } else if (action.type === 'mark_sold') {
+      }
+      if (action.type === 'mark_sold') {
         target.patch.is_sold = true
         target.patch.is_settled = false
         target.patch.retail_price = action.retail_price
@@ -1273,6 +1319,10 @@ export async function draftInventoryProposal(
     if (patch.is_stock_checked !== undefined && patch.is_stock_checked !== Boolean(row.is_stock_checked)) {
       actualPatch.is_stock_checked = patch.is_stock_checked
     }
+    if (patch.size !== undefined && patch.size !== row.size) actualPatch.size = patch.size
+    if (patch.frame_type !== undefined && patch.frame_type !== row.frame_type) {
+      actualPatch.frame_type = patch.frame_type
+    }
 
     const fields = Object.keys(actualPatch) as Array<keyof AllowedPatch>
     if (fields.length === 0) {
@@ -1317,7 +1367,12 @@ export async function draftInventoryProposal(
 
   const actionLabels = new Set(
     params.actions.map((action) => {
-      if (action.type === 'mark_printed') return 'mark as printed'
+      if (action.type === 'mark_printed') {
+        return action.size !== undefined || action.frame_type !== undefined
+          ? 'mark as printed and update physical details'
+          : 'mark as printed'
+      }
+      if (action.type === 'update_physical_details') return 'update physical details'
       if (action.type === 'mark_sold') return 'mark as sold'
       if (action.type === 'move_stock') return 'move stock'
       if (action.type === 'confirm_stock_present') return 'confirm stock present'

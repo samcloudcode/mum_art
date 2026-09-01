@@ -2,12 +2,31 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
+  ASSISTANT_SUGGESTIONS,
   AssistantMessageContent,
   ConversationHistory,
   microphoneErrorMessage,
   ProposalCard,
 } from './assistant-client'
 import type { AssistantProposal } from '@/lib/assistant/types'
+
+test('assistant suggestions are real requests without placeholder fields', () => {
+  assert.deepEqual(
+    ASSISTANT_SUGGESTIONS.map((suggestion) => suggestion.template),
+    [
+      'What is my confirmed stock at Kendalls?',
+      'Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed?',
+      'What were my best-selling prints year to date versus the same period last year, taking current availability and seasonality into account?',
+      'I’ve just printed Seagrove Landscape editions 112, 113 and 114. They’re all large and framed.',
+      'I’ve moved Osborne edition 159 from Kendalls to Seaview Gallery.',
+      'Bembridge Lifeboat Station Landscape edition 18 sold for £235 today.',
+    ]
+  )
+  assert.equal(
+    ASSISTANT_SUGGESTIONS.some((suggestion) => /\[[^\]]+\]/.test(suggestion.template)),
+    false
+  )
+})
 
 test('proposal card renders exact before and after values with an explicit confirmation', () => {
   const proposal: AssistantProposal = {

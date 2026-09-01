@@ -49,29 +49,45 @@ const CONVERSATION_STORAGE_KEY = 'inventory-assistant-conversation'
 const DEFAULT_PHOTO_REQUEST =
   'Read this handwritten inventory note, check each legible entry against the current records, and tell me about discrepancies or possible changes.'
 
-const suggestions = [
+export const ASSISTANT_SUGGESTIONS = [
   {
-    title: 'Move stock',
-    description: 'Between galleries or Direct',
-    template: 'Move [artwork and edition] to [destination]',
-    icon: ArrowRightLeft,
-  },
-  {
-    title: 'Stock check',
-    description: 'Compare a gallery with the records',
-    template: 'Stock check at [gallery]: I found [editions present or missing]',
+    title: 'Confirmed stock',
+    description: 'What is my confirmed stock at Kendalls?',
+    template: 'What is my confirmed stock at Kendalls?',
     icon: ClipboardCheck,
   },
   {
+    title: 'Find artwork stock',
+    description:
+      'Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed?',
+    template:
+      'Where is my printed, unsold stock of Bembridge Lifeboat Station Landscape, split into confirmed and unconfirmed?',
+    icon: ClipboardCheck,
+  },
+  {
+    title: 'Compare sales',
+    description:
+      'What were my best-selling prints year to date versus the same period last year, taking current availability and seasonality into account?',
+    template:
+      'What were my best-selling prints year to date versus the same period last year, taking current availability and seasonality into account?',
+    icon: Clock3,
+  },
+  {
     title: 'Record printing',
-    description: 'Mark newly printed editions',
-    template: 'Mark [artwork and editions] as printed',
+    description: 'I’ve just printed Seagrove Landscape editions 112, 113 and 114. They’re all large and framed.',
+    template: 'I’ve just printed Seagrove Landscape editions 112, 113 and 114. They’re all large and framed.',
     icon: Printer,
   },
   {
+    title: 'Move stock',
+    description: 'I’ve moved Osborne edition 159 from Kendalls to Seaview Gallery.',
+    template: 'I’ve moved Osborne edition 159 from Kendalls to Seaview Gallery.',
+    icon: ArrowRightLeft,
+  },
+  {
     title: 'Record a sale',
-    description: 'Mark one edition as sold',
-    template: 'Record [artwork and edition] sold for £[price] on [date]',
+    description: 'Bembridge Lifeboat Station Landscape edition 18 sold for £235 today.',
+    template: 'Bembridge Lifeboat Station Landscape edition 18 sold for £235 today.',
     icon: PoundSterling,
   },
 ]
@@ -950,20 +966,27 @@ export function AssistantClient({
                 Choose a task, type your own request, or attach a handwritten list.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-left">
-              {suggestions.map((suggestion) => {
+            <div
+              className={cn(
+                'grid grid-cols-1 gap-2 text-left',
+                !panel && 'sm:grid-cols-2'
+              )}
+            >
+              {ASSISTANT_SUGGESTIONS.map((suggestion) => {
                 const Icon = suggestion.icon
                 return (
                   <button
-                    key={suggestion.title}
+                    key={suggestion.template}
                     type="button"
                     onClick={() => prepareTask(suggestion.template)}
-                    className="min-w-0 rounded-xl border bg-card p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 sm:p-4"
+                    className="flex min-w-0 gap-3 rounded-xl border bg-card p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 sm:p-4"
                   >
-                    <Icon className="mb-2 h-4 w-4 text-accent sm:h-5 sm:w-5" />
-                    <span className="block text-sm font-medium">{suggestion.title}</span>
-                    <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
-                      {suggestion.description}
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent sm:h-5 sm:w-5" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{suggestion.title}</span>
+                      <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
+                        {suggestion.description}
+                      </span>
                     </span>
                   </button>
                 )

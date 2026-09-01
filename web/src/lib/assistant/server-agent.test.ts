@@ -60,6 +60,13 @@ test('only inventory-writing assistant tools use strict schemas', () => {
     0
   )
   assert.ok(optionalParameters <= 24, `strict schemas have ${optionalParameters} optional parameters`)
+
+  const inventorySchema = JSON.stringify(
+    strictTools.find((tool) => tool.name === 'draft_inventory_actions')?.input_schema
+  )
+  assert.match(inventorySchema, /update_physical_details/)
+  assert.match(inventorySchema, /"size".*"Small","Large","Extra Large"/)
+  assert.match(inventorySchema, /"frame_type".*"Framed","Tube only","Mounted"/)
 })
 
 test('agent investigates database facts and uses the proposal as confirmation', () => {
@@ -88,11 +95,15 @@ test('agent investigates database facts and uses the proposal as confirmation', 
   assert.match(prompt, /skip find_artworks\/find_locations/)
   assert.match(prompt, /"id":5,"name":"Bembridge","short_name":"Bemb"/)
   assert.match(prompt, /Move:.*find the exact current edition.*draft_inventory_actions with move_stock/)
+  assert.match(prompt, /Print:.*Include size or frame_type on that action/)
+  assert.match(prompt, /size is Small, Large, or Extra Large/)
   assert.match(prompt, /Gallery stock:.*get_gallery_stock.*split confirmed-present from unconfirmed stock/)
   assert.match(prompt, /never say a gallery definitely holds unconfirmed stock/)
   assert.match(prompt, /Sales and sales totals:.*query_sales against date_sold/)
   assert.match(prompt, /What sold at Seaview last month.*query_sales/)
   assert.match(prompt, /Show total sales by gallery and artwork this year.*group_by gallery and artwork/)
+  assert.match(prompt, /best-selling prints year to date versus the same period last year.*equal elapsed calendar periods/)
+  assert.match(prompt, /today's availability from historical availability/)
   assert.match(prompt, /Who marked this edition sold.*get_inventory_history/)
   assert.match(prompt, /Never use inventory history for what sold/)
   assert.match(prompt, /Record a sale:.*draft_inventory_actions with mark_sold/)

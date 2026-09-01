@@ -14,6 +14,7 @@ import { EditionsTableWithFilters } from '@/components/editions/editions-table-w
 import { artworkEditionsPreset } from '@/lib/editions-presets'
 import { ArtworkImageSection } from '@/components/artwork-image-section'
 import { nextUnprintedEditionNumber } from '@/lib/utils/analytics'
+import { appPath } from '@/lib/app-navigation'
 import { Loader2, Check } from 'lucide-react'
 import {
   BarChart,
@@ -473,16 +474,19 @@ export default function ArtworkDetailPage({ params }: PageProps) {
               {unsettledEditions.map((edition) => (
                 <div
                   key={edition.id}
-                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                  className="flex items-center gap-3 border-b border-gray-100 last:border-0"
                 >
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      checked={selectedUnsettled.has(edition.id)}
-                      onCheckedChange={() => toggleUnsettledSelection(edition.id)}
-                    />
+                  <Checkbox
+                    checked={selectedUnsettled.has(edition.id)}
+                    onCheckedChange={() => toggleUnsettledSelection(edition.id)}
+                  />
+                  <Link
+                    href={appPath.edition(edition.id)}
+                    className="flex min-w-0 flex-1 items-center justify-between gap-3 py-2 group"
+                  >
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{edition.name}</span>
+                        <span className="font-medium group-hover:underline">{edition.name}</span>
                         {edition.size && (
                           <span className="text-sm text-gray-500">{edition.size}</span>
                         )}
@@ -503,10 +507,10 @@ export default function ArtworkDetailPage({ params }: PageProps) {
                         )}
                       </div>
                     </div>
-                  </div>
-                  <span className="font-medium text-amber-600">
-                    {formatPrice(edition.netAmount)} net
-                  </span>
+                    <span className="shrink-0 font-medium text-amber-600">
+                      {formatPrice(edition.netAmount)} net
+                    </span>
+                  </Link>
                 </div>
               ))}
             </div>

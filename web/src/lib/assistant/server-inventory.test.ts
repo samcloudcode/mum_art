@@ -369,6 +369,57 @@ test('summarises complete gallery stock separately from physical confirmation', 
   assert.equal(result.editions_truncated, true)
 })
 
+test('filters and orders unconfirmed gallery stock details in the tool', async () => {
+  const database = new FakeDatabase()
+  database.editions = [
+    database.edition({
+      id: 10,
+      is_printed: true,
+      is_stock_checked: false,
+      date_in_gallery: '2024-05-01',
+    }),
+    database.edition({
+      id: 11,
+      is_printed: true,
+      is_stock_checked: true,
+      date_in_gallery: '2023-01-01',
+    }),
+    database.edition({
+      id: 12,
+      is_printed: true,
+      is_stock_checked: false,
+      date_in_gallery: null,
+    }),
+    database.edition({
+      id: 13,
+      is_printed: true,
+      is_stock_checked: false,
+      date_in_gallery: '2025-01-01',
+    }),
+  ]
+
+  const result = await getGalleryStock(database.client(), 1, {
+    include_editions: true,
+    edition_confirmation: 'unconfirmed',
+    edition_order: 'oldest_in_gallery',
+    limit: 100,
+  })
+
+  assert.equal(result.recorded_stock_count, 4)
+  assert.equal(result.confirmed_present_count, 1)
+  assert.equal(result.unconfirmed_count, 3)
+  assert.equal(result.edition_detail_count, 3)
+  assert.equal(result.editions_truncated, false)
+  assert.deepEqual(
+    result.editions.map((edition) => ({ id: edition.id, date: edition.date_in_gallery })),
+    [
+      { id: 12, date: null },
+      { id: 10, date: '2024-05-01' },
+      { id: 13, date: '2025-01-01' },
+    ]
+  )
+})
+
 test('queries sales by business date and gallery with deterministic totals and groups', async () => {
   const database = new FakeDatabase()
   const seaview = {

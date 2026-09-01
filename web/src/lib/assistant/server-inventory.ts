@@ -407,6 +407,8 @@ export async function getGalleryStock(
   filters: {
     print_id?: number
     include_editions?: boolean
+    edition_confirmation?: 'all' | 'confirmed' | 'unconfirmed'
+    edition_order?: 'edition_id' | 'oldest_in_gallery' | 'newest_in_gallery'
     limit?: number
   } = {}
 ) {
@@ -470,6 +472,24 @@ export async function getGalleryStock(
   const recordedStockCount = matchedStockCount ?? rows.length
   const detailLimit = Math.min(Math.max(filters.limit ?? 50, 1), MAX_TOOL_RESULTS)
   const includeEditions = filters.include_editions === true
+  const editionConfirmation = filters.edition_confirmation ?? 'all'
+  const editionOrder = filters.edition_order ?? 'edition_id'
+  const detailRows = rows
+    .filter((edition) =>
+      editionConfirmation === 'all'
+      || (editionConfirmation === 'confirmed' && edition.is_stock_checked === true)
+      || (editionConfirmation === 'unconfirmed' && edition.is_stock_checked !== true)
+    )
+    .sort((left, right) => {
+      if (editionOrder === 'edition_id') return left.id - right.id
+      const leftDate = left.date_in_gallery
+      const rightDate = right.date_in_gallery
+      if (leftDate === rightDate) return left.id - right.id
+      if (leftDate === null) return editionOrder === 'oldest_in_gallery' ? -1 : 1
+      if (rightDate === null) return editionOrder === 'oldest_in_gallery' ? 1 : -1
+      const dateComparison = leftDate.localeCompare(rightDate)
+      return editionOrder === 'oldest_in_gallery' ? dateComparison : -dateComparison
+    })
 
   return {
     gallery_id: distributorId,
@@ -480,8 +500,11 @@ export async function getGalleryStock(
     confirmed_present_count: confirmedPresentCount,
     unconfirmed_count: rows.length - confirmedPresentCount,
     by_artwork: byArtwork,
-    editions: includeEditions ? rows.slice(0, detailLimit).map(publicEdition) : [],
-    editions_truncated: includeEditions && recordedStockCount > detailLimit,
+    edition_confirmation: editionConfirmation,
+    edition_order: editionOrder,
+    edition_detail_count: detailRows.length,
+    editions: includeEditions ? detailRows.slice(0, detailLimit).map(publicEdition) : [],
+    editions_truncated: includeEditions && detailRows.length > detailLimit,
   }
 }
 

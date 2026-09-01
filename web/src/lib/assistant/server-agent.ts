@@ -125,6 +125,16 @@ export const ASSISTANT_TOOLS: Tool[] = ([
           type: 'boolean',
           description: 'Include edition detail rows; defaults to false because totals and artwork groups are returned separately.',
         },
+        edition_confirmation: {
+          type: 'string',
+          enum: ['all', 'confirmed', 'unconfirmed'],
+          description: 'Filter edition detail rows by physical confirmation; totals still cover all recorded stock.',
+        },
+        edition_order: {
+          type: 'string',
+          enum: ['edition_id', 'oldest_in_gallery', 'newest_in_gallery'],
+          description: 'Order edition details. Missing in-gallery dates come first for oldest_in_gallery review.',
+        },
         limit: {
           type: 'integer',
           description: 'Maximum edition detail rows from 1 to 100; does not limit totals or artwork groups.',
@@ -487,6 +497,14 @@ async function executeTool(
     }
   }
   if (name === 'get_gallery_stock') {
+    const editionConfirmation = optionalString(values, 'edition_confirmation')
+    if (editionConfirmation && !['all', 'confirmed', 'unconfirmed'].includes(editionConfirmation)) {
+      throw new ToolInputError('edition_confirmation must be all, confirmed or unconfirmed')
+    }
+    const editionOrder = optionalString(values, 'edition_order')
+    if (editionOrder && !['edition_id', 'oldest_in_gallery', 'newest_in_gallery'].includes(editionOrder)) {
+      throw new ToolInputError('edition_order must be edition_id, oldest_in_gallery or newest_in_gallery')
+    }
     return {
       content: JSONResult(
         await getGalleryStock(
@@ -495,6 +513,8 @@ async function executeTool(
           {
             print_id: integer(values, 'print_id'),
             include_editions: optionalBoolean(values, 'include_editions'),
+            edition_confirmation: editionConfirmation as 'all' | 'confirmed' | 'unconfirmed' | undefined,
+            edition_order: editionOrder as 'edition_id' | 'oldest_in_gallery' | 'newest_in_gallery' | undefined,
             limit: integer(values, 'limit'),
           }
         )
@@ -692,7 +712,7 @@ Query examples:
 - "What sold at Seaview last month?" Resolve Seaview, then query_sales for that distributor with the exact bounded calendar-month dates and edition details.
 - "Show total sales by gallery and artwork this year." query_sales with the year's bounded dates, group_by gallery and artwork, and no edition details.
 - "What were my best-selling prints year to date versus the same period last year, taking current availability and seasonality into account?" Compare equal elapsed calendar periods with query_sales grouped by artwork and month. Then inspect current printed, unsold availability for the leading artworks. Clearly distinguish today's availability from historical availability, which cannot be reconstructed from current records.
-- "Review unconfirmed stock at Kendalls, oldest records first, so I can decide what to confirm or move to Unknown." Resolve Kendalls, call get_gallery_stock with edition details, and list only unconfirmed editions ordered by the oldest date_in_gallery first. Do not propose moving anything until the user identifies it as missing.
+- "Review unconfirmed stock at Kendalls, oldest records first, so I can decide what to confirm or move to Unknown." Resolve Kendalls, then call get_gallery_stock once with include_editions=true, edition_confirmation=unconfirmed, edition_order=oldest_in_gallery, and limit=100. List the returned editions; do not propose moving anything until the user identifies it as missing.
 - "Who marked this edition sold?" get_inventory_history for that edition; this is audit causality rather than a sales report.
 
 Domain rules:
@@ -809,26 +829,26 @@ export async function runProposalAgent(params: {
     canWrite: params.role?.toLowerCase() !== 'viewer',
   }
   let proposal: AssistantProposal | null = null
+  const system = systemPrompt({
+    timeZone,
+    displayName: params.displayName,
+    role: params.role,
+    pendingPreview: params.pendingPreview,
+    catalogueReference: params.catalogueReference,
+    hasImage: Boolean(params.image),
+  })
 
   for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
     const response = await anthropic.messages.create({
       model,
-      max_tokens: 2500,
-      system: systemPrompt({
-        timeZone,
-        displayName: params.displayName,
-        role: params.role,
-        pendingPreview: params.pendingPreview,
-        catalogueReference: params.catalogueReference,
-        hasImage: Boolean(params.image),
-      }),
+      max_tokens: 4000,
+      system,
       messages,
       tools: ASSISTANT_TOOLS,
       metadata: { user_id: params.userId },
     })
 
     const assistantBlocks = responseContent(response.content)
-    messages.push({ role: 'assistant', content: assistantBlocks })
     const toolUses = response.content.filter((block) => block.type === 'tool_use')
 
     if (toolUses.length === 0) {
@@ -837,13 +857,46 @@ export async function runProposalAgent(params: {
         .map((block) => block.text)
         .join('\n')
         .trim()
+      if (!text) {
+        console.warn('Assistant returned empty final content', {
+          model,
+          stopReason: response.stop_reason,
+          contentTypes: response.content.map((block) => block.type),
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        })
+        const retry = await anthropic.messages.create({
+          model,
+          max_tokens: 4000,
+          system,
+          messages: [
+            ...messages,
+            {
+              role: 'user',
+              content: 'Give the concise, complete final answer now using the tool results already provided. Do not describe internal steps.',
+            },
+          ],
+          metadata: { user_id: params.userId },
+        })
+        const retryText = retry.content
+          .filter((block) => block.type === 'text')
+          .map((block) => block.text)
+          .join('\n')
+          .trim()
+        return {
+          text: retryText || 'I found the records but could not format a complete response. Please try again.',
+          proposal,
+          model,
+        }
+      }
       return {
-        text: text || 'I could not produce a complete response. Please try rephrasing the request.',
+        text,
         proposal,
         model,
       }
     }
 
+    messages.push({ role: 'assistant', content: assistantBlocks })
     const toolResults: ToolResultBlockParam[] = []
     for (const toolUse of toolUses) {
       try {

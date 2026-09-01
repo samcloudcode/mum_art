@@ -1127,7 +1127,6 @@ export function AssistantClient({
             ref={fileInputRef}
             type="file"
             accept="image/jpeg,image/png,image/gif,image/webp"
-            capture="environment"
             className="hidden"
             onChange={(event) => void handlePhoto(event.target.files?.[0] ?? null)}
           />

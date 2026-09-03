@@ -17,6 +17,7 @@ assistant button on desktop). It opens over the current page so you can ask:
 - `I printed Seagrove Landscape editions 112, 113 and 114. They are all large and framed.`
 - `I moved Osborne edition 159 from Kendalls to Seaview Gallery.`
 - `Bembridge Lifeboat Station Landscape edition 18 sold for £235 today.`
+- `Mark all my unsettled Aqualibrum sales from August as paid.`
 - `Bembridge 9 is not at the gallery where it is recorded.`
 
 At the start of every request, the assistant loads the active artwork and gallery
@@ -100,8 +101,8 @@ the proposal becomes stale and must be prepared again; it is never partly
 applied.
 
 This confirmation rule applies to every inventory write the assistant can
-prepare, including sales and undo. Read-only searches and history questions do
-not need confirmation because they do not change inventory.
+prepare, including sales, settlement and undo. Read-only searches and history
+questions do not need confirmation because they do not change inventory.
 
 ## Printing and moving stock
 
@@ -128,6 +129,17 @@ unsold.
 Each named sale refers to one exact edition. You can still request several
 sales in one message; they appear together in one proposal and are applied
 atomically only after confirmation.
+
+## Recording payment
+
+**Paid** and **settled** are two labels for the same inventory status. A sold
+edition remains unpaid/unsettled until its payment is recorded. Ask the
+assistant to mark one or more sales as paid or settled; it finds the exact sold,
+unsettled editions and shows each **Not settled → Settled** change for review.
+
+The assistant can settle only editions already recorded as sold. Editions that
+are already settled are omitted from the proposal. Nothing changes until you
+press **Confirm**, and the whole settlement proposal is applied atomically.
 
 ## Undoing an assistant change
 

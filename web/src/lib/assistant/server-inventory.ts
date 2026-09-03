@@ -106,7 +106,7 @@ type CompiledChange = {
   expected_updated_at: string
   patch: AllowedPatch
   before: AllowedPatch
-  action: 'update' | 'move' | 'sell' | 'undo'
+  action: 'update' | 'move' | 'sell' | 'settle' | 'undo'
   description: string
 }
 
@@ -1032,7 +1032,7 @@ function labelValue(field: keyof AllowedPatch, value: unknown, distributors: Map
 }
 
 function actionDescription(working: WorkingEdition, distributors: Map<number, DistributorLookup>): {
-  action: 'update' | 'move' | 'sell'
+  action: 'update' | 'move' | 'sell' | 'settle'
   description: string
 } {
   const destination = working.patch.distributor_id
@@ -1052,6 +1052,9 @@ function actionDescription(working: WorkingEdition, distributors: Map<number, Di
   }
   if (working.intents.has('mark_sold')) {
     return { action: 'sell', description: 'Marked as sold' }
+  }
+  if (working.intents.has('mark_settled')) {
+    return { action: 'settle', description: 'Marked as settled' }
   }
   if (working.intents.has('move_stock')) {
     const additionalChanges = [
@@ -1264,6 +1267,8 @@ export async function draftInventoryProposal(
           ? null
           : distributorMap.get(target.row.distributor_id)?.commission_percentage ?? null
         target.patch.is_stock_checked = false
+      } else if (action.type === 'mark_settled') {
+        target.patch.is_settled = true
       } else if (action.type === 'move_stock') {
         target.destinations.add(action.distributor_id)
         target.confirmationLocations.add(action.distributor_id)
@@ -1303,7 +1308,10 @@ export async function draftInventoryProposal(
     if (row.status_confidence === 'legacy_unknown') {
       return { ok: false, error: `${row.edition_display_name} has legacy-unknown status and needs explicit manual review` }
     }
-    if (row.is_sold) return { ok: false, error: `${row.edition_display_name} is recorded as sold` }
+    const isSettlementOnly = intents.size === 1 && intents.has('mark_settled')
+    if (row.is_sold && !isSettlementOnly) {
+      return { ok: false, error: `${row.edition_display_name} is recorded as sold` }
+    }
     if (!row.updated_at) return { ok: false, error: `${row.edition_display_name} has no update version and cannot be safely proposed` }
     if (intents.has('mark_sold') && intents.size > 1) {
       return { ok: false, error: `${row.edition_display_name} cannot be sold and changed in another way in the same proposal` }
@@ -1404,6 +1412,7 @@ export async function draftInventoryProposal(
       }
       if (action.type === 'update_physical_details') return 'update physical details'
       if (action.type === 'mark_sold') return 'mark as sold'
+      if (action.type === 'mark_settled') return 'mark as settled'
       if (action.type === 'move_stock') return 'move stock'
       if (action.type === 'confirm_stock_present') return 'confirm stock present'
       if (action.type === 'report_stock_missing') return 'report missing stock'
@@ -1564,7 +1573,15 @@ export async function draftUndoProposal(
     }
 
     const inversePatch = originalChange.before
-    if (row.is_sold && !(hasField(inversePatch, 'is_sold') && inversePatch.is_sold === false)) {
+    const reversesSettlement = fields.length === 1
+      && fields[0] === 'is_settled'
+      && originalChange.patch.is_settled === true
+      && inversePatch.is_settled === false
+    if (
+      row.is_sold
+      && !(hasField(inversePatch, 'is_sold') && inversePatch.is_sold === false)
+      && !reversesSettlement
+    ) {
       return { ok: false, error: `${row.edition_display_name} is now sold and cannot be automatically undone` }
     }
     const invalidState = validateResultingState(row, inversePatch, distributorMap)

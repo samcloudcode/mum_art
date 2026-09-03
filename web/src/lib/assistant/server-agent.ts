@@ -235,7 +235,7 @@ export const ASSISTANT_TOOLS: Tool[] = ([
   {
     name: 'draft_inventory_actions',
     description:
-      'Create a pending, exact, human-reviewable inventory proposal. This does NOT change inventory. Call only after resolving every edition and location to database IDs and clarifying material ambiguity. mark_printed may include supplied size and frame_type; update_physical_details changes them without marking an edition printed. A new proposal supersedes an older pending proposal in this conversation.',
+      'Create a pending, exact, human-reviewable inventory proposal. This does NOT change inventory. Call only after resolving every edition and location to database IDs and clarifying material ambiguity. mark_printed may include supplied size and frame_type; update_physical_details changes them without marking an edition printed; mark_settled records sold editions as paid. A new proposal supersedes an older pending proposal in this conversation.',
     input_schema: {
       type: 'object',
       properties: {
@@ -252,6 +252,7 @@ export const ASSISTANT_TOOLS: Tool[] = ([
                   'mark_printed',
                   'update_physical_details',
                   'mark_sold',
+                  'mark_settled',
                   'move_stock',
                   'confirm_stock_present',
                   'report_stock_missing',
@@ -454,6 +455,7 @@ function parseActions(input: unknown): InventoryAction[] {
     if (physicalDetails.size || physicalDetails.frame_type) {
       throw new ToolInputError(`${type} cannot include size or frame_type`)
     }
+    if (type === 'mark_settled') return { type, edition_ids: editionIds }
     if (type === 'mark_sold') {
       return {
         type,
@@ -745,6 +747,7 @@ Fast tool paths:
 - Sales and sales totals: call query_sales against date_sold. For a calendar period such as last month, calculate its first day as sold_from and the following period's first day as sold_before. Include editions for "what sold"; use group_by and include_editions=false for totals or breakdowns.
 - Stock check or photographed list: resolve_inventory_entries in one batch, compare with get_gallery_stock using edition details when needed, then draft only explicit unambiguous differences.
 - Record a sale: find one exact printed unsold edition, then call draft_inventory_actions with mark_sold, the user-supplied gross price, and the sale date.
+- Settle sales/payment: use query_sales to resolve the exact sold, unsettled editions, then call draft_inventory_actions with mark_settled. Paid and settled are the same inventory status.
 
 Query examples:
 - "What sold at Seaview last month?" Resolve Seaview, then query_sales for that distributor with the exact bounded calendar-month dates and edition details.
@@ -766,7 +769,8 @@ Domain rules:
 - Unreported stock is not automatically missing. Only report missing when the user says it is absent.
 - A sale needs one exact printed, unsold edition, the exact gross GBP price, and the exact sale date. Never assume a zero price or today's date; ask when either is missing.
 - Marking a sale keeps its recorded location, snapshots that location's current commission percentage, clears stock confirmation, and starts as not settled.
-- Sold records cannot be moved, printed, or stock-checked. They may only be returned to their exact prior state through a safe undo of the proposal that sold them.
+- Paid and settled mean the same thing in this inventory. Only an already-sold, unsettled edition can be marked settled; one settlement action may contain multiple resolved edition IDs.
+- Sold records cannot be moved, printed, or stock-checked. They may be marked settled, or returned to their exact prior state through a safe undo of the proposal that changed them.
 - For broad phrases such as "all" or a range, expand and inspect the exact records. If a result is truncated, do not propose from an incomplete set.
 
 History:

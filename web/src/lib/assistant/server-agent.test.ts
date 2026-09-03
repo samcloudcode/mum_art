@@ -71,6 +71,7 @@ test('only inventory-writing assistant tools use strict schemas', () => {
     strictTools.find((tool) => tool.name === 'draft_inventory_actions')?.input_schema
   )
   assert.match(inventorySchema, /update_physical_details/)
+  assert.match(inventorySchema, /mark_settled/)
   assert.match(inventorySchema, /"size".*"Small","Large","Extra Large"/)
   assert.match(inventorySchema, /"frame_type".*"Framed","Tube only","Mounted"/)
 })
@@ -168,4 +169,7 @@ test('agent investigates database facts and uses the proposal as confirmation', 
   assert.match(prompt, /Who marked this edition sold.*get_inventory_history/)
   assert.match(prompt, /Never use inventory history for what sold/)
   assert.match(prompt, /Record a sale:.*draft_inventory_actions with mark_sold/)
+  assert.match(prompt, /Settle sales\/payment:.*query_sales.*mark_settled/)
+  assert.match(prompt, /Paid and settled mean the same thing/)
+  assert.match(prompt, /one settlement action may contain multiple resolved edition IDs/)
 })

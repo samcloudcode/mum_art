@@ -31,6 +31,10 @@ export type InventoryAction =
       date_sold: string
     }
   | {
+      type: 'mark_settled'
+      edition_ids: number[]
+    }
+  | {
       type: 'move_stock'
       edition_ids: number[]
       distributor_id: number

@@ -844,6 +844,124 @@ test('keeps a sale separate from printing or moving the same edition', async () 
   assert.match(duplicateSale.error ?? '', /more than one sale instruction/)
 })
 
+test('compiles bulk settlement for sold editions and omits already-paid sales', async () => {
+  const database = new FakeDatabase()
+  database.editions = [
+    database.edition({
+      is_printed: true,
+      is_sold: true,
+      retail_price: 125.5,
+      date_sold: '2026-08-20',
+    }),
+    database.edition({
+      id: 11,
+      edition_number: 13,
+      edition_display_name: 'Bembridge 13',
+      is_printed: true,
+      is_sold: true,
+      retail_price: 160,
+      date_sold: '2026-08-22',
+    }),
+    database.edition({
+      id: 12,
+      edition_number: 14,
+      edition_display_name: 'Bembridge 14',
+      is_printed: true,
+      is_sold: true,
+      is_settled: true,
+      retail_price: 170,
+      date_sold: '2026-08-24',
+    }),
+  ]
+
+  const result = await draft(database, [{ type: 'mark_settled', edition_ids: [10, 11, 12] }])
+
+  assert.equal(result.ok, true)
+  assert.equal(result.proposal?.preview.summary, '2 editions: mark as settled')
+  assert.deepEqual(result.proposal?.preview.warnings, ['1 already-correct edition was omitted.'])
+  for (const edition of result.proposal?.preview.editions ?? []) {
+    assert.deepEqual(edition.changes, [{
+      field: 'is_settled',
+      label: 'Settlement',
+      before: 'Not settled',
+      after: 'Settled',
+    }])
+  }
+  const stored = database.insertedProposal?.compiled_changes as Array<{
+    edition_id: number
+    patch: Record<string, unknown>
+    before: Record<string, unknown>
+    action: string
+    description: string
+  }>
+  assert.deepEqual(stored, [10, 11].map((editionId) => ({
+    edition_id: editionId,
+    expected_updated_at: '2026-08-30T09:00:00.000Z',
+    patch: { is_settled: true },
+    before: { is_settled: false },
+    action: 'settle',
+    description: 'Marked as settled',
+  })))
+})
+
+test('requires an edition to be sold before it can be settled', async () => {
+  const database = new FakeDatabase()
+  database.editions = [database.edition({ is_printed: true })]
+
+  const result = await draft(database, [{ type: 'mark_settled', edition_ids: [10] }])
+
+  assert.equal(result.ok, false)
+  assert.match(result.error ?? '', /cannot be settled unless it is sold/)
+  assert.equal(database.insertedProposal, null)
+})
+
+test('drafts an undo that restores an unsettled payment status', async () => {
+  const database = new FakeDatabase()
+  database.editions = [database.edition({
+    is_printed: true,
+    is_sold: true,
+    retail_price: 125.5,
+    date_sold: '2026-08-20',
+  })]
+  await draft(database, [{ type: 'mark_settled', edition_ids: [10] }])
+  database.appliedProposals = [{
+    id: '40000000-0000-4000-8000-000000000001',
+    user_id: '30000000-0000-4000-8000-000000000001',
+    conversation_id: '20000000-0000-4000-8000-000000000001',
+    status: 'applied',
+    preview: database.insertedProposal?.preview,
+    compiled_changes: database.insertedProposal?.compiled_changes,
+    reverts_proposal_id: null,
+    result: null,
+  }]
+  database.editions = [database.edition({
+    is_printed: true,
+    is_sold: true,
+    is_settled: true,
+    retail_price: 125.5,
+    date_sold: '2026-08-20',
+    updated_at: '2026-08-30T10:00:00.000Z',
+  })]
+  database.insertedProposal = null
+
+  const result = await draftUndoProposal(database.client(), {
+    conversationId: '20000000-0000-4000-8000-000000000001',
+    userId: '30000000-0000-4000-8000-000000000001',
+    requestText: 'undo that',
+    model: 'test-model',
+    canWrite: true,
+  })
+
+  assert.equal(result.ok, true)
+  const insertedUndo = database.insertedProposal as unknown as Record<string, unknown>
+  const stored = insertedUndo.compiled_changes as Array<{
+    patch: Record<string, unknown>
+    before: Record<string, unknown>
+  }>
+  assert.deepEqual(stored[0].patch, { is_settled: false })
+  assert.deepEqual(stored[0].before, { is_settled: true })
+})
+
 test('drafts an undo proposal from captured before-values', async () => {
   const database = new FakeDatabase()
   database.editions = [database.edition({

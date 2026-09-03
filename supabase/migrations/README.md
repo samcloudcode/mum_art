@@ -42,10 +42,14 @@ not lexical globbing, distinguish them. The historical repository order is:
     proposals and undo to the existing constrained `size` and `frame_type`
     edition fields; expects 011 and must be applied before deploying code that
     proposes those physical details
+15. `013_add_assistant_settlement.sql` — permits the bounded assistant proposal
+    function to mark already-sold editions settled and safely undo that payment
+    status; expects 012 and must be applied before deploying code that proposes
+    settlement
 
 Migrations 004–007 entered the repository in PR #44, 008 in PR #45, and 009 in
 PR #46. That records Git history only; verify current production state directly.
 
-Continue with `013` rather than renumbering historical files. Include
+Continue with `014` rather than renumbering historical files. Include
 dependencies, compatibility requirements, dry-run evidence, and the production
 result in the migration header or release record.
